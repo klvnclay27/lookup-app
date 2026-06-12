@@ -1,98 +1,85 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView} from "react-native";
+import { useState, useEffect} from "react";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
 
 export default function HomeScreen() {
+  const [temperature, setTemperature] = useState(95);
+  const [condition, setCondition] = useState("Hot");
+
+  useEffect(() => {
+    console.log("LookUP loaded");
+  }, []);
+  
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <ScrollView style={styles.container}>
+      <Text style={styles.title}>Good Afternoon Kelvin</Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+      <Text style={styles.subtitle}>
+        What to LookUP
+      </Text>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>☀️ Weather</Text>
+      
+      <Text style= {styles.cardText}>
+        {temperature} °F • {condition}
+      </Text>   
+      </View>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🚗 Traffic</Text>
+        <Text style={styles.cardText}>Commute: 28 mins</Text>
+        
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>📉 Finance</Text>
+        <Text style={styles.cardText}>S&P 500 +0.8</Text>
+        
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🎵 Music</Text>
+        <Text style={styles.cardText}>Todays's Playlist</Text>
+        
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    backgroundColor: "#121212",
+    padding: 20,
   },
   title: {
-    textAlign: 'center',
+    color:"white",
+    fontSize: 36,
+    fontWeight: "bold",
+    marginTop: 50,
+    marginBottom: 20,
   },
-  code: {
-    textTransform: 'uppercase',
+  card: {
+    backgroundColor: "#1e1e1e",
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 15,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  cardTitle: {
+    color: "white",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 5,
   },
-});
+  cardText: {
+    color: "#b3b3b3",
+    fontSize: 14,
+  },
+  subtitle: {
+    color: "#b3b3b3",
+    fontSize: 18,
+    marginBottom: 25,
+  }
+})
