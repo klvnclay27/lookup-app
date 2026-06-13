@@ -6,11 +6,13 @@ import { getWeather, getWeatherCondition } from "@/services/weather";
 export default function HomeScreen() {
   const [temperature, setTemperature] = useState(95);
   const [condition, setCondition] = useState("Hot");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
   getWeather().then((data) => {
     setTemperature(data.temperature);
     setCondition(getWeatherCondition(data.weatherCode));
+    setLoading(false);
   });
   }, []);
 
@@ -28,7 +30,7 @@ export default function HomeScreen() {
         <Text style={styles.cardTitle}>☀️ Weather</Text>
       
       <Text style= {styles.cardText}>
-        {temperature} °F • {condition}
+        {loading ? "Loading weather..." : `${temperature} °F • ${condition}`}
       </Text>   
       </View>
 
