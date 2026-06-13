@@ -1,14 +1,7 @@
 import { View, Text, StyleSheet, ScrollView} from "react-native";
 import { useState, useEffect} from "react";
-import { getWeather } from "@/services/weather";
+import { getWeather, getWeatherCondition } from "@/services/weather";
 
-
-function getWeatherCondition(code: number) {
-  if (code === 0) return "Sunny";
-  if (code <= 3) return "Cloudy";
-  if (code === 67) return "Rainy";
-  return "Unknown";
-}
 
 export default function HomeScreen() {
   const [temperature, setTemperature] = useState(95);

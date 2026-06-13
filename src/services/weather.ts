@@ -12,3 +12,10 @@ export async function getWeather() {
         weatherCode: data.current_weather.weathercode,
     };
 }
+
+export function getWeatherCondition(code: number) {
+  if (code === 0) return "Sunny";
+  if (code <= 3) return "Cloudy";
+  if (code === 67) return "Rainy";
+  return "Unknown";
+}
