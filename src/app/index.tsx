@@ -1,19 +1,29 @@
 import { View, Text, StyleSheet, ScrollView} from "react-native";
-import { useState, useEffect} from "react";
+import { useState, useEffect, use} from "react";
 import { getWeather, getWeatherCondition } from "@/services/weather";
+import { getTraffic } from "@/services/traffic";
 
 
 export default function HomeScreen() {
   const [temperature, setTemperature] = useState(95);
   const [condition, setCondition] = useState("Hot");
   const [loading, setLoading] = useState(true);
+  const [commute, setCommute] = useState("Loading...");
 
   useEffect(() => {
   getWeather().then((data) => {
     setTemperature(data.temperature);
     setCondition(getWeatherCondition(data.weatherCode));
+
+    getTraffic().then((trafficData) => {
+      setCommute(trafficData.commute);
+    });
     setLoading(false);
-  });
+  })
+  .catch(() => {
+    setCondition("Weather unavailable");
+    setLoading(false);
+  })
   }, []);
 
     
@@ -36,7 +46,7 @@ export default function HomeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🚗 Traffic</Text>
-        <Text style={styles.cardText}>Commute: 28 mins</Text>
+        <Text style={styles.cardText}>Commute: {commute}</Text>
         
       </View>
 
