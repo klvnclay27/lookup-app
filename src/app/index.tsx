@@ -1,7 +1,9 @@
 import { View, Text, StyleSheet, ScrollView} from "react-native";
-import { useState, useEffect, use} from "react";
+import { useState, useEffect, } from "react";
 import { getWeather, getWeatherCondition } from "@/services/weather";
 import { getTraffic } from "@/services/traffic";
+import { getFinance  } from "@/services/finance";
+import { getMusic } from "@/services/music"
 
 
 export default function HomeScreen() {
@@ -9,11 +11,21 @@ export default function HomeScreen() {
   const [condition, setCondition] = useState("Hot");
   const [loading, setLoading] = useState(true);
   const [commute, setCommute] = useState("Loading...");
+  const [market, setMarket] = useState("Loading...");
+  const [playlist, setPlaylist] = useState("Loading...")
 
   useEffect(() => {
   getWeather().then((data) => {
     setTemperature(data.temperature);
     setCondition(getWeatherCondition(data.weatherCode));
+
+    getMusic().then((musicData) => {
+      setPlaylist(musicData.playlist);
+    });
+
+    getFinance().then((financeData) => {
+      setMarket(financeData.market);
+    });
 
     getTraffic().then((trafficData) => {
       setCommute(trafficData.commute);
@@ -46,19 +58,21 @@ export default function HomeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🚗 Traffic</Text>
-        <Text style={styles.cardText}>Commute: {commute}</Text>
+        <Text style={styles.cardText}>
+          {loading ? "Loading traffic..." : `Commute: ${commute}`}
+        </Text>
         
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>📉 Finance</Text>
-        <Text style={styles.cardText}>S&P 500 +0.8</Text>
+        <Text style={styles.cardText}>{market}</Text>
         
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🎵 Music</Text>
-        <Text style={styles.cardText}>Todays's Playlist</Text>
+        <Text style={styles.cardText}>{playlist}</Text>
         
       </View>
     </ScrollView>
