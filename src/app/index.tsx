@@ -1,9 +1,12 @@
 import { View, Text, StyleSheet, ScrollView} from "react-native";
 import { useState, useEffect } from "react";
 import { getWeather, getWeatherCondition } from "@/services/weather";
+import { getSports } from "@/services/sports";
+import { getEntertainment } from "@/services/entertainment";
 import { getTraffic } from "@/services/traffic";
 import { getFinance  } from "@/services/finance";
 import { getMusic } from "@/services/music"
+
 
 
 export default function HomeScreen() {
@@ -13,6 +16,8 @@ export default function HomeScreen() {
   const [commute, setCommute] = useState("Loading...");
   const [market, setMarket] = useState("Loading...");
   const [playlist, setPlaylist] = useState("Loading...");
+  const [game, setGame] = useState("Loading...")
+  const [movie, setMovie] = useState("Loading...")
 
   useEffect(() => {
   getWeather().then((data) => {
@@ -21,6 +26,14 @@ export default function HomeScreen() {
 
     getMusic().then((musicData) => {
       setPlaylist(musicData.playlist);
+    });
+
+     getSports().then((sportsData) => {
+      setGame(sportsData.game);
+    });
+
+     getEntertainment().then((entertainmentData) => {
+      setMovie(entertainmentData.movie);
     });
 
     getFinance().then((financeData) => {
@@ -71,7 +84,8 @@ export default function HomeScreen() {
       
       <Text style= {styles.cardText}>
         {loading ? "Loading weather..." : `${temperature} °F • ${condition}`}
-      </Text>   
+      </Text>
+
       </View>
 
       <View style={styles.card}>
@@ -81,6 +95,21 @@ export default function HomeScreen() {
         </Text>
         
       </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🏀 Sports</Text>
+        <Text style={styles.cardText}>{game}</Text>
+        
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🎬 Entertainment</Text>
+
+        <Text style={styles.cardText}>
+          Now Showing: {movie}
+        </Text>
+      </View>
+
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>📉 Finance</Text>
