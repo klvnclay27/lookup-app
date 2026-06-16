@@ -16,7 +16,7 @@ export default function HomeScreen() {
   const [commute, setCommute] = useState("Loading...");
   const [market, setMarket] = useState("Loading...");
   const [playlist, setPlaylist] = useState("Loading...");
-  const [game, setGame] = useState("Loading...")
+  const [games, setGames] = useState<string[]>([]);
   const [movie, setMovie] = useState("Loading...")
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function HomeScreen() {
     });
 
      getSports().then((sportsData) => {
-      setGame(sportsData.game);
+      setGames(sportsData.games);
     });
 
      getEntertainment().then((entertainmentData) => {
@@ -98,7 +98,9 @@ export default function HomeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🏀 Sports</Text>
-        <Text style={styles.cardText}>{game}</Text>
+        <Text style={styles.cardText}>
+          {games.join(" |")}
+        </Text>
         
       </View>
 
