@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView} from "react-native";
-import { useState, useEffect, } from "react";
+import { useState, useEffect } from "react";
 import { getWeather, getWeatherCondition } from "@/services/weather";
 import { getTraffic } from "@/services/traffic";
 import { getFinance  } from "@/services/finance";
@@ -12,7 +12,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [commute, setCommute] = useState("Loading...");
   const [market, setMarket] = useState("Loading...");
-  const [playlist, setPlaylist] = useState("Loading...")
+  const [playlist, setPlaylist] = useState("Loading...");
 
   useEffect(() => {
   getWeather().then((data) => {
@@ -42,11 +42,29 @@ export default function HomeScreen() {
   
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Good Afternoon Kelvin</Text>
-
+      <View style={styles.card}>
       <Text style={styles.subtitle}>
         What to LookUP
       </Text>
+
+      <Text style={styles.title}>👋 Daily Briefing</Text>
+
+      <Text style={styles.cardText}>
+        Weather: {temperature}°F • {condition}
+      </Text>
+
+       <Text style={styles.cardText}>
+        Commute: {commute}
+       </Text>
+
+        <Text style={styles.cardText}>
+          Market: {market}
+        </Text>
+
+         <Text style={styles.cardText}>
+          Today's Playlist: {playlist}
+         </Text>
+         </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>☀️ Weather</Text>
