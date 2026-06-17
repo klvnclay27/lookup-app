@@ -58,27 +58,34 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.card}>
-      <Text style={styles.subtitle}>
-        What to LookUP
-      </Text>
+      
 
       <Text style={styles.title}>👋 Daily Briefing</Text>
 
       <Text style={styles.cardText}>
-        Weather: {temperature}°F • {condition}
+       🌤️ Weather: {temperature}°F • {condition}
       </Text>
 
        <Text style={styles.cardText}>
-        Commute: {commute}
+        🚗 Commute: {commute}
        </Text>
 
         <Text style={styles.cardText}>
-          Market: {market}
+         📉 Market: {market}
         </Text>
 
          <Text style={styles.cardText}>
-          Today's Playlist: {tracks[0]}
+         🎵 Today's Playlist: {tracks[0]}
          </Text>
+
+          <Text style={styles.cardText}>
+         🏀 Top Game: {games[0]}
+         </Text>
+
+         <Text style={styles.cardText}>
+         🎬 Featured Movie: {movie}
+         </Text>
+
          </View>
 
       <View style={styles.card}>
@@ -100,7 +107,7 @@ export default function HomeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🏀 Sports</Text>
-        <Text style={[styles.cardText, {marginBottom: 8}]}>
+        <Text style={[styles.cardTitle, {marginBottom: 8}]}>
           Today's Games
         </Text>
 
