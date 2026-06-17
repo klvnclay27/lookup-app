@@ -98,9 +98,18 @@ export default function HomeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🏀 Sports</Text>
-        <Text style={styles.cardText}>
-          {games.join(" |")}
+        <Text style={[styles.cardText, {marginBottom: 8}]}>
+          Today's Games
         </Text>
+
+        {games.map((game, index) => (
+          <Text
+             key={index}
+             style={[styles.cardText, {marginBottom: 4 }]}
+             >
+              {game}
+             </Text>
+        ))}
         
       </View>
 
