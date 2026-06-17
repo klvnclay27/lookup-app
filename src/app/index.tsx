@@ -6,6 +6,7 @@ import { getEntertainment } from "@/services/entertainment";
 import { getTraffic } from "@/services/traffic";
 import { getFinance  } from "@/services/finance";
 import { getMusic } from "@/services/music"
+import { Link } from "expo-router";
 
 
 
@@ -87,7 +88,7 @@ export default function HomeScreen() {
          </Text>
 
          </View>
-
+      <Link href="/weather" asChild>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>☀️ Weather</Text>
       
@@ -96,6 +97,7 @@ export default function HomeScreen() {
       </Text>
 
       </View>
+      </Link>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🚗 Traffic</Text>
@@ -104,9 +106,10 @@ export default function HomeScreen() {
         </Text>
         
       </View>
-
+      <Link href="/sports" asChild>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🏀 Sports</Text>
+        
         <Text style={[styles.cardTitle, {marginBottom: 8}]}>
           Today's Games
         </Text>
@@ -121,6 +124,7 @@ export default function HomeScreen() {
         ))}
         
       </View>
+      </Link>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🎬 Entertainment</Text>
