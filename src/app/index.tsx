@@ -18,6 +18,7 @@ export default function HomeScreen() {
   const [playlist, setPlaylist] = useState("Loading...");
   const [games, setGames] = useState<string[]>([]);
   const [movie, setMovie] = useState("Loading...")
+  const [tracks, setTracks] = useState<string[]>([]);
 
   useEffect(() => {
   getWeather().then((data) => {
@@ -26,6 +27,7 @@ export default function HomeScreen() {
 
     getMusic().then((musicData) => {
       setPlaylist(musicData.playlist);
+      setTracks(musicData.tracks)
     });
 
      getSports().then((sportsData) => {
@@ -75,7 +77,7 @@ export default function HomeScreen() {
         </Text>
 
          <Text style={styles.cardText}>
-          Today's Playlist: {playlist}
+          Today's Playlist: {tracks[0]}
          </Text>
          </View>
 
@@ -130,7 +132,16 @@ export default function HomeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🎵 Music</Text>
-        <Text style={styles.cardText}>{playlist}</Text>
+        
+        <Text style={[styles.cardText, {marginBottom: 8}]}>
+          Top Tracks Today
+        </Text>
+
+         {tracks.map((track, index) => (
+          <Text key={index} style={styles.cardText}>
+            • {track}
+          </Text>
+        ))}
         
       </View>
     </ScrollView>
