@@ -126,6 +126,7 @@ export default function HomeScreen() {
       </View>
       </Link>
 
+      <Link href="/sports" asChild>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🎬 Entertainment</Text>
 
@@ -133,14 +134,15 @@ export default function HomeScreen() {
           Now Showing: {movie}
         </Text>
       </View>
+      </Link>
 
-
+      <Link href="/finance" asChild>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>📉 Finance</Text>
         <Text style={styles.cardText}>{market}</Text>
         
       </View>
-
+      </Link>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🎵 Music</Text>
         
