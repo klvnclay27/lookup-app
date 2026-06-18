@@ -7,6 +7,7 @@ import { getTraffic } from "@/services/traffic";
 import { getFinance  } from "@/services/finance";
 import { getMusic } from "@/services/music"
 import { Link } from "expo-router";
+import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
 
 
 
@@ -22,36 +23,42 @@ export default function HomeScreen() {
   const [tracks, setTracks] = useState<string[]>([]);
 
   useEffect(() => {
-  getWeather().then((data) => {
-    setTemperature(data.temperature);
-    setCondition(getWeatherCondition(data.weatherCode));
+    getWeather()
+    .then((data) => {
+      setTemperature(data.temperature);
+      setCondition(getWeatherCondition(data.weatherCode));
+    })
+    .catch(() => setCondition("Weather unavailable"));
 
-    getMusic().then((musicData) => {
+    getMusic()
+    .then((musicData) => {
       setPlaylist(musicData.playlist);
-      setTracks(musicData.tracks)
+      setTracks(musicData.tracks);
     });
 
-     getSports().then((sportsData) => {
-      setGames(sportsData.games);
+    getSports()
+    .then((sportsData) => {
+      setGames(sportsData.games)
     });
 
-     getEntertainment().then((entertainmentData) => {
-      setMovie(entertainmentData.movie);
+    getEntertainment()
+    .then((EntertainmentData) => {
+      setMovie(EntertainmentData.movie)
     });
 
-    getFinance().then((financeData) => {
-      setMarket(financeData.market);
+    getFinance()
+    .then((financeData) => {
+      setMarket(financeData.market)
     });
 
-    getTraffic().then((trafficData) => {
-      setCommute(trafficData.commute);
+    getTraffic()
+    .then((trafficData) => {
+      setCommute(trafficData.commute)
     });
+
     setLoading(false);
-  })
-  .catch(() => {
-    setCondition("Weather unavailable");
-    setLoading(false);
-  })
+
+    
   }, []);
 
     
@@ -59,6 +66,14 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.card}>
+
+        <Text style={styles.welcome}>
+          Welcome to LookUP
+        </Text>
+
+        <Text style={styles.subtitle}>
+          Your daily hub for Weather, Traffic, Sports, Entertainment, Finance & Music
+        </Text>
       
 
       <Text style={styles.title}>👋 Daily Briefing</Text>
@@ -87,6 +102,7 @@ export default function HomeScreen() {
          🎬 Featured Movie: {movie}
          </Text>
 
+         
          </View>
       <Link href="/weather" asChild>
       <View style={styles.card}>
@@ -167,6 +183,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
     padding: 20,
   },
+
   title: {
     color:"white",
     fontSize: 36,
@@ -174,25 +191,57 @@ const styles = StyleSheet.create({
     marginTop: 50,
     marginBottom: 20,
   },
+
   card: {
     backgroundColor: "#1e1e1e",
     padding: 20,
     borderRadius: 16,
     marginBottom: 15,
+    borderWidth: 1,
+    borderColor:"rgba(255,255,255,0.12)",
+    shadowColor: "000",
+    shadowOffset: { width: 0, height: 8},
+    shadowOpacity: 0.25,
+    elevation: 8,
   },
+
   cardTitle: {
     color: "white",
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 5,
   },
+
   cardText: {
     color: "#b3b3b3",
     fontSize: 14,
   },
+
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+    marginTop: 20,
+    marginBottom: 10,
+
+  },
+  quickItem: {
+    fontSize: 16,
+    color: "#b3b3b3",
+    marginBottom: 6,
+  },
+
   subtitle: {
     color: "#b3b3b3",
     fontSize: 18,
     marginBottom: 25,
-  }
+  },
+
+  welcome: {
+    fontSize: 36,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 8,
+  },
+
 })
