@@ -60,9 +60,7 @@ export default function HomeScreen() {
 
     
   }, []);
-
-    
-  
+ 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.card}>
@@ -101,6 +99,18 @@ export default function HomeScreen() {
          <Text style={styles.cardText}>
          🎬 Featured Movie: {movie}
          </Text>
+         </View>
+
+         <View style={styles.quickStatsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{temperature}</Text>
+            <Text style={styles.statLabel}>Weather</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{commute}</Text>
+            <Text style={styles.statLabel}>Traffic</Text>
+         </View>
 
          
          </View>
@@ -243,5 +253,31 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginBottom: 8,
   },
+
+  quickStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
+
+  statCard: {
+    flex: 1,
+    backgroundColor: "#1e293b",
+    padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    alignItems: "center",
+  },
+
+  statNumber: {
+    color: "38bdf8",
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+
+  statLabel: {
+    color: "#cbd5e1",
+    marginTop: 4,
+  }
 
 })
