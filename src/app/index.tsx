@@ -66,12 +66,25 @@ export default function HomeScreen() {
       <View style={styles.card}>
 
         <Text style={styles.welcome}>
-          Welcome to LookUP
+          Good Morning Kelvin
+        </Text>
+
+        <Text style={styles.heroDate}>
+          Thursday, June 18
         </Text>
 
         <Text style={styles.subtitle}>
-          Your daily hub for Weather, Traffic, Sports, Entertainment, Finance & Music
+          Everything you need, all in one place. 
         </Text>
+
+        <View style={styles.heroBanner}>
+          <Text style={styles.heroTitle}>
+            {temperature}°F
+          </Text>
+          <Text style={styles.heroSubtitle}>
+           🌤️ {condition} • 🚗 {commute}
+          </Text>
+        </View>
       
 
       <Text style={styles.title}>👋 Daily Briefing</Text>
@@ -111,6 +124,11 @@ export default function HomeScreen() {
             <Text style={styles.statNumber}>{commute}</Text>
             <Text style={styles.statLabel}>Traffic</Text>
          </View>
+
+         <View style={styles.statCard}>
+          <Text style={styles.statNumber}>500</Text>
+          <Text style={styles.statLabel}>S&P</Text>
+        </View>
 
          
          </View>
@@ -278,6 +296,34 @@ const styles = StyleSheet.create({
   statLabel: {
     color: "#cbd5e1",
     marginTop: 4,
-  }
+  },
+
+  heroDate: {
+    color: "#94a3b8",
+    fontSize: 16,
+    marginBottom: 20,
+
+  },
+
+  heroBanner: {
+    backgroundColor: "#1e40af",
+    padding: 20,
+    borderRadius: 18,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+
+  heroTitle:{
+    color: "#fff",
+    fontSize: 42,
+    fontWeight: "bold",
+  },
+
+  heroSubtitle: {
+    color: "#dbeafe",
+    fontSize: 16,
+    marginTop: 6,
+  },
 
 })
