@@ -120,8 +120,6 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>Weather</Text>
           </View>
 
-          
-
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{commute}</Text>
             <Text style={styles.statLabel}>Traffic</Text>
@@ -131,8 +129,9 @@ export default function HomeScreen() {
           <Text style={styles.statNumber}>{market}</Text>
           <Text style={styles.statLabel}>Market</Text>
         </View>
+      
 
-        <View style={styles.card}>
+        <View style={styles.trendsCard}>
         <Text style={styles.title}>
           🔥 Top Trends Today
         </Text>
@@ -151,7 +150,7 @@ export default function HomeScreen() {
         
         </View>
 
-         
+       
          </View>
       <Link href="/weather" asChild>
       <View style={styles.card}>
@@ -295,6 +294,7 @@ const styles = StyleSheet.create({
 
   quickStatsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     marginTop: 20,
   },
@@ -346,5 +346,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 6,
   },
+
+  trendsCard: {
+    width: "100%",
+    backgroundColor: "#1e293b",
+    padding: 20,
+    borderRadius: 18,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  }
 
 })
