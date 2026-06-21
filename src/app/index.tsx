@@ -120,14 +120,35 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>Weather</Text>
           </View>
 
+          
+
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{commute}</Text>
             <Text style={styles.statLabel}>Traffic</Text>
          </View>
 
          <View style={styles.statCard}>
-          <Text style={styles.statNumber}>500</Text>
-          <Text style={styles.statLabel}>S&P</Text>
+          <Text style={styles.statNumber}>{market}</Text>
+          <Text style={styles.statLabel}>Market</Text>
+        </View>
+
+        <View style={styles.card}>
+        <Text style={styles.title}>
+          🔥 Top Trends Today
+        </Text>
+
+        <Text style={styles.cardText}>
+          🏀 {games[0]}
+        </Text>
+
+        <Text style={styles.cardText}>
+          🎬 {movie}
+        </Text>
+
+        <Text style={styles.cardText}>
+          🎵 {tracks[0]}
+        </Text>
+        
         </View>
 
          
@@ -187,18 +208,18 @@ export default function HomeScreen() {
         
       </View>
       </Link>
-      <View style={styles.card}>
+
+      
+      <View style={[styles.card, {margin: 24}]}>
         <Text style={styles.cardTitle}>🎵 Music</Text>
         
         <Text style={[styles.cardText, {marginBottom: 8}]}>
           Top Tracks Today
         </Text>
 
-         {tracks.map((track, index) => (
-          <Text key={index} style={styles.cardText}>
-            • {track}
-          </Text>
-        ))}
+        
+
+        
         
       </View>
     </ScrollView>
