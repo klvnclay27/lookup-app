@@ -20,10 +20,11 @@ const topTracks = [
 
 export default function MusicScreen() {
     return (
-        <ScrollView style={styles.container}>
-            <Text style={styles.title}>🎵 Music</Text>
-            <Text style={styles.subtitle}>Made for Kelvin</Text>
-
+        <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        >
+            
             <View style={styles.nowPlayingCard}>
                 <Text style={styles.nowPlayingLabel}>Now Playing</Text>
                 <Text style={styles.nowPlayingTitle}>{topTracks[0].title}</Text>
@@ -34,8 +35,9 @@ export default function MusicScreen() {
 
             {topTracks.map((song, index) => (
                 <View key={index} style={styles.songCard}>
+                    <View style={styles.albumBox}>
                     <Text style={styles.songRank}>{index + 1}</Text>
-
+                    </View>
                     <View>
                         <Text style={styles.songTitle}>{song.title}</Text>
                         <Text style={styles.songArtist}>{song.artist}</Text>
@@ -53,16 +55,23 @@ const styles = StyleSheet.create({
         backgroundColor: "#0f172a",
         padding: 20,
     },
+
+    content: {
+        paddingBottom: 120,
+    },
+    
     title: {
         fontSize: 32,
         fontWeight: "bold",
         color: "#fff",
         marginBottom: 20,
     },
+    
     info: {
         fontSize: 20,
         color: "#fff",
     },
+    
     note: {
         marginTop: 20,
         color:"94a3b8",
@@ -141,5 +150,15 @@ const styles = StyleSheet.create({
         color: "#64748b",
         fontSize: 13,
         marginTop: 2,
+    },
+
+    albumBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 10,
+        backgroundColor: "#1e40af",
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 16,
     }
 })

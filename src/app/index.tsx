@@ -66,11 +66,11 @@ export default function HomeScreen() {
       <View style={styles.card}>
 
         <Text style={styles.welcome}>
-          Good Morning Kelvin
+          LookUP Dashboard
         </Text>
 
         <Text style={styles.heroDate}>
-          Thursday, June 18
+          Your personal daily hub
         </Text>
 
         <Text style={styles.subtitle}>
@@ -86,8 +86,7 @@ export default function HomeScreen() {
           </Text>
         </View>
       
-
-      <Text style={styles.title}>👋 Daily Briefing</Text>
+      <Text style={styles.sectionTitle}>👋 Daily Briefing</Text>
 
       <Text style={styles.cardText}>
        🌤️ Weather: {temperature}°F • {condition}
@@ -116,24 +115,28 @@ export default function HomeScreen() {
 
          <View style={styles.quickStatsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{temperature}</Text>
-            <Text style={styles.statLabel}>Weather</Text>
+            <Text style={styles.statNumber}>{temperature}°</Text>
+            <Text style={styles.statLabel}>🌤️ Weather</Text>
           </View>
 
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{commute}</Text>
-            <Text style={styles.statLabel}>Traffic</Text>
+            <Text style={styles.statLabel}>🚗 Traffic</Text>
          </View>
 
          <View style={styles.statCard}>
           <Text style={styles.statNumber}>{market}</Text>
-          <Text style={styles.statLabel}>Market</Text>
+          <Text style={styles.statLabel}>📉 Market</Text>
         </View>
       
 
         <View style={styles.trendsCard}>
-        <Text style={styles.title}>
+        <Text style={styles.sectionTitle}>
           🔥 Top Trends Today
+        </Text>
+
+        <Text style={styles.trendsSubtitle}>
+          What's happening right now
         </Text>
 
         <Text style={styles.cardText}>
@@ -242,9 +245,9 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#1e1e1e",
-    padding: 20,
+    padding: 12,
     borderRadius: 16,
-    marginBottom: 15,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor:"rgba(255,255,255,0.12)",
     shadowColor: "000",
@@ -330,7 +333,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e40af",
     padding: 20,
     borderRadius: 18,
-    marginBottom: 24,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
   },
@@ -355,6 +358,21 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
-  }
+
+  },
+
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 16,
+  },
+
+  trendsSubtitle: {
+    color: "#9ca3af",
+    marginBottom: 12,
+  },
+
+  
 
 })
