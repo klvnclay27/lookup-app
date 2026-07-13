@@ -11,6 +11,7 @@ import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
 
 
 
+
 export default function HomeScreen() {
   const [temperature, setTemperature] = useState(95);
   const [condition, setCondition] = useState("Hot");
@@ -118,6 +119,7 @@ export default function HomeScreen() {
             <Text style={styles.statNumber}>{temperature}°</Text>
             <Text style={styles.statLabel}>🌤️ Weather</Text>
           </View>
+
 
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{commute}</Text>
@@ -228,7 +230,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
