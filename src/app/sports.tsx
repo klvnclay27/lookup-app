@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { router } from "expo-router";
 
 export default function SportsScreen() {
     return (
@@ -10,7 +11,7 @@ export default function SportsScreen() {
          
        <Pressable  
          style={styles.gameCard}
-            onPress={() => alert("Knicks vs Celtics")}
+            onPress={() => router.push("/game-details")}
             >
             
             <View>
