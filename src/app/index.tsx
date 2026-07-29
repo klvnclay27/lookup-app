@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable} from "react-native";
 import { useState, useEffect } from "react";
 import { getWeather, getWeatherCondition } from "@/services/weather";
 import { getSports } from "@/services/sports";
@@ -6,6 +6,7 @@ import { getEntertainment } from "@/services/entertainment";
 import { getTraffic } from "@/services/traffic";
 import { getFinance  } from "@/services/finance";
 import { getMusic } from "@/services/music"
+import { router } from "expo-router"
 import { Link } from "expo-router";
 import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
 
@@ -89,29 +90,41 @@ export default function HomeScreen() {
       
       <Text style={styles.sectionTitle}>👋 Daily Briefing</Text>
 
+      <Pressable onPress={() => router.push("/weather")}>
       <Text style={styles.cardText}>
        🌤️ Weather: {temperature}°F • {condition}
       </Text>
+      </Pressable>
 
+      <Pressable onPress={() => router.push("/explore")}>
        <Text style={styles.cardText}>
         🚗 Commute: {commute}
        </Text>
+       </Pressable>
 
+      <Pressable onPress={() => router.push("/finance")}>
         <Text style={styles.cardText}>
          📉 Market: {market}
         </Text>
+        </Pressable>
 
+      <Pressable onPress={() => router.push("/music")}>
          <Text style={styles.cardText}>
          🎵 Today's Playlist: {tracks[0]}
          </Text>
-
+         </Pressable>
+         
+      <Pressable onPress={() => router.push("/sports")}>
           <Text style={styles.cardText}>
          🏀 Top Game: {games[0]}
          </Text>
+         </Pressable>
 
+      <Pressable onPress={() =>router.push("/entertainment")}>
          <Text style={styles.cardText}>
          🎬 Featured Movie: {movie}
          </Text>
+         </Pressable>
          </View>
 
          <View style={styles.quickStatsRow}>
