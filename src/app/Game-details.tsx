@@ -11,6 +11,20 @@ export default function GameDetails() {
                 <Text style={styles.info}>NBA • Madison Square Garden</Text>
             </View>
 
+            <View style={styles.scoreBoard}>
+                <View style={styles.teamRow}>
+                    <Text style={styles.teamName}>Knicks</Text>
+                    <Text style={styles.teamScore}>98</Text>
+                </View>
+
+                <View style={styles.teamRow}>
+                    <Text style={styles.teamName}>Celtics</Text>
+                    <Text style={styles.teamScore}>102</Text>
+                </View>
+
+                <Text style={styles.finalStatus}>🏁 Final</Text>
+            </View>
+
             <Text style={styles.sectionTitle}>Game information</Text>
             <Text style={styles.info}>Scores, stats, and highlights coming soon.</Text>
         </View>
@@ -22,6 +36,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#0f172a",
         padding: 20,
+        paddingBottom: 120,
     },
 
     title: {
@@ -66,5 +81,39 @@ const styles = StyleSheet.create({
         color: "#cbd5e1",
         fontSize: 15,
         marginTop: 6,
+    },
+
+    scoreBoard: {
+        backgroundColor: "#1e293b",
+        borderRadius: 16,
+        padding : 20,
+        marginBottom: 12,
+    },
+
+    teamRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 15,
+    },
+
+    teamName: {
+        color: "#fff",
+        fontSize: 20,
+        fontWeight: "700",
+    },
+
+    teamScore: {
+        color: "#4fc3f7",
+        fontSize: 20,
+        fontWeight: "bold",
+
+    },
+
+    finalStatus: {
+        textAlign: "center",
+        color: "#94a3b8",
+        fontSize: 16,
+        marginTop: 10,
     },
 });

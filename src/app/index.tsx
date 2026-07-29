@@ -66,12 +66,12 @@ export default function HomeScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.card}>
 
-        <Text style={styles.welcome}>
-          LookUP Dashboard
+        <Text style={styles.heroDate}>
+          
         </Text>
 
-        <Text style={styles.heroDate}>
-          Your personal daily hub
+        <Text style={styles.welcome}>
+          Your Day at a Glance
         </Text>
 
         <Text style={styles.subtitle}>
