@@ -90,38 +90,56 @@ export default function HomeScreen() {
       
       <Text style={styles.sectionTitle}>👋 Daily Briefing</Text>
 
-      <Pressable onPress={() => router.push("/weather")}>
-      <Text style={styles.cardText}>
-       🌤️ Weather: {temperature}°F • {condition}
-      </Text>
+      <Pressable 
+       style={styles.briefingRow}
+       onPress={() => router.push("/weather")}
+       >
+       <Text style={styles.cardText}>
+      🌤️ Weather: {temperature}°F • {condition}
+      </Text> 
       </Pressable>
 
-      <Pressable onPress={() => router.push("/explore")}>
-       <Text style={styles.cardText}>
+      <Pressable 
+       style={styles.briefingRow}
+        onPress={() => router.push("/explore")}
+        >
+          <Text style={styles.cardText}>
         🚗 Commute: {commute}
-       </Text>
+        </Text>
        </Pressable>
 
-      <Pressable onPress={() => router.push("/finance")}>
-        <Text style={styles.cardText}>
+      <Pressable 
+       style={styles.briefingRow}
+        onPress={() => router.push("/finance")}
+        >
+          <Text style={styles.cardText}>
          📉 Market: {market}
-        </Text>
+         </Text>
         </Pressable>
 
-      <Pressable onPress={() => router.push("/music")}>
-         <Text style={styles.cardText}>
+      <Pressable 
+       style={styles.briefingRow}
+        onPress={() => router.push("/music")}
+        >
+          <Text style={styles.cardText}>
          🎵 Today's Playlist: {tracks[0]}
          </Text>
          </Pressable>
-         
-      <Pressable onPress={() => router.push("/sports")}>
+
+      <Pressable 
+       style={styles.briefingRow}
+        onPress={() => router.push("/sports")}
+        >
           <Text style={styles.cardText}>
          🏀 Top Game: {games[0]}
          </Text>
          </Pressable>
 
-      <Pressable onPress={() =>router.push("/entertainment")}>
-         <Text style={styles.cardText}>
+      <Pressable 
+          style={styles.briefingRow}
+            onPress={() => router.push("/entertainment")}
+            >
+              <Text style={styles.cardText}>
          🎬 Featured Movie: {movie}
          </Text>
          </Pressable>
@@ -386,6 +404,17 @@ export const styles = StyleSheet.create({
   trendsSubtitle: {
     color: "#9ca3af",
     marginBottom: 12,
+  },
+
+  briefingRow: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)"
+
   },
 
   
