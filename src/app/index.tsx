@@ -8,12 +8,13 @@ import { getFinance  } from "@/services/finance";
 import { getMusic } from "@/services/music"
 import { router } from "expo-router"
 import { Link } from "expo-router";
-import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 
 
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const [temperature, setTemperature] = useState(95);
   const [condition, setCondition] = useState("Hot");
   const [loading, setLoading] = useState(true);
@@ -25,46 +26,79 @@ export default function HomeScreen() {
   const [tracks, setTracks] = useState<string[]>([]);
 
   useEffect(() => {
-    getWeather()
-    .then((data) => {
-      setTemperature(data.temperature);
-      setCondition(getWeatherCondition(data.weatherCode));
-    })
-    .catch(() => setCondition("Weather unavailable"));
+    async function loadDashboard() {
+      try {
+        await Promise.all([
+          getWeather()
+            .then((data) => {
+              setTemperature(data.temperature);
+              setCondition(getWeatherCondition(data.weatherCode));
+            })
+            .catch((error) => {
+              console.error("Unable to load weather", error);
+              setCondition("Weather unavailable");
+            }),
+          getMusic()
+            .then((musicData) => {
+              setPlaylist(musicData.playlist);
+              setTracks(musicData.tracks);
+            })
+            .catch((error) => {
+              console.error("Unable to load music", error);
+              setPlaylist("Music unavailable");
+              setTracks(["Music unavailable"]);
+            }),
+          getSports()
+            .then((sportsData) => {
+              setGames(sportsData.games);
+            })
+            .catch((error) => {
+              console.error("Unable to load sports", error);
+              setGames(["Sports unavailable"]);
+            }),
+          getEntertainment()
+            .then((entertainmentData) => {
+              setMovie(entertainmentData.movie);
+            })
+            .catch((error) => {
+              console.error("Unable to load entertainment", error);
+              setMovie("Entertainment unavailable");
+            }),
+          getFinance()
+            .then((financeData) => {
+              setMarket(financeData.market);
+            })
+            .catch((error) => {
+              console.error("Unable to load finance", error);
+              setMarket("Market unavailable");
+            }),
+          getTraffic()
+            .then((trafficData) => {
+              setCommute(trafficData.commute);
+            })
+            .catch((error) => {
+              console.error("Unable to load traffic", error);
+              setCommute("Traffic unavailable");
+            }),
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-    getMusic()
-    .then((musicData) => {
-      setPlaylist(musicData.playlist);
-      setTracks(musicData.tracks);
-    });
-
-    getSports()
-    .then((sportsData) => {
-      setGames(sportsData.games)
-    });
-
-    getEntertainment()
-    .then((EntertainmentData) => {
-      setMovie(EntertainmentData.movie)
-    });
-
-    getFinance()
-    .then((financeData) => {
-      setMarket(financeData.market)
-    });
-
-    getTraffic()
-    .then((trafficData) => {
-      setCommute(trafficData.commute)
-    });
-
-    setLoading(false);
-
-    
+    loadDashboard();
   }, []);
  
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.contentContainer,
+        {
+          paddingTop: insets.top + 20,
+          paddingBottom: insets.bottom + 20,
+        },
+      ]}>
       <View style={styles.card}>
 
         <Text style={styles.heroDate}>
@@ -90,14 +124,20 @@ export default function HomeScreen() {
       
       <Text style={styles.sectionTitle}>👋 Daily Briefing</Text>
 
-      <Pressable 
-       style={styles.briefingRow}
-       onPress={() => router.push("/weather")}
-       >
-       <Text style={styles.cardText}>
-      🌤️ Weather: {temperature}°F • {condition}
-      </Text> 
-      </Pressable>
+      <Pressable
+  style={styles.briefingRow}
+  onPress={() => router.push("/weather")}
+>
+  <View style={styles.briefingContent}>
+    <Text style={styles.cardText}>🌤️ Weather</Text>
+
+    <Text style={styles.cardValue}>
+      {temperature}°F • {condition}
+    </Text>
+  </View>
+
+  <Text style={styles.arrow}>➜</Text>
+</Pressable>
 
       <Pressable 
        style={styles.briefingRow}
@@ -226,7 +266,7 @@ export default function HomeScreen() {
       </View>
       </Link>
 
-      <Link href="/sports" asChild>
+      <Link href="/entertainment" asChild>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🎬 Entertainment</Text>
 
@@ -265,7 +305,10 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#121212",
-    padding: 20,
+  },
+
+  contentContainer: {
+    paddingHorizontal: 20,
   },
 
   title: {
@@ -283,7 +326,7 @@ export const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor:"rgba(255,255,255,0.12)",
-    shadowColor: "000",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 8},
     shadowOpacity: 0.25,
     elevation: 8,
@@ -345,7 +388,7 @@ export const styles = StyleSheet.create({
   },
 
   statNumber: {
-    color: "38bdf8",
+    color: "#38bdf8",
     fontSize: 24,
     fontWeight: "bold",
   },
@@ -407,14 +450,32 @@ export const styles = StyleSheet.create({
   },
 
   briefingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "rgba(255,255,255,0.06)",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginBottom: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)"
+    borderRadius: 12,
+  },
 
+  briefingContent: {
+    flex: 1,
+  },
+
+  cardValue: {
+    fontSize: 14,
+    color: "#B8C5D6",
+    marginTop: 4,
+  },
+
+  arrow: {
+    fontSize: 30,
+    color: "#00BFFF",
+    fontWeight: "bold",
+    marginLeft: 12,
   },
 
   

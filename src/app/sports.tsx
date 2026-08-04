@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     },
     note: {
         marginTop: 20,
-        color:"94a3b8",
+        color:"#94a3b8",
         fontSize: 16,
     },
 
