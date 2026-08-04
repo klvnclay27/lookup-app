@@ -125,64 +125,64 @@ export default function HomeScreen() {
       <Text style={styles.sectionTitle}>👋 Daily Briefing</Text>
 
       <Pressable
-  style={styles.briefingRow}
-  onPress={() => router.push("/weather")}
->
-  <View style={styles.briefingContent}>
-    <Text style={styles.cardText}>🌤️ Weather</Text>
+        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
+        onPress={() => router.push("/weather")}>
+        <View style={styles.briefingContent}>
+          <Text style={styles.briefingLabel}>Weather</Text>
+          <Text style={styles.cardValue}>{temperature}°F • {condition}</Text>
+        </View>
+        <Text style={styles.briefingIcon}>👕</Text>
+      </Pressable>
 
-    <Text style={styles.cardValue}>
-      {temperature}°F • {condition}
-    </Text>
-  </View>
+      <Pressable
+        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
+        onPress={() => router.push("/explore")}>
+        <View style={styles.briefingContent}>
+          <Text style={styles.briefingLabel}>Commute</Text>
+          <Text style={styles.cardValue}>{commute}</Text>
+        </View>
+        <Text style={styles.briefingIcon}>🚗</Text>
+      </Pressable>
 
-  <Text style={styles.arrow}>➜</Text>
-</Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
+        onPress={() => router.push("/finance")}>
+        <View style={styles.briefingContent}>
+          <Text style={styles.briefingLabel}>Market</Text>
+          <Text style={styles.cardValue}>{market}</Text>
+        </View>
+        <Text style={styles.briefingIcon}>💹</Text>
+      </Pressable>
 
-      <Pressable 
-       style={styles.briefingRow}
-        onPress={() => router.push("/explore")}
-        >
-          <Text style={styles.cardText}>
-        🚗 Commute: {commute}
-        </Text>
-       </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
+        onPress={() => router.push("/music")}>
+        <View style={styles.briefingContent}>
+          <Text style={styles.briefingLabel}>Music</Text>
+          <Text style={styles.cardValue}>{tracks[0]}</Text>
+        </View>
+        <Text style={styles.briefingIcon}>🎵</Text>
+      </Pressable>
 
-      <Pressable 
-       style={styles.briefingRow}
-        onPress={() => router.push("/finance")}
-        >
-          <Text style={styles.cardText}>
-         📉 Market: {market}
-         </Text>
-        </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
+        onPress={() => router.push("/sports")}>
+        <View style={styles.briefingContent}>
+          <Text style={styles.briefingLabel}>Sports</Text>
+          <Text style={styles.cardValue}>{games[0]}</Text>
+        </View>
+        <Text style={styles.briefingIcon}>🏀</Text>
+      </Pressable>
 
-      <Pressable 
-       style={styles.briefingRow}
-        onPress={() => router.push("/music")}
-        >
-          <Text style={styles.cardText}>
-         🎵 Today's Playlist: {tracks[0]}
-         </Text>
-         </Pressable>
-
-      <Pressable 
-       style={styles.briefingRow}
-        onPress={() => router.push("/sports")}
-        >
-          <Text style={styles.cardText}>
-         🏀 Top Game: {games[0]}
-         </Text>
-         </Pressable>
-
-      <Pressable 
-          style={styles.briefingRow}
-            onPress={() => router.push("/entertainment")}
-            >
-              <Text style={styles.cardText}>
-         🎬 Featured Movie: {movie}
-         </Text>
-         </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
+        onPress={() => router.push("/entertainment")}>
+        <View style={styles.briefingContent}>
+          <Text style={styles.briefingLabel}>Entertainment</Text>
+          <Text style={styles.cardValue}>{movie}</Text>
+        </View>
+        <Text style={styles.briefingIcon}>🎬</Text>
+      </Pressable>
          </View>
 
          <View style={styles.quickStatsRow}>
@@ -465,17 +465,25 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
 
+  briefingLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
   cardValue: {
     fontSize: 14,
     color: "#B8C5D6",
     marginTop: 4,
   },
 
-  arrow: {
-    fontSize: 30,
-    color: "#00BFFF",
-    fontWeight: "bold",
-    marginLeft: 12,
+  briefingIcon: {
+    fontSize: 26,
+    marginLeft: 16,
+  },
+
+  briefingRowPressed: {
+    backgroundColor: "rgba(0,191,255,0.12)",
   },
 
   
