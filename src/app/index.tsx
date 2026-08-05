@@ -138,7 +138,7 @@ export default function HomeScreen() {
 
       <Pressable
         style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
-        onPress={() => router.push("/explore")}>
+        onPress={() => router.push("/traffic")}>
         <View style={styles.briefingContent}>
           <View style={styles.briefingTitleRow}>
             <Text style={styles.briefingLeadingIcon}>🚗</Text>
@@ -256,13 +256,15 @@ export default function HomeScreen() {
       </View>
       </Link>
 
-      <View style={styles.card}>
+      <Link href="/traffic" asChild>
+      <Pressable style={({ pressed }) => [styles.card, pressed && styles.briefingRowPressed]}>
         <Text style={styles.cardTitle}>🚗 Traffic</Text>
         <Text style={styles.cardText}>
           {loading ? "Loading traffic..." : `Commute: ${commute}`}
         </Text>
         
-      </View>
+      </Pressable>
+      </Link>
       <Link href="/sports" asChild>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🏀 Sports</Text>
