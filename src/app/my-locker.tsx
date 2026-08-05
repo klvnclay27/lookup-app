@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OutfitBuilder } from "@/components/outfit-builder";
 
-const closetCategories = ["👕 Shirts", "👖 Pants", "👟 Shoes", "🧥 Jackets", "⌚ Accessories"];
 const LOCKER_NAME_STORAGE_KEY = "lookup.myLocker.name";
 const aiFeatures = [
   { icon: "🤖", title: "AI Clothing Recognition", description: "Automatically identifies clothing." },
@@ -56,11 +55,11 @@ export default function MyLockerScreen() {
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [lockerName, setLockerName] = useState("My Locker");
   const [lockerNameDraft, setLockerNameDraft] = useState("My Locker");
+  const [clothingItemCount, setClothingItemCount] = useState(0);
   const modalOpacity = useRef(new Animated.Value(0)).current;
   const modalScale = useRef(new Animated.Value(0.94)).current;
   const renameOpacity = useRef(new Animated.Value(0)).current;
   const renameScale = useRef(new Animated.Value(0.94)).current;
-  const clothingItemCount = 0;
   const isClosetEmpty = clothingItemCount === 0;
 
   useEffect(() => {
@@ -173,36 +172,24 @@ export default function MyLockerScreen() {
             <Text style={styles.editButtonText}>✏️</Text>
           </Pressable>
         </View>
-        <Text style={styles.subtitle}>Your AI Wardrobe</Text>
+        <Text style={styles.subtitle}>Your intelligent digital wardrobe</Text>
 
         <Pressable
           accessibilityRole="button"
           onPress={() => setIsAddModalVisible(true)}
           style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}>
-          <Text style={styles.addButtonText}>Add Clothing</Text>
+          <Text style={styles.addButtonText}>+ Add Clothing</Text>
         </Pressable>
 
-        <OutfitBuilder />
+        <OutfitBuilder
+          onAddClothing={() => setIsAddModalVisible(true)}
+          onWardrobeCountChange={setClothingItemCount}
+        />
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Weather Recommendation</Text>
           <Text style={styles.cardText}>Connect weather to receive clothing suggestions.</Text>
         </View>
-
-        <Text style={styles.sectionTitle}>My Closet</Text>
-        {isClosetEmpty && (
-          <View style={styles.closetEmptyState}>
-            <Text style={styles.closetEmptyTitle}>👕 Your wardrobe is waiting.</Text>
-            <Text style={styles.closetEmptyText}>
-              Add your first clothing item to begin building your AI-powered digital closet.
-            </Text>
-          </View>
-        )}
-        {closetCategories.map((category) => (
-          <View key={category} style={styles.categoryCard}>
-            <Text style={styles.categoryTitle}>{category}</Text>
-          </View>
-        ))}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Today's Outfit</Text>
