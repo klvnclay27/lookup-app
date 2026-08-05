@@ -6,8 +6,7 @@ import { getEntertainment } from "@/services/entertainment";
 import { getTraffic } from "@/services/traffic";
 import { getFinance  } from "@/services/finance";
 import { getMusic } from "@/services/music"
-import { router } from "expo-router"
-import { Link } from "expo-router";
+import { Link, router, type Href } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 
@@ -300,6 +299,14 @@ export default function HomeScreen() {
         <Text style={styles.cardText}>{market}</Text>
         
       </View>
+      </Link>
+
+      <Link href={"/my-locker" as Href} asChild>
+        <Pressable
+          style={({ pressed }) => [styles.card, pressed && styles.briefingRowPressed]}>
+          <Text style={styles.cardTitle}>👕 My Locker</Text>
+          <Text style={styles.cardText}>Your AI Wardrobe</Text>
+        </Pressable>
       </Link>
 
       

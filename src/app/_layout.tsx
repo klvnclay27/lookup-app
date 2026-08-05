@@ -17,6 +17,7 @@ export default function TabLayout() {
         <Tabs.Screen name="entertainment" options={{title: "Entertainment"}} />
          <Tabs.Screen name="finance" options={{title: "Finance"}} />
          <Tabs.Screen name="music" options={{title: "Music", tabBarLabel: "Music"}} />
+         <Tabs.Screen name="my-locker" options={{title: "My Locker", href: null}} />
       </Tabs>
     </ThemeProvider>
   );
