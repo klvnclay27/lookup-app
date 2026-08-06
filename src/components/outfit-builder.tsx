@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import {
   type ClosetCategory,
@@ -52,13 +52,14 @@ const slots: SlotDefinition[] = [
 ];
 const leftSlots = slots.filter((slot) => ["top", "bottom", "shoes"].includes(slot.key));
 const rightSlots = slots.filter((slot) => ["jacket", "accessory"].includes(slot.key));
-const closetFilters: Array<"All Items" | ClosetCategory> = [
-  "All Items",
+type ClosetFilter = ClosetCategory | "Favorites";
+const closetFilters: ClosetFilter[] = [
   "Shirts",
   "Pants",
   "Shoes",
   "Jackets",
   "Accessories",
+  "Favorites",
 ];
 
 const emptySelection = (): OutfitSelection => ({
@@ -80,7 +81,7 @@ const clothingColors: Record<string, string> = {
   White: "#f8fafc",
 };
 
-const mannequinSource = require("@/assets/images/my-locker/prototype/mannequin-base.png");
+const mannequinSource = require("../../assets/images/my-locker/prototype/mannequin-base.png");
 const prototypeLayerSources: Record<string, ImageSource> = {
   "sample-shirt-white-tee": require("@/assets/images/my-locker/prototype/white-tee-layer.png"),
   "sample-shirt-black-polo": require("@/assets/images/my-locker/prototype/black-polo-layer.png"),
@@ -197,11 +198,43 @@ function ClothingLayer({ item, slot }: { item: ClothingItem; slot: OutfitSlotKey
   );
 }
 
+function ClothingCarouselCard({
+  item,
+  selected,
+  onSelect,
+  onToggleFavorite,
+}: {
+  item: ClothingItem;
+  selected: boolean;
+  onSelect: () => void;
+  onToggleFavorite: () => void;
+}) {
+  const scale = useSharedValue(1);
+  useEffect(() => {
+    scale.value = withTiming(selected ? 1.025 : 1, { duration: 170 });
+  }, [scale, selected]);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Animated.View style={[styles.closetCard, selected && styles.closetCardSelected, animatedStyle]}>
+      <Pressable onPress={onSelect} style={({ pressed }) => [styles.closetMain, pressed && styles.pressed]}>
+        <View style={styles.closetVisual}><Text style={styles.closetVisualText}>{item.thumbnail}</Text></View>
+        <Text style={styles.closetBrand}>{item.brand}</Text>
+        <Text numberOfLines={2} style={styles.closetItemName}>{item.name}</Text>
+      </Pressable>
+      <Pressable onPress={onToggleFavorite} style={styles.closetFavorite}>
+        <Text style={styles.favoriteIcon}>{item.favorite ? "★" : "☆"}</Text>
+      </Pressable>
+      {selected && <View style={styles.selectedBadge}><Text style={styles.selectedBadgeText}>✓</Text></View>}
+    </Animated.View>
+  );
+}
+
 export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBuilderProps) {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 900;
   const [activeSlot, setActiveSlot] = useState<SlotDefinition | null>(null);
-  const [activeClosetFilter, setActiveClosetFilter] = useState<(typeof closetFilters)[number]>("All Items");
+  const [activeClosetFilter, setActiveClosetFilter] = useState<ClosetFilter>("Shirts");
   const [bannerVisible, setBannerVisible] = useState(true);
   const [helpVisible, setHelpVisible] = useState(false);
   const [outfitName, setOutfitName] = useState("");
@@ -211,7 +244,6 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   const [resetSelection, setResetSelection] = useState<OutfitSelection>(emptySelection);
   const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [wardrobeReady, setWardrobeReady] = useState(false);
-  const [mannequinAssetFailed, setMannequinAssetFailed] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -261,8 +293,8 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   const hasSampleItems = wardrobe.some((item) => item.isSample);
   const filteredClosetItems = useMemo(
     () =>
-      activeClosetFilter === "All Items"
-        ? wardrobe
+      activeClosetFilter === "Favorites"
+        ? wardrobe.filter((item) => item.favorite)
         : wardrobe.filter((item) => item.category === activeClosetFilter),
     [activeClosetFilter, wardrobe],
   );
@@ -277,7 +309,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
     }, {});
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
   }, [wardrobe]);
-  const favoriteCategory = wardrobe.find((item) => item.favorite)?.category ?? wardrobe[0]?.category ?? "—";
+  const favoriteBrand = wardrobe.find((item) => item.favorite)?.brand ?? wardrobe[0]?.brand ?? "—";
 
   const persistWardrobe = async (nextWardrobe: ClothingItem[]) => {
     setWardrobe(nextWardrobe);
@@ -443,29 +475,17 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
         )}
 
         <View style={[styles.builderLayout, !isWideLayout && styles.builderLayoutMobile]}>
-          {isWideLayout && <View style={styles.sideColumn}>{leftSlots.map(renderSlotCard)}</View>}
-          <View style={styles.centerColumn}>
+          <View style={styles.mannequinColumn}>
             <View style={styles.mannequinDisplayCard}>
               <Text style={styles.displayEyebrow}>LOOK PREVIEW</Text>
               <View style={styles.mannequinStage}>
               <View style={styles.mannequinFrame}>
-                {!mannequinAssetFailed ? (
-                  <Image
-                    contentFit="contain"
-                    onError={() => {
-                      console.warn("Unable to load prototype mannequin asset; using development fallback.");
-                      setMannequinAssetFailed(true);
-                    }}
-                    source={mannequinSource}
-                    style={[styles.prototypeCanvas, styles.mannequinAsset]}
-                  />
-                ) : (
-                  <View style={styles.fallbackMannequin}>
-                    <View style={styles.fallbackHead} />
-                    <View style={styles.fallbackBody} />
-                    <View style={styles.fallbackLegs} />
-                  </View>
-                )}
+                <Image
+                  contentFit="contain"
+                  onError={() => console.warn("Unable to load the local fashion mannequin asset.")}
+                  source={mannequinSource}
+                  style={[styles.prototypeCanvas, styles.mannequinAsset]}
+                />
                 {selection.top && <PrototypeClothingLayer key={selection.top.id} item={selection.top} slot="top" zIndex={10} />}
                 {selection.bottom && <PrototypeClothingLayer key={selection.bottom.id} item={selection.bottom} slot="bottom" zIndex={20} />}
                 {selection.shoes && <PrototypeClothingLayer key={selection.shoes.id} item={selection.shoes} slot="shoes" zIndex={30} />}
@@ -474,54 +494,64 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
               </View>
             </View>
             </View>
-            <View style={styles.quickControls}>
-              <Pressable onPress={shuffleOutfit} style={({ pressed }) => [styles.quickButton, pressed && styles.pressed]}>
-                <Text style={styles.quickButtonText}>Randomize</Text>
-              </Pressable>
-              <Pressable onPress={resetOutfit} style={({ pressed }) => [styles.quickButton, pressed && styles.pressed]}>
-                <Text style={styles.quickButtonText}>↺ Reset</Text>
-              </Pressable>
-            </View>
           </View>
-          {isWideLayout && <View style={styles.sideColumn}>{rightSlots.map(renderSlotCard)}</View>}
-        </View>
-
-        {!isWideLayout && <View style={styles.slotGrid}>{slots.map(renderSlotCard)}</View>}
-
-        <TextInput
-          maxLength={60}
-          onChangeText={setOutfitName}
-          placeholder="Name this outfit…"
-          placeholderTextColor="#64748b"
-          selectionColor="#38bdf8"
-          style={styles.nameInput}
-          value={outfitName}
-        />
-        <View style={styles.controls}>
-          <Pressable
-            disabled={!hasSelectedItems}
-            onPress={saveOutfit}
-            style={({ pressed }) => [styles.saveButton, !hasSelectedItems && styles.disabled, pressed && styles.pressed]}>
-            <Text style={styles.saveButtonText}>Save Look</Text>
-          </Pressable>
-          <Pressable onPress={clearOutfit} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
-            <Text style={styles.clearButtonText}>Clear Look</Text>
-          </Pressable>
-        </View>
-        {saveMessage ? <Text style={styles.successText}>{saveMessage}</Text> : null}
-      </Animated.View>
-
-      <View style={styles.currentLookCard}>
-        <Text style={styles.savedTitle}>Current Look</Text>
-        <View style={styles.currentLookGrid}>
-          {(["top", "bottom", "shoes", "accessory"] as OutfitSlotKey[]).map((key) => (
-            <View key={key} style={styles.currentLookItem}>
-              <Text style={styles.currentLookLabel}>{slots.find((slot) => slot.key === key)?.label}</Text>
-              <Text numberOfLines={1} style={styles.currentLookValue}>{selection[key]?.name ?? "Not selected"}</Text>
+          <View style={styles.lookPanel}>
+            <Text style={styles.panelEyebrow}>CURRENT OUTFIT</Text>
+            <Text style={styles.panelTitle}>Current Look</Text>
+            <View style={styles.currentLookGrid}>
+              {(["top", "bottom", "shoes", "accessory"] as OutfitSlotKey[]).map((key) => (
+                <Pressable key={key} onPress={() => setActiveSlot(slots.find((slot) => slot.key === key) ?? null)} style={({ pressed }) => [styles.currentLookItem, pressed && styles.pressed]}>
+                  <Text style={styles.currentLookLabel}>{slots.find((slot) => slot.key === key)?.label}</Text>
+                  <Text numberOfLines={1} style={styles.currentLookValue}>{selection[key]?.name ?? "Not selected"}</Text>
+                </Pressable>
+              ))}
             </View>
-          ))}
+            <TextInput
+              maxLength={60}
+              onChangeText={setOutfitName}
+              placeholder="Name this look…"
+              placeholderTextColor="#64748b"
+              selectionColor="#69E08C"
+              style={styles.nameInput}
+              value={outfitName}
+            />
+            <View style={styles.controls}>
+              <Pressable disabled={!hasSelectedItems} onPress={saveOutfit} style={({ pressed }) => [styles.saveButton, !hasSelectedItems && styles.disabled, pressed && styles.pressed]}>
+                <Text style={styles.saveButtonText}>Save Look</Text>
+              </Pressable>
+              <Pressable onPress={shuffleOutfit} style={({ pressed }) => [styles.randomButton, pressed && styles.pressed]}>
+                <Text style={styles.randomButtonText}>Randomize</Text>
+              </Pressable>
+              <Pressable onPress={clearOutfit} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
+                <Text style={styles.clearButtonText}>Clear</Text>
+              </Pressable>
+            </View>
+            {saveMessage ? <Text style={styles.successText}>{saveMessage}</Text> : null}
+          </View>
         </View>
-      </View>
+
+        <View style={styles.clothingSection}>
+          <View style={styles.closetHeader}>
+            <View><Text style={styles.clothingTitle}>Choose a piece</Text><Text style={styles.sectionSubtitle}>{wardrobe.length} items ready to style</Text></View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent} style={styles.filterScroll}>
+            {closetFilters.map((filter) => (
+              <Pressable key={filter} onPress={() => setActiveClosetFilter(filter)} style={[styles.filterButton, activeClosetFilter === filter && styles.filterButtonActive]}>
+                <Text style={[styles.filterText, activeClosetFilter === filter && styles.filterTextActive]}>{({ Shirts: "Tops", Pants: "Bottoms", Shoes: "Shoes", Jackets: "Outerwear", Accessories: "Accessories", Favorites: "Favorites" } as Record<string, string>)[filter]}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {filteredClosetItems.length === 0 ? (
+            <View style={styles.categoryEmpty}><Text style={styles.categoryEmptyText}>{activeClosetFilter === "Favorites" ? "Favorite clothing will appear here." : "No clothing in this category yet."}</Text></View>
+          ) : (
+            <ScrollView horizontal contentContainerStyle={styles.closetCarousel} showsHorizontalScrollIndicator={false}>
+              {filteredClosetItems.map((item) => (
+                <ClothingCarouselCard key={item.id} item={item} selected={selectedIds.has(item.id)} onSelect={() => selectClosetItem(item)} onToggleFavorite={() => toggleFavorite(item.id)} />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </Animated.View>
 
       <Text style={styles.savedTitle}>Saved Looks</Text>
       {savedOutfits.length === 0 ? (
@@ -530,7 +560,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
           <Text style={styles.savedEmptyText}>Your saved combinations will appear here.</Text>
         </View>
       ) : (
-        <View style={styles.savedGrid}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.savedGrid}>
         {savedOutfits.map((outfit) => (
           <View key={outfit.id} style={[styles.savedOutfitCard, isWideLayout && styles.savedOutfitCardWide]}>
             <Text style={styles.savedOutfitName}>{outfit.name}</Text>
@@ -552,49 +582,6 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
             </View>
           </View>
         ))}
-        </View>
-      )}
-
-      <View style={styles.closetHeader}>
-        <View>
-          <Text style={styles.savedTitle}>Clothing</Text>
-          <Text style={styles.sectionSubtitle}>{wardrobe.length} items ready to style</Text>
-        </View>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-        {closetFilters.map((filter) => (
-          <Pressable
-            key={filter}
-            onPress={() => setActiveClosetFilter(filter)}
-            style={[styles.filterButton, activeClosetFilter === filter && styles.filterButtonActive]}>
-            <Text style={[styles.filterText, activeClosetFilter === filter && styles.filterTextActive]}>
-              {({ "All Items": "All", Shirts: "Tops", Pants: "Bottoms", Shoes: "Shoes", Jackets: "Outerwear", Accessories: "Accessories" } as Record<string, string>)[filter]}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      {wardrobe.length === 0 ? (
-        <View style={styles.closetEmptyState}>
-          <Text style={styles.closetEmptyTitle}>👕 Your wardrobe is waiting.</Text>
-          <Text style={styles.closetEmptyText}>Add your first clothing item to begin building your AI-powered digital closet.</Text>
-        </View>
-      ) : (
-        <ScrollView horizontal contentContainerStyle={styles.closetCarousel} showsHorizontalScrollIndicator={false}>
-          {filteredClosetItems.map((item) => (
-            <View key={item.id} style={[styles.closetCard, selectedIds.has(item.id) && styles.closetCardSelected]}>
-              <Pressable onPress={() => selectClosetItem(item)} style={({ pressed }) => [styles.closetMain, pressed && styles.pressed]}>
-              <View style={styles.closetVisual}><Text style={styles.closetVisualText}>{item.thumbnail}</Text></View>
-              <Text numberOfLines={2} style={styles.closetItemName}>{item.name}</Text>
-              <Text style={styles.closetItemMeta}>{item.primaryColor} · {item.brand}</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => toggleFavorite(item.id)}
-                style={styles.closetFavorite}>
-                <Text style={styles.favoriteIcon}>{item.favorite ? "★" : "☆"}</Text>
-              </Pressable>
-              {selectedIds.has(item.id) && <View style={styles.selectedBadge}><Text style={styles.selectedBadgeText}>✓</Text></View>}
-            </View>
-          ))}
         </ScrollView>
       )}
 
@@ -602,9 +589,29 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
         <Text style={styles.savedTitle}>Style Insights</Text>
         <View style={styles.insightsRow}>
           <View style={styles.insight}><Text style={styles.insightLabel}>Most worn color</Text><Text style={styles.insightValue}>{mostWornColor}</Text></View>
-          <View style={styles.insight}><Text style={styles.insightLabel}>Favorite category</Text><Text style={styles.insightValue}>{favoriteCategory}</Text></View>
+          <View style={styles.insight}><Text style={styles.insightLabel}>Favorite brand</Text><Text style={styles.insightValue}>{favoriteBrand}</Text></View>
           <View style={styles.insight}><Text style={styles.insightLabel}>Recent look</Text><Text numberOfLines={1} style={styles.insightValue}>{savedOutfits[0]?.name ?? "No saved look"}</Text></View>
         </View>
+      </View>
+
+      <View style={styles.comingSoonSection}>
+        <Text style={styles.savedTitle}>Coming Soon</Text>
+        <Text style={styles.comingSoonCopy}>A preview of what is next for your wardrobe.</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.comingSoonRow}>
+          {[
+            ["✦", "AI Stylist"],
+            ["☁", "Weather Outfit Suggestions"],
+            ["⌁", "Smart Shopping"],
+            ["▥", "Wardrobe Analytics"],
+            ["★", "Outfit Rating"],
+          ].map(([icon, title]) => (
+            <View key={title} style={styles.comingSoonCard}>
+              <View style={styles.comingSoonIcon}><Text style={styles.comingSoonIconText}>{icon}</Text></View>
+              <Text style={styles.comingSoonTitle}>{title}</Text>
+              <Text style={styles.comingSoonLabel}>COMING SOON</Text>
+            </View>
+          ))}
+        </ScrollView>
       </View>
 
       <Modal animationType="fade" onRequestClose={() => setActiveSlot(null)} transparent visible={activeSlot !== null}>
@@ -657,50 +664,26 @@ const styles = StyleSheet.create({
   sampleBadgeTitle: { color: "#7dd3fc", fontSize: 13, fontWeight: "bold" },
   sampleBadgeText: { color: "#94a3b8", fontSize: 12, marginTop: 3 },
   dismissText: { color: "#c4b5fd", fontSize: 24, lineHeight: 24, marginLeft: 12 },
-  builderCard: { backgroundColor: "#101713", borderColor: "rgba(74,222,128,0.18)", borderRadius: 24, borderWidth: 1, padding: 20 },
+  builderCard: { backgroundColor: "#0F1411", borderColor: "rgba(105,224,140,0.15)", borderRadius: 26, borderWidth: 1, padding: 22 },
   builderHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
   builderHeaderText: { flex: 1, paddingRight: 12 },
   helpButton: { borderColor: "rgba(139,92,246,0.5)", borderRadius: 10, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 8 },
   helpButtonText: { color: "#c4b5fd", fontSize: 12, fontWeight: "bold" },
   helpText: { backgroundColor: "rgba(139,92,246,0.09)", borderRadius: 10, color: "#cbd5e1", fontSize: 12, lineHeight: 18, marginBottom: 14, padding: 11 },
-  builderLayout: { alignItems: "center", flexDirection: "row", gap: 14, justifyContent: "center" },
+  builderLayout: { alignItems: "stretch", flexDirection: "row", gap: 22 },
   builderLayoutMobile: { flexDirection: "column" },
   sideColumn: { flex: 1, gap: 12, maxWidth: 220, minWidth: 170 },
   centerColumn: { alignItems: "center", flex: 1, maxWidth: 340, minWidth: 250 },
-  mannequinDisplayCard: { alignItems: "center", backgroundColor: "#0b110d", borderColor: "rgba(74,222,128,0.22)", borderRadius: 24, borderWidth: 1, minHeight: 410, padding: 16, width: "100%" },
+  mannequinColumn: { flex: 1.15, minWidth: 0 },
+  mannequinDisplayCard: { alignItems: "center", backgroundColor: "#0B100D", borderColor: "rgba(105,224,140,0.19)", borderRadius: 24, borderWidth: 1, experimental_backgroundImage: "linear-gradient(145deg, rgba(28,43,34,0.96), rgba(9,14,11,0.98) 58%, rgba(13,29,20,0.98))", justifyContent: "center", minHeight: 480, overflow: "hidden", padding: 24, width: "100%" },
   displayEyebrow: { alignSelf: "flex-start", color: "#4ade80", fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginBottom: 10 },
+  lookPanel: { backgroundColor: "#151B17", borderColor: "rgba(255,255,255,0.075)", borderRadius: 22, borderWidth: 1, flex: 0.85, justifyContent: "center", maxWidth: 430, minWidth: 300, padding: 20 },
+  panelEyebrow: { color: "#69E08C", fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
+  panelTitle: { color: "#FFFFFF", fontSize: 25, fontWeight: "900", letterSpacing: -0.5, marginBottom: 16, marginTop: 6 },
   mannequinStage: { alignItems: "center", alignSelf: "center", backgroundColor: "rgba(15,23,42,0.72)", borderColor: "rgba(56,189,248,0.16)", borderRadius: 22, borderWidth: 1, height: 360, justifyContent: "center", marginBottom: 16, maxWidth: 340, overflow: "hidden", width: "100%" },
   mannequinFrame: { aspectRatio: 512 / 768, height: 330, position: "relative" },
   prototypeCanvas: { bottom: 0, left: 0, position: "absolute", right: 0, top: 0 },
   mannequinAsset: { zIndex: 1 },
-  fallbackMannequin: { bottom: 0, left: 0, position: "absolute", right: 0, top: 0, zIndex: 1 },
-  fallbackHead: { backgroundColor: "#4b5563", borderRadius: 18, height: 40, left: 90, position: "absolute", top: 18, width: 34 },
-  fallbackBody: { backgroundColor: "#4b5563", borderRadius: 20, height: 140, left: 70, position: "absolute", top: 60, width: 74 },
-  fallbackLegs: { backgroundColor: "#4b5563", borderRadius: 14, height: 120, left: 78, position: "absolute", top: 194, width: 58 },
-  mannequinHead: { backgroundColor: "#4b5563", borderColor: "#64748b", borderRadius: 18, borderWidth: 1, height: 44, left: 83, position: "absolute", top: 5, width: 34, zIndex: 1 },
-  mannequinNeck: { backgroundColor: "#4b5563", borderRadius: 5, height: 18, left: 94, position: "absolute", top: 45, width: 12, zIndex: 1 },
-  mannequinShoulders: { backgroundColor: "#4b5563", borderRadius: 14, height: 25, left: 57, position: "absolute", top: 58, width: 86, zIndex: 1 },
-  mannequinChest: { backgroundColor: "#4b5563", borderRadius: 16, height: 82, left: 68, position: "absolute", top: 66, width: 64, zIndex: 1 },
-  mannequinWaist: { backgroundColor: "#4b5563", borderRadius: 10, height: 37, left: 77, position: "absolute", top: 135, width: 46, zIndex: 1 },
-  mannequinHips: { backgroundColor: "#4b5563", borderRadius: 16, height: 43, left: 68, position: "absolute", top: 158, width: 64, zIndex: 1 },
-  mannequinUpperArm: { backgroundColor: "#4b5563", borderRadius: 9, height: 78, position: "absolute", top: 68, width: 15, zIndex: 1 },
-  mannequinUpperArmLeft: { left: 50, transform: [{ rotate: "5deg" }] },
-  mannequinUpperArmRight: { right: 50, transform: [{ rotate: "-5deg" }] },
-  mannequinForearm: { backgroundColor: "#4b5563", borderRadius: 8, height: 70, position: "absolute", top: 137, width: 13, zIndex: 1 },
-  mannequinForearmLeft: { left: 43, transform: [{ rotate: "2deg" }] },
-  mannequinForearmRight: { right: 43, transform: [{ rotate: "-2deg" }] },
-  mannequinHand: { backgroundColor: "#4b5563", borderRadius: 8, height: 19, position: "absolute", top: 201, width: 13, zIndex: 1 },
-  mannequinHandLeft: { left: 42 },
-  mannequinHandRight: { right: 42 },
-  mannequinThigh: { backgroundColor: "#4b5563", borderRadius: 12, height: 88, position: "absolute", top: 190, width: 27, zIndex: 1 },
-  mannequinThighLeft: { left: 70, transform: [{ rotate: "1deg" }] },
-  mannequinThighRight: { right: 70, transform: [{ rotate: "-1deg" }] },
-  mannequinCalf: { backgroundColor: "#4b5563", borderRadius: 10, height: 66, position: "absolute", top: 270, width: 20, zIndex: 1 },
-  mannequinCalfLeft: { left: 74 },
-  mannequinCalfRight: { right: 74 },
-  mannequinFoot: { backgroundColor: "#4b5563", borderRadius: 8, height: 15, position: "absolute", top: 330, width: 35, zIndex: 1 },
-  mannequinFootLeft: { left: 61, transform: [{ rotate: "-2deg" }] },
-  mannequinFootRight: { right: 61, transform: [{ rotate: "2deg" }] },
   topLayer: { height: 103, left: 50, position: "absolute", top: 61, width: 100, zIndex: 10 },
   topBody: { borderColor: "rgba(15,23,42,0.65)", borderRadius: 12, borderWidth: 1, height: 101, left: 20, position: "absolute", width: 60 },
   topSleeve: { borderColor: "rgba(15,23,42,0.65)", borderRadius: 9, borderWidth: 1, height: 49, position: "absolute", top: 5, width: 27 },
@@ -747,26 +730,27 @@ const styles = StyleSheet.create({
   removeAction: { alignSelf: "flex-start", marginTop: 9, paddingVertical: 3 },
   slotActionText: { color: "#38bdf8", fontSize: 12, fontWeight: "bold" },
   removeText: { color: "#fca5a5", fontSize: 12, fontWeight: "bold" },
-  nameInput: { backgroundColor: "rgba(15,23,42,0.8)", borderColor: "rgba(56,189,248,0.28)", borderRadius: 12, borderWidth: 1, color: "#fff", fontSize: 15, marginTop: 14, paddingHorizontal: 13, paddingVertical: 12 },
-  controls: { flexDirection: "row", gap: 10, marginTop: 12 },
-  saveButton: { alignItems: "center", backgroundColor: "#22c55e", borderRadius: 12, flex: 1, paddingVertical: 13 },
-  saveButtonText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
-  clearButton: { alignItems: "center", borderColor: "rgba(148,163,184,0.42)", borderRadius: 12, borderWidth: 1, flex: 1, paddingVertical: 13 },
+  nameInput: { backgroundColor: "#0D120F", borderColor: "rgba(105,224,140,0.2)", borderRadius: 12, borderWidth: 1, color: "#fff", fontSize: 14, marginTop: 16, paddingHorizontal: 13, paddingVertical: 12 },
+  controls: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginTop: 12 },
+  saveButton: { alignItems: "center", backgroundColor: "#69E08C", borderRadius: 12, flexGrow: 1, minWidth: 105, paddingVertical: 13 },
+  saveButtonText: { color: "#07120C", fontSize: 13, fontWeight: "900" },
+  randomButton: { alignItems: "center", backgroundColor: "#202923", borderColor: "rgba(105,224,140,0.22)", borderRadius: 12, borderWidth: 1, flexGrow: 1, minWidth: 105, paddingVertical: 13 },
+  randomButtonText: { color: "#BCECC9", fontSize: 13, fontWeight: "800" },
+  clearButton: { alignItems: "center", borderColor: "rgba(148,163,184,0.28)", borderRadius: 12, borderWidth: 1, flexGrow: 1, minWidth: 80, paddingVertical: 13 },
   clearButtonText: { color: "#B8C5D6", fontSize: 14, fontWeight: "bold" },
   disabled: { opacity: 0.42 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   successText: { color: "#86efac", fontSize: 13, marginTop: 10, textAlign: "center" },
-  currentLookCard: { backgroundColor: "#101713", borderColor: "rgba(255,255,255,0.08)", borderRadius: 20, borderWidth: 1, marginTop: 24, padding: 18 },
   currentLookGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  currentLookItem: { backgroundColor: "#171e19", borderRadius: 12, flexBasis: 150, flexGrow: 1, padding: 12 },
+  currentLookItem: { backgroundColor: "#0F1511", borderColor: "rgba(255,255,255,0.055)", borderRadius: 12, borderWidth: 1, flexBasis: 135, flexGrow: 1, padding: 12 },
   currentLookLabel: { color: "#7c8b81", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
   currentLookValue: { color: "#fff", fontSize: 13, fontWeight: "700", marginTop: 5 },
   savedTitle: { color: "#fff", fontSize: 20, fontWeight: "bold", marginBottom: 10, marginTop: 18 },
   savedEmptyCard: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 16 },
   savedEmptyTitle: { color: "#B8C5D6", fontSize: 15, fontWeight: "bold" },
   savedEmptyText: { color: "#64748b", fontSize: 13, marginTop: 4 },
-  savedGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  savedOutfitCard: { backgroundColor: "#1e293b", borderColor: "rgba(96,165,250,0.14)", borderRadius: 14, borderWidth: 1, flexGrow: 1, marginBottom: 10, minWidth: 240, padding: 16 },
+  savedGrid: { gap: 14, paddingBottom: 4, paddingRight: 24 },
+  savedOutfitCard: { backgroundColor: "#151B17", borderColor: "rgba(255,255,255,0.08)", borderRadius: 17, borderWidth: 1, padding: 16, width: 285 },
   savedOutfitCardWide: { flexBasis: "47%" },
   savedOutfitName: { color: "#fff", fontSize: 17, fontWeight: "bold", marginBottom: 8 },
   savedDate: { color: "#64748b", fontSize: 11, marginBottom: 10 },
@@ -779,29 +763,43 @@ const styles = StyleSheet.create({
   loadButtonText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
   deleteButton: { alignItems: "center", borderColor: "rgba(248,113,113,0.45)", borderRadius: 10, borderWidth: 1, flex: 1, paddingVertical: 10 },
   deleteButtonText: { color: "#fca5a5", fontSize: 13, fontWeight: "bold" },
-  closetHeader: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
-  filterScroll: { marginBottom: 14 },
+  clothingSection: { borderTopColor: "rgba(255,255,255,0.07)", borderTopWidth: 1, marginTop: 26, paddingTop: 22 },
+  clothingTitle: { color: "#FFFFFF", fontSize: 21, fontWeight: "900" },
+  closetHeader: { flexDirection: "row", justifyContent: "space-between" },
+  filterScroll: { marginBottom: 16 },
+  filterContent: { gap: 8, paddingRight: 20 },
   filterButton: { borderColor: "rgba(148,163,184,0.25)", borderRadius: 999, borderWidth: 1, marginRight: 8, paddingHorizontal: 13, paddingVertical: 8 },
   filterButtonActive: { backgroundColor: "#22c55e", borderColor: "#4ade80" },
   filterText: { color: "#94a3b8", fontSize: 12, fontWeight: "bold" },
   filterTextActive: { color: "#fff" },
   closetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  closetCarousel: { gap: 12, paddingBottom: 4, paddingRight: 16 },
-  closetCard: { backgroundColor: "#171e19", borderColor: "rgba(255,255,255,0.09)", borderRadius: 16, borderWidth: 1, height: 196, padding: 12, position: "relative", width: 152 },
+  closetCarousel: { gap: 14, paddingBottom: 8, paddingHorizontal: 4, paddingRight: 20 },
+  closetCard: { backgroundColor: "#171E19", borderColor: "rgba(255,255,255,0.08)", borderRadius: 17, borderWidth: 1, height: 210, padding: 12, position: "relative", width: 168 },
   closetCardSelected: { borderColor: "#4ade80", borderWidth: 2 },
   closetMain: { flex: 1 },
-  closetVisual: { alignItems: "center", backgroundColor: "rgba(15,23,42,0.7)", borderRadius: 11, height: 72, justifyContent: "center", marginBottom: 10 },
-  closetVisualText: { fontSize: 38 },
+  closetVisual: { alignItems: "center", backgroundColor: "#0C120E", borderRadius: 12, height: 104, justifyContent: "center", marginBottom: 10 },
+  closetVisualText: { fontSize: 42 },
+  closetBrand: { color: "#69E08C", fontSize: 9, fontWeight: "900", letterSpacing: 0.8, marginBottom: 5, textTransform: "uppercase" },
   closetItemName: { color: "#fff", fontSize: 13, fontWeight: "bold", paddingRight: 22 },
   closetItemMeta: { color: "#94a3b8", fontSize: 11, marginTop: 5 },
-  closetFavorite: { padding: 8, position: "absolute", right: 4, top: 78 },
+  closetFavorite: { alignItems: "center", backgroundColor: "rgba(15,20,17,0.88)", borderRadius: 14, height: 28, justifyContent: "center", position: "absolute", right: 8, top: 84, width: 28 },
   selectedBadge: { alignItems: "center", backgroundColor: "#22c55e", borderRadius: 12, height: 24, justifyContent: "center", position: "absolute", right: 8, top: 8, width: 24 },
   selectedBadgeText: { color: "#071109", fontSize: 13, fontWeight: "900" },
+  categoryEmpty: { alignItems: "center", backgroundColor: "#131A15", borderRadius: 15, justifyContent: "center", minHeight: 110, padding: 20 },
+  categoryEmptyText: { color: "#7E8982", fontSize: 13 },
   insightsCard: { backgroundColor: "#101713", borderColor: "rgba(74,222,128,0.16)", borderRadius: 20, borderWidth: 1, marginTop: 28, padding: 18 },
   insightsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   insight: { backgroundColor: "#171e19", borderRadius: 12, flexBasis: 180, flexGrow: 1, padding: 14 },
   insightLabel: { color: "#7c8b81", fontSize: 11, fontWeight: "700" },
   insightValue: { color: "#fff", fontSize: 15, fontWeight: "800", marginTop: 5 },
+  comingSoonSection: { marginTop: 30 },
+  comingSoonCopy: { color: "#748078", fontSize: 12, marginBottom: 14, marginTop: -4 },
+  comingSoonRow: { gap: 12, paddingBottom: 4, paddingRight: 24 },
+  comingSoonCard: { backgroundColor: "#121713", borderColor: "rgba(255,255,255,0.065)", borderRadius: 17, borderWidth: 1, height: 142, justifyContent: "space-between", opacity: 0.72, padding: 15, width: 190 },
+  comingSoonIcon: { alignItems: "center", backgroundColor: "rgba(105,224,140,0.09)", borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
+  comingSoonIconText: { color: "#69E08C", fontSize: 14, fontWeight: "900" },
+  comingSoonTitle: { color: "#DCE4DE", fontSize: 13, fontWeight: "800" },
+  comingSoonLabel: { color: "#657069", fontSize: 8, fontWeight: "900", letterSpacing: 1.1 },
   closetEmptyState: { backgroundColor: "rgba(37,99,235,0.1)", borderColor: "rgba(56,189,248,0.24)", borderRadius: 16, borderWidth: 1, padding: 18 },
   closetEmptyTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", marginBottom: 8 },
   closetEmptyText: { color: "#B8C5D6", fontSize: 14, lineHeight: 21 },

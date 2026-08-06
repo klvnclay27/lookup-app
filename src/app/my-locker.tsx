@@ -150,16 +150,9 @@ export default function MyLockerScreen() {
         <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
         <View style={styles.lockerTitleRow}>
-          <Text style={styles.title}>👕 {lockerName}</Text>
-          <Pressable
-            accessibilityLabel="Rename locker"
-            accessibilityRole="button"
-            onPress={openRenameModal}
-            style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}>
-            <Text style={styles.editButtonText}>✏️</Text>
-          </Pressable>
+          <Text style={styles.title}>My Locker</Text>
         </View>
-        <Text style={styles.subtitle}>Build your look.</Text>
+        <Text style={styles.subtitle}>Build your perfect look.</Text>
         </View>
         <View style={styles.headerActions}>
           <Pressable accessibilityLabel="Profile" accessibilityRole="button" style={({ pressed }) => [styles.roundButton, pressed && styles.buttonPressed]}><Text style={styles.profileText}>LU</Text></Pressable>
@@ -323,7 +316,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingTop: 0,
   },
-  pageContent: { alignSelf: "center", maxWidth: 1160, paddingTop: 32, width: "100%" },
+  pageContent: { alignSelf: "center", maxWidth: 1200, paddingTop: 36, width: "100%" },
   eyebrow: { color: "#4ade80", fontSize: 12, fontWeight: "800", letterSpacing: 1.6, marginBottom: 8 },
   headerRow: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
   headerCopy: { flex: 1, paddingRight: 18 },
@@ -338,8 +331,9 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     flexShrink: 1,
-    fontSize: 32,
-    fontWeight: "bold",
+    fontSize: 46,
+    fontWeight: "900",
+    letterSpacing: -1.4,
     marginBottom: 6,
   },
   editButton: {
