@@ -266,6 +266,18 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
         : wardrobe.filter((item) => item.category === activeClosetFilter),
     [activeClosetFilter, wardrobe],
   );
+  const selectedIds = useMemo(
+    () => new Set(Object.values(selection).filter(Boolean).map((item) => item!.id)),
+    [selection],
+  );
+  const mostWornColor = useMemo(() => {
+    const counts = wardrobe.reduce<Record<string, number>>((result, item) => {
+      result[item.primaryColor] = (result[item.primaryColor] ?? 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+  }, [wardrobe]);
+  const favoriteCategory = wardrobe.find((item) => item.favorite)?.category ?? wardrobe[0]?.category ?? "—";
 
   const persistWardrobe = async (nextWardrobe: ClothingItem[]) => {
     setWardrobe(nextWardrobe);
@@ -378,10 +390,8 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   const renderSlotCard = (slot: SlotDefinition) => {
     const item = selection[slot.key];
     return (
-      <Pressable
-        key={slot.key}
-        onPress={() => setActiveSlot(slot)}
-        style={({ pressed }) => [styles.slotCard, pressed && styles.pressed]}>
+      <View key={slot.key} style={styles.slotCard}>
+        <Pressable onPress={() => setActiveSlot(slot)} style={({ pressed }) => pressed && styles.pressed}>
         <View style={styles.slotCardTopRow}>
           <Text style={styles.slotLabel}>{slot.placeholder} {slot.label}</Text>
           <Text style={styles.slotChevron}>›</Text>
@@ -392,19 +402,14 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
           </View>
           <Text numberOfLines={2} style={styles.slotValue}>{item?.name ?? "Choose an item"}</Text>
         </View>
-        <View style={styles.slotActions}>
           <Text style={styles.slotActionText}>{item ? "Replace" : "Choose"}</Text>
-          {item && (
-            <Pressable
-              onPress={(event) => {
-                event.stopPropagation();
-                setSelection((current) => ({ ...current, [slot.key]: null }));
-              }}>
-              <Text style={styles.removeText}>Remove</Text>
-            </Pressable>
-          )}
-        </View>
-      </Pressable>
+        </Pressable>
+        {item && (
+          <Pressable onPress={() => setSelection((current) => ({ ...current, [slot.key]: null }))} style={styles.removeAction}>
+            <Text style={styles.removeText}>Remove</Text>
+          </Pressable>
+        )}
+      </View>
     );
   };
 
@@ -440,7 +445,9 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
         <View style={[styles.builderLayout, !isWideLayout && styles.builderLayoutMobile]}>
           {isWideLayout && <View style={styles.sideColumn}>{leftSlots.map(renderSlotCard)}</View>}
           <View style={styles.centerColumn}>
-            <View style={styles.mannequinStage}>
+            <View style={styles.mannequinDisplayCard}>
+              <Text style={styles.displayEyebrow}>LOOK PREVIEW</Text>
+              <View style={styles.mannequinStage}>
               <View style={styles.mannequinFrame}>
                 {!mannequinAssetFailed ? (
                   <Image
@@ -466,9 +473,10 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
                 {selection.accessory && <PrototypeClothingLayer key={selection.accessory.id} item={selection.accessory} slot="accessory" zIndex={50} />}
               </View>
             </View>
+            </View>
             <View style={styles.quickControls}>
               <Pressable onPress={shuffleOutfit} style={({ pressed }) => [styles.quickButton, pressed && styles.pressed]}>
-                <Text style={styles.quickButtonText}>⤨ Shuffle</Text>
+                <Text style={styles.quickButtonText}>Randomize</Text>
               </Pressable>
               <Pressable onPress={resetOutfit} style={({ pressed }) => [styles.quickButton, pressed && styles.pressed]}>
                 <Text style={styles.quickButtonText}>↺ Reset</Text>
@@ -494,19 +502,31 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
             disabled={!hasSelectedItems}
             onPress={saveOutfit}
             style={({ pressed }) => [styles.saveButton, !hasSelectedItems && styles.disabled, pressed && styles.pressed]}>
-            <Text style={styles.saveButtonText}>Save Outfit</Text>
+            <Text style={styles.saveButtonText}>Save Look</Text>
           </Pressable>
           <Pressable onPress={clearOutfit} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
-            <Text style={styles.clearButtonText}>Clear Outfit</Text>
+            <Text style={styles.clearButtonText}>Clear Look</Text>
           </Pressable>
         </View>
         {saveMessage ? <Text style={styles.successText}>{saveMessage}</Text> : null}
       </Animated.View>
 
-      <Text style={styles.savedTitle}>Saved Outfits</Text>
+      <View style={styles.currentLookCard}>
+        <Text style={styles.savedTitle}>Current Look</Text>
+        <View style={styles.currentLookGrid}>
+          {(["top", "bottom", "shoes", "accessory"] as OutfitSlotKey[]).map((key) => (
+            <View key={key} style={styles.currentLookItem}>
+              <Text style={styles.currentLookLabel}>{slots.find((slot) => slot.key === key)?.label}</Text>
+              <Text numberOfLines={1} style={styles.currentLookValue}>{selection[key]?.name ?? "Not selected"}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <Text style={styles.savedTitle}>Saved Looks</Text>
       {savedOutfits.length === 0 ? (
         <View style={styles.savedEmptyCard}>
-          <Text style={styles.savedEmptyTitle}>No saved outfits yet.</Text>
+          <Text style={styles.savedEmptyTitle}>No saved looks yet.</Text>
           <Text style={styles.savedEmptyText}>Your saved combinations will appear here.</Text>
         </View>
       ) : (
@@ -537,7 +557,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
 
       <View style={styles.closetHeader}>
         <View>
-          <Text style={styles.savedTitle}>My Closet</Text>
+          <Text style={styles.savedTitle}>Clothing</Text>
           <Text style={styles.sectionSubtitle}>{wardrobe.length} items ready to style</Text>
         </View>
       </View>
@@ -547,7 +567,9 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
             key={filter}
             onPress={() => setActiveClosetFilter(filter)}
             style={[styles.filterButton, activeClosetFilter === filter && styles.filterButtonActive]}>
-            <Text style={[styles.filterText, activeClosetFilter === filter && styles.filterTextActive]}>{filter}</Text>
+            <Text style={[styles.filterText, activeClosetFilter === filter && styles.filterTextActive]}>
+              {({ "All Items": "All", Shirts: "Tops", Pants: "Bottoms", Shoes: "Shoes", Jackets: "Outerwear", Accessories: "Accessories" } as Record<string, string>)[filter]}
+            </Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -557,21 +579,33 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
           <Text style={styles.closetEmptyText}>Add your first clothing item to begin building your AI-powered digital closet.</Text>
         </View>
       ) : (
-        <View style={styles.closetGrid}>
+        <ScrollView horizontal contentContainerStyle={styles.closetCarousel} showsHorizontalScrollIndicator={false}>
           {filteredClosetItems.map((item) => (
-            <Pressable key={item.id} onPress={() => selectClosetItem(item)} style={({ pressed }) => [styles.closetCard, pressed && styles.pressed]}>
+            <View key={item.id} style={[styles.closetCard, selectedIds.has(item.id) && styles.closetCardSelected]}>
+              <Pressable onPress={() => selectClosetItem(item)} style={({ pressed }) => [styles.closetMain, pressed && styles.pressed]}>
               <View style={styles.closetVisual}><Text style={styles.closetVisualText}>{item.thumbnail}</Text></View>
               <Text numberOfLines={2} style={styles.closetItemName}>{item.name}</Text>
               <Text style={styles.closetItemMeta}>{item.primaryColor} · {item.brand}</Text>
+              </Pressable>
               <Pressable
-                onPress={(event) => { event.stopPropagation(); toggleFavorite(item.id); }}
+                onPress={() => toggleFavorite(item.id)}
                 style={styles.closetFavorite}>
                 <Text style={styles.favoriteIcon}>{item.favorite ? "★" : "☆"}</Text>
               </Pressable>
-            </Pressable>
+              {selectedIds.has(item.id) && <View style={styles.selectedBadge}><Text style={styles.selectedBadgeText}>✓</Text></View>}
+            </View>
           ))}
-        </View>
+        </ScrollView>
       )}
+
+      <View style={styles.insightsCard}>
+        <Text style={styles.savedTitle}>Style Insights</Text>
+        <View style={styles.insightsRow}>
+          <View style={styles.insight}><Text style={styles.insightLabel}>Most worn color</Text><Text style={styles.insightValue}>{mostWornColor}</Text></View>
+          <View style={styles.insight}><Text style={styles.insightLabel}>Favorite category</Text><Text style={styles.insightValue}>{favoriteCategory}</Text></View>
+          <View style={styles.insight}><Text style={styles.insightLabel}>Recent look</Text><Text numberOfLines={1} style={styles.insightValue}>{savedOutfits[0]?.name ?? "No saved look"}</Text></View>
+        </View>
+      </View>
 
       <Modal animationType="fade" onRequestClose={() => setActiveSlot(null)} transparent visible={activeSlot !== null}>
         <View style={styles.modalBackdrop}>
@@ -623,7 +657,7 @@ const styles = StyleSheet.create({
   sampleBadgeTitle: { color: "#7dd3fc", fontSize: 13, fontWeight: "bold" },
   sampleBadgeText: { color: "#94a3b8", fontSize: 12, marginTop: 3 },
   dismissText: { color: "#c4b5fd", fontSize: 24, lineHeight: 24, marginLeft: 12 },
-  builderCard: { backgroundColor: "#151d2e", borderColor: "rgba(96,165,250,0.18)", borderRadius: 22, borderWidth: 1, padding: 18, shadowColor: "#2563eb", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 22 },
+  builderCard: { backgroundColor: "#101713", borderColor: "rgba(74,222,128,0.18)", borderRadius: 24, borderWidth: 1, padding: 20 },
   builderHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
   builderHeaderText: { flex: 1, paddingRight: 12 },
   helpButton: { borderColor: "rgba(139,92,246,0.5)", borderRadius: 10, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 8 },
@@ -633,6 +667,8 @@ const styles = StyleSheet.create({
   builderLayoutMobile: { flexDirection: "column" },
   sideColumn: { flex: 1, gap: 12, maxWidth: 220, minWidth: 170 },
   centerColumn: { alignItems: "center", flex: 1, maxWidth: 340, minWidth: 250 },
+  mannequinDisplayCard: { alignItems: "center", backgroundColor: "#0b110d", borderColor: "rgba(74,222,128,0.22)", borderRadius: 24, borderWidth: 1, minHeight: 410, padding: 16, width: "100%" },
+  displayEyebrow: { alignSelf: "flex-start", color: "#4ade80", fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginBottom: 10 },
   mannequinStage: { alignItems: "center", alignSelf: "center", backgroundColor: "rgba(15,23,42,0.72)", borderColor: "rgba(56,189,248,0.16)", borderRadius: 22, borderWidth: 1, height: 360, justifyContent: "center", marginBottom: 16, maxWidth: 340, overflow: "hidden", width: "100%" },
   mannequinFrame: { aspectRatio: 512 / 768, height: 330, position: "relative" },
   prototypeCanvas: { bottom: 0, left: 0, position: "absolute", right: 0, top: 0 },
@@ -708,17 +744,23 @@ const styles = StyleSheet.create({
   slotLabel: { color: "#fff", fontSize: 14, fontWeight: "bold" },
   slotValue: { color: "#cbd5e1", flex: 1, fontSize: 12 },
   slotActions: { flexDirection: "row", gap: 14, marginTop: 9 },
+  removeAction: { alignSelf: "flex-start", marginTop: 9, paddingVertical: 3 },
   slotActionText: { color: "#38bdf8", fontSize: 12, fontWeight: "bold" },
   removeText: { color: "#fca5a5", fontSize: 12, fontWeight: "bold" },
   nameInput: { backgroundColor: "rgba(15,23,42,0.8)", borderColor: "rgba(56,189,248,0.28)", borderRadius: 12, borderWidth: 1, color: "#fff", fontSize: 15, marginTop: 14, paddingHorizontal: 13, paddingVertical: 12 },
   controls: { flexDirection: "row", gap: 10, marginTop: 12 },
-  saveButton: { alignItems: "center", backgroundColor: "#2563eb", borderRadius: 12, flex: 1, paddingVertical: 13 },
+  saveButton: { alignItems: "center", backgroundColor: "#22c55e", borderRadius: 12, flex: 1, paddingVertical: 13 },
   saveButtonText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
   clearButton: { alignItems: "center", borderColor: "rgba(148,163,184,0.42)", borderRadius: 12, borderWidth: 1, flex: 1, paddingVertical: 13 },
   clearButtonText: { color: "#B8C5D6", fontSize: 14, fontWeight: "bold" },
   disabled: { opacity: 0.42 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   successText: { color: "#86efac", fontSize: 13, marginTop: 10, textAlign: "center" },
+  currentLookCard: { backgroundColor: "#101713", borderColor: "rgba(255,255,255,0.08)", borderRadius: 20, borderWidth: 1, marginTop: 24, padding: 18 },
+  currentLookGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  currentLookItem: { backgroundColor: "#171e19", borderRadius: 12, flexBasis: 150, flexGrow: 1, padding: 12 },
+  currentLookLabel: { color: "#7c8b81", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  currentLookValue: { color: "#fff", fontSize: 13, fontWeight: "700", marginTop: 5 },
   savedTitle: { color: "#fff", fontSize: 20, fontWeight: "bold", marginBottom: 10, marginTop: 18 },
   savedEmptyCard: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 16 },
   savedEmptyTitle: { color: "#B8C5D6", fontSize: 15, fontWeight: "bold" },
@@ -740,16 +782,26 @@ const styles = StyleSheet.create({
   closetHeader: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
   filterScroll: { marginBottom: 14 },
   filterButton: { borderColor: "rgba(148,163,184,0.25)", borderRadius: 999, borderWidth: 1, marginRight: 8, paddingHorizontal: 13, paddingVertical: 8 },
-  filterButtonActive: { backgroundColor: "#2563eb", borderColor: "#60a5fa" },
+  filterButtonActive: { backgroundColor: "#22c55e", borderColor: "#4ade80" },
   filterText: { color: "#94a3b8", fontSize: 12, fontWeight: "bold" },
   filterTextActive: { color: "#fff" },
   closetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  closetCard: { backgroundColor: "#1e293b", borderColor: "rgba(139,92,246,0.18)", borderRadius: 14, borderWidth: 1, flexBasis: "46%", flexGrow: 1, maxWidth: 240, minWidth: 145, padding: 12, position: "relative" },
+  closetCarousel: { gap: 12, paddingBottom: 4, paddingRight: 16 },
+  closetCard: { backgroundColor: "#171e19", borderColor: "rgba(255,255,255,0.09)", borderRadius: 16, borderWidth: 1, height: 196, padding: 12, position: "relative", width: 152 },
+  closetCardSelected: { borderColor: "#4ade80", borderWidth: 2 },
+  closetMain: { flex: 1 },
   closetVisual: { alignItems: "center", backgroundColor: "rgba(15,23,42,0.7)", borderRadius: 11, height: 72, justifyContent: "center", marginBottom: 10 },
   closetVisualText: { fontSize: 38 },
   closetItemName: { color: "#fff", fontSize: 13, fontWeight: "bold", paddingRight: 22 },
   closetItemMeta: { color: "#94a3b8", fontSize: 11, marginTop: 5 },
   closetFavorite: { padding: 8, position: "absolute", right: 4, top: 78 },
+  selectedBadge: { alignItems: "center", backgroundColor: "#22c55e", borderRadius: 12, height: 24, justifyContent: "center", position: "absolute", right: 8, top: 8, width: 24 },
+  selectedBadgeText: { color: "#071109", fontSize: 13, fontWeight: "900" },
+  insightsCard: { backgroundColor: "#101713", borderColor: "rgba(74,222,128,0.16)", borderRadius: 20, borderWidth: 1, marginTop: 28, padding: 18 },
+  insightsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  insight: { backgroundColor: "#171e19", borderRadius: 12, flexBasis: 180, flexGrow: 1, padding: 14 },
+  insightLabel: { color: "#7c8b81", fontSize: 11, fontWeight: "700" },
+  insightValue: { color: "#fff", fontSize: 15, fontWeight: "800", marginTop: 5 },
   closetEmptyState: { backgroundColor: "rgba(37,99,235,0.1)", borderColor: "rgba(56,189,248,0.24)", borderRadius: 16, borderWidth: 1, padding: 18 },
   closetEmptyTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", marginBottom: 8 },
   closetEmptyText: { color: "#B8C5D6", fontSize: 14, lineHeight: 21 },

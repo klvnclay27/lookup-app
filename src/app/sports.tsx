@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 type League = 'All' | 'NBA' | 'NFL' | 'MLB' | 'NHL' | 'Soccer';
 type GameStatus = 'LIVE' | 'FINAL' | 'UPCOMING';
+type OddsFormat = 'Spread' | 'Moneyline' | 'Total';
+type OddsMovement = 'up' | 'down' | 'none';
 
 type Team = {
   name: string;
@@ -44,6 +47,22 @@ type Story = {
 };
 
 type Standing = { team: string; short: string; wins: number; losses: number; pct: string };
+type OddsTeamMeta = { record: string; streak: string; rank: string };
+
+type OddsGame = {
+  id: string;
+  league: Exclude<League, 'All'>;
+  status: string;
+  away: Team;
+  home: Team;
+  updated: string;
+  odds: Record<OddsFormat, {
+    away: string;
+    home: string;
+    awayMovement: OddsMovement;
+    homeMovement: OddsMovement;
+  }>;
+};
 
 const LEAGUES: League[] = ['All', 'NBA', 'NFL', 'MLB', 'NHL', 'Soccer'];
 
@@ -126,12 +145,61 @@ const STORIES: Story[] = [
   { id: 'rangers-line', league: 'NHL', headline: 'Rangers reshape top line ahead of Boston matchup', source: 'Ice Level', time: '2h ago', colors: ['#0748A1', '#D22C36'] },
 ];
 
+const ODDS_GAMES: OddsGame[] = [
+  {
+    id: 'odds-nyk-bkn', league: 'NBA', status: 'Tonight · 7:30 PM', away: TEAMS.knicks, home: TEAMS.nets, updated: 'Updated 4m ago',
+    odds: {
+      Spread: { away: 'Knicks -4.5', home: 'Nets +4.5', awayMovement: 'up', homeMovement: 'down' },
+      Moneyline: { away: 'Knicks -180', home: 'Nets +155', awayMovement: 'down', homeMovement: 'up' },
+      Total: { away: 'Over 221.5', home: 'Under 221.5', awayMovement: 'up', homeMovement: 'none' },
+    },
+  },
+  {
+    id: 'odds-bos-mia', league: 'NBA', status: 'Tomorrow · 8:00 PM', away: TEAMS.celtics, home: TEAMS.heat, updated: 'Updated 7m ago',
+    odds: {
+      Spread: { away: 'Celtics -6.0', home: 'Heat +6.0', awayMovement: 'none', homeMovement: 'up' },
+      Moneyline: { away: 'Celtics -225', home: 'Heat +190', awayMovement: 'up', homeMovement: 'down' },
+      Total: { away: 'Over 216.5', home: 'Under 216.5', awayMovement: 'down', homeMovement: 'up' },
+    },
+  },
+  {
+    id: 'odds-nyg-dal', league: 'NFL', status: 'Sunday · 4:25 PM', away: TEAMS.giants, home: TEAMS.cowboys, updated: 'Updated 11m ago',
+    odds: {
+      Spread: { away: 'Giants +3.5', home: 'Cowboys -3.5', awayMovement: 'up', homeMovement: 'down' },
+      Moneyline: { away: 'Giants +160', home: 'Cowboys -190', awayMovement: 'none', homeMovement: 'up' },
+      Total: { away: 'Over 44.5', home: 'Under 44.5', awayMovement: 'up', homeMovement: 'none' },
+    },
+  },
+  {
+    id: 'odds-nyy-bos', league: 'MLB', status: 'Tonight · 7:10 PM', away: TEAMS.yankees, home: TEAMS.redSox, updated: 'Updated 14m ago',
+    odds: {
+      Spread: { away: 'Yankees -1.5', home: 'Red Sox +1.5', awayMovement: 'down', homeMovement: 'up' },
+      Moneyline: { away: 'Yankees -135', home: 'Red Sox +120', awayMovement: 'up', homeMovement: 'none' },
+      Total: { away: 'Over 8.5', home: 'Under 8.5', awayMovement: 'none', homeMovement: 'down' },
+    },
+  },
+];
+
+const ODDS_TEAM_META: Record<string, OddsTeamMeta> = {
+  'New York Knicks': { record: '42–18', streak: 'W3', rank: '#2 East' },
+  'Brooklyn Nets': { record: '28–32', streak: 'L1', rank: '#10 East' },
+  'Boston Celtics': { record: '46–14', streak: 'W5', rank: '#1 East' },
+  'Miami Heat': { record: '34–27', streak: 'W2', rank: '#6 East' },
+  'New York Giants': { record: '9–8', streak: 'W1', rank: '#3 NFC East' },
+  'Dallas Cowboys': { record: '12–5', streak: 'W2', rank: '#1 NFC East' },
+  'New York Yankees': { record: '68–49', streak: 'W4', rank: '#1 AL East' },
+  'Boston Red Sox': { record: '62–55', streak: 'L2', rank: '#3 AL East' },
+};
+
 export default function SportsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const [selectedLeague, setSelectedLeague] = useState<League>('All');
   const [favorites, setFavorites] = useState<string[]>(['NYK', 'NYY']);
+  const [oddsFormat, setOddsFormat] = useState<OddsFormat>('Spread');
+  const [selectedOddsGame, setSelectedOddsGame] = useState<string | null>(null);
+  const [favoriteOddsGames, setFavoriteOddsGames] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,6 +219,10 @@ export default function SportsScreen() {
   const standingsLeague = selectedLeague === 'All' || selectedLeague === 'Soccer' ? 'NBA' : selectedLeague;
   const standings = STANDINGS[standingsLeague];
   const featuredGame = filteredGames.find((game) => game.status === 'LIVE') ?? filteredGames[0] ?? GAMES[0];
+  const sortedOddsGames = useMemo(
+    () => [...ODDS_GAMES].sort((a, b) => Number(favoriteOddsGames.includes(b.id)) - Number(favoriteOddsGames.includes(a.id))),
+    [favoriteOddsGames],
+  );
 
   const openGame = (_game: Game) => router.push('/game-details');
   const toggleFavorite = (short: string) => {
@@ -222,6 +294,43 @@ export default function SportsScreen() {
             <FavoriteTeamCard key={team.name} team={team} favorite={favorites.includes(team.short)} onToggle={() => toggleFavorite(team.short)} />
           ))}
         </ScrollView>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.oddsHeader}>
+          <View style={styles.oddsTitleGroup}>
+            <Text style={styles.sectionTitle}>Game Odds</Text>
+            <View style={styles.simulatedBadge}><Text style={styles.simulatedText}>SIMULATED</Text></View>
+          </View>
+          <Pressable onPress={() => Alert.alert('Game Odds', 'The full simulated odds view is coming soon.')} hitSlop={8}>
+            <Text style={styles.seeAll}>See all</Text>
+          </Pressable>
+        </View>
+        <View style={styles.oddsSelector}>
+          {(['Spread', 'Moneyline', 'Total'] as OddsFormat[]).map((format) => (
+            <OddsFormatPill key={format} active={oddsFormat === format} format={format} onPress={() => setOddsFormat(format)} />
+          ))}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.oddsCards}>
+          {sortedOddsGames.map((game) => (
+            <OddsCard
+              favorite={favoriteOddsGames.includes(game.id)}
+              key={game.id}
+              format={oddsFormat}
+              game={game}
+              selected={selectedOddsGame === game.id}
+              onPress={() => {
+                setSelectedOddsGame(game.id);
+                setTimeout(() => router.push('/game-details'), 160);
+              }}
+              onToggleFavorite={() => setFavoriteOddsGames((current) => current.includes(game.id) ? current.filter((id) => id !== game.id) : [...current, game.id])}
+            />
+          ))}
+        </ScrollView>
+        <View style={styles.oddsInfoCard}>
+          <Text style={styles.oddsInfoIcon}>i</Text>
+          <Text style={styles.oddsNote}>Odds shown are simulated for MVP demonstration purposes only.</Text>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -327,6 +436,75 @@ function FavoriteTeamCard({ team, favorite, onToggle }: { team: typeof FAVORITE_
       <Text numberOfLines={1} style={styles.favoriteName}>{team.name}</Text>
       <Text style={styles.favoriteRecord}>{team.record}</Text>
       <Text numberOfLines={1} style={styles.favoriteNext}>{team.next}</Text>
+    </View>
+  );
+}
+
+function OddsFormatPill({ active, format, onPress }: { active: boolean; format: OddsFormat; onPress: () => void }) {
+  const scale = useSharedValue(1);
+  useEffect(() => {
+    scale.value = withTiming(active ? 1.04 : 1, { duration: 170 });
+  }, [active, scale]);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={animatedStyle}>
+      <Pressable onPress={onPress} style={[styles.oddsPill, active && styles.oddsPillActive]}>
+        <Text style={[styles.oddsPillText, active && styles.oddsPillTextActive]}>{format}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function OddsCard({ game, format, selected, favorite, onPress, onToggleFavorite }: { game: OddsGame; format: OddsFormat; selected: boolean; favorite: boolean; onPress: () => void; onToggleFavorite: () => void }) {
+  const values = game.odds[format];
+  const statusLabel = game.status.replace('Tonight ·', 'TODAY').replace('Tomorrow ·', 'TOMORROW').replace('Sunday ·', 'SUNDAY');
+  const scale = useSharedValue(1);
+  useEffect(() => {
+    scale.value = withTiming(selected ? 1.015 : 1, { duration: 150 });
+  }, [scale, selected]);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={[styles.oddsCardShell, animatedStyle]}>
+    <Pressable
+      accessibilityLabel={`Open ${game.away.name} at ${game.home.name} game details`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.oddsCard, selected && styles.oddsCardSelected, pressed && styles.cardPressed]}>
+      <View style={styles.oddsCardTop}>
+        <Text style={styles.gameLeague}>{game.league}</Text>
+        <View style={styles.oddsStatusBadge}><Text style={styles.oddsStatusIcon}>⏰</Text><Text style={styles.oddsStatus}>{statusLabel}</Text></View>
+      </View>
+      <OddsTeamRow team={game.away} value={values.away} movement={values.awayMovement} />
+      <View style={styles.oddsTeamDivider} />
+      <OddsTeamRow team={game.home} value={values.home} movement={values.homeMovement} />
+      <View style={styles.oddsFooter}>
+        <Text style={styles.oddsFormatLabel}>{format} · SIMULATED</Text>
+        <Text style={styles.oddsUpdated}>Last Updated · {game.updated.replace('Updated ', '')}</Text>
+      </View>
+    </Pressable>
+    <Pressable
+      accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${game.away.short} at ${game.home.short} favorite`}
+      onPress={onToggleFavorite}
+      style={({ pressed }) => [styles.oddsFavoriteButton, favorite && styles.oddsFavoriteButtonActive, pressed && styles.pressed]}>
+      <Text style={[styles.oddsFavoriteIcon, favorite && styles.oddsFavoriteIconActive]}>★</Text>
+    </Pressable>
+    </Animated.View>
+  );
+}
+
+function OddsTeamRow({ team, value, movement }: { team: Team; value: string; movement: OddsMovement }) {
+  const meta = ODDS_TEAM_META[team.name] ?? { record: '—', streak: '—', rank: '—' };
+  return (
+    <View style={styles.oddsTeamRow}>
+      <TeamLogo team={team} size={40} />
+      <View style={styles.oddsTeamCopy}>
+        <Text numberOfLines={1} style={styles.oddsTeamName}>{team.name}</Text>
+        <Text style={styles.oddsTeamMeta}>{meta.record}  ·  {meta.streak}  ·  {meta.rank}</Text>
+      </View>
+      <View style={styles.oddsValueDivider} />
+      <View style={styles.oddsValueRow}>
+        <Text style={styles.oddsValue}>{value.replace(/^\S+\s/, '')}</Text>
+        {movement !== 'none' && <Text style={movement === 'up' ? styles.movementUp : styles.movementDown}>{movement === 'up' ? '▲ +0.5' : '▼ -1.0'}</Text>}
+      </View>
     </View>
   );
 }
@@ -437,6 +615,43 @@ const styles = StyleSheet.create({
   favoriteName: { color: '#F1F4F7', fontSize: 14, fontWeight: '900' },
   favoriteRecord: { color: '#A4ADB7', fontSize: 12, fontWeight: '700', marginTop: 6 },
   favoriteNext: { color: '#727E8A', fontSize: 11, marginTop: 7 },
+  oddsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  oddsTitleGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  simulatedBadge: { backgroundColor: 'rgba(105,224,140,0.1)', borderColor: 'rgba(105,224,140,0.28)', borderRadius: 9, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
+  simulatedText: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
+  oddsSelector: { backgroundColor: '#11161C', borderRadius: 19, flexDirection: 'row', gap: 5, marginBottom: 20, padding: 4, alignSelf: 'flex-start' },
+  oddsPill: { alignItems: 'center', backgroundColor: 'transparent', borderColor: 'transparent', borderRadius: 15, borderWidth: 1, justifyContent: 'center', minHeight: 34, minWidth: 92, paddingHorizontal: 16 },
+  oddsPillActive: { backgroundColor: '#58E17F', borderColor: '#80EDA0', shadowColor: '#69E08C', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8 },
+  oddsPillText: { color: '#98A2AE', fontSize: 11, fontWeight: '800' },
+  oddsPillTextActive: { color: '#07120C', fontWeight: '900' },
+  oddsCards: { gap: 18, paddingBottom: 6, paddingRight: 28 },
+  oddsCardShell: { height: 276, position: 'relative', width: 380 },
+  oddsCard: { backgroundColor: '#12181E', borderColor: 'rgba(255,255,255,0.08)', borderRadius: 20, borderWidth: 1, height: 276, padding: 20, width: 380 },
+  oddsCardSelected: { backgroundColor: '#142019', borderColor: '#69E08C', shadowColor: '#69E08C', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 18 },
+  oddsCardTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 19, paddingRight: 39 },
+  oddsStatusBadge: { alignItems: 'center', backgroundColor: 'rgba(105,224,140,0.09)', borderColor: 'rgba(105,224,140,0.18)', borderRadius: 10, borderWidth: 1, flexDirection: 'row', gap: 5, paddingHorizontal: 8, paddingVertical: 5 },
+  oddsStatusIcon: { fontSize: 10 },
+  oddsStatus: { color: '#A9E8BB', fontSize: 9, fontWeight: '900', letterSpacing: 0.35 },
+  oddsTeamRow: { alignItems: 'center', flexDirection: 'row', gap: 12, height: 70 },
+  oddsTeamDivider: { backgroundColor: 'rgba(255,255,255,0.055)', height: StyleSheet.hairlineWidth, marginLeft: 51 },
+  oddsTeamCopy: { flex: 1, minWidth: 0 },
+  oddsTeamName: { color: '#E9EDF2', fontSize: 15, fontWeight: '800' },
+  oddsTeamMeta: { color: '#707C88', fontSize: 9, fontWeight: '700', marginTop: 7 },
+  oddsValueDivider: { alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 13, width: StyleSheet.hairlineWidth },
+  oddsValueRow: { alignItems: 'flex-end', gap: 5, minWidth: 78 },
+  oddsValue: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: -0.6 },
+  movementUp: { color: '#69E08C', fontSize: 9, fontWeight: '900' },
+  movementDown: { color: '#FF6B76', fontSize: 9, fontWeight: '900' },
+  oddsFooter: { borderTopColor: '#2C3540', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', marginTop: 15, paddingTop: 13 },
+  oddsFormatLabel: { color: '#69E08C', fontSize: 9, fontWeight: '900', textTransform: 'uppercase' },
+  oddsUpdated: { color: '#707B87', fontSize: 9 },
+  oddsFavoriteButton: { alignItems: 'center', backgroundColor: '#202731', borderColor: 'rgba(255,255,255,0.08)', borderRadius: 15, borderWidth: 1, height: 30, justifyContent: 'center', position: 'absolute', right: 14, top: 14, width: 30 },
+  oddsFavoriteButtonActive: { backgroundColor: 'rgba(105,224,140,0.14)', borderColor: 'rgba(105,224,140,0.35)' },
+  oddsFavoriteIcon: { color: '#697580', fontSize: 13 },
+  oddsFavoriteIconActive: { color: '#69E08C' },
+  oddsInfoCard: { alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#11171D', borderColor: 'rgba(255,255,255,0.065)', borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 9, marginTop: 16, paddingHorizontal: 12, paddingVertical: 10 },
+  oddsInfoIcon: { borderColor: '#596570', borderRadius: 8, borderWidth: 1, color: '#8E99A5', fontSize: 9, fontWeight: '900', height: 16, lineHeight: 14, textAlign: 'center', width: 16 },
+  oddsNote: { color: '#78838E', flexShrink: 1, fontSize: 10, lineHeight: 15 },
   standingsCard: { backgroundColor: '#141920', borderWidth: 1, borderColor: '#28313B', borderRadius: 18, paddingHorizontal: 16, overflow: 'hidden' },
   standingRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center' },
   standingHeader: { minHeight: 42 },

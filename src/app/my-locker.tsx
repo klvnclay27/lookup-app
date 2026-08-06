@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,27 +30,9 @@ const aiFeatures = [
   },
 ];
 
-const lockerSections = [
-  {
-    title: "Wishlist",
-    content: ["No saved items yet."],
-  },
-  {
-    title: "AI Outfit Suggestions",
-    content: ["Add clothing to unlock recommendations."],
-  },
-  {
-    title: "Recommended Brands",
-    content: ["Nike", "Levi's", "Adidas"],
-  },
-  {
-    title: "Recent Purchases",
-    content: ["No purchases yet."],
-  },
-];
-
 export default function MyLockerScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isRenameModalVisible, setIsRenameModalVisible] = useState(false);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
@@ -162,6 +145,10 @@ export default function MyLockerScreen() {
           styles.contentContainer,
           { paddingBottom: insets.bottom + 32 },
         ]}>
+        <View style={[styles.pageContent, { paddingHorizontal: width >= 768 ? 30 : 20 }]}>
+        <Text style={styles.eyebrow}>YOUR DIGITAL WARDROBE</Text>
+        <View style={styles.headerRow}>
+        <View style={styles.headerCopy}>
         <View style={styles.lockerTitleRow}>
           <Text style={styles.title}>👕 {lockerName}</Text>
           <Pressable
@@ -172,7 +159,13 @@ export default function MyLockerScreen() {
             <Text style={styles.editButtonText}>✏️</Text>
           </Pressable>
         </View>
-        <Text style={styles.subtitle}>Your intelligent digital wardrobe</Text>
+        <Text style={styles.subtitle}>Build your look.</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <Pressable accessibilityLabel="Profile" accessibilityRole="button" style={({ pressed }) => [styles.roundButton, pressed && styles.buttonPressed]}><Text style={styles.profileText}>LU</Text></Pressable>
+          <Pressable accessibilityLabel="Locker settings" accessibilityRole="button" onPress={openRenameModal} style={({ pressed }) => [styles.roundButton, pressed && styles.buttonPressed]}><Text style={styles.settingsText}>⚙</Text></Pressable>
+        </View>
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -186,26 +179,7 @@ export default function MyLockerScreen() {
           onWardrobeCountChange={setClothingItemCount}
         />
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Weather Recommendation</Text>
-          <Text style={styles.cardText}>Connect weather to receive clothing suggestions.</Text>
         </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Today's Outfit</Text>
-          <Text style={styles.cardText}>No recommendation available yet.</Text>
-        </View>
-
-        {lockerSections.map((section) => (
-          <View key={section.title} style={styles.card}>
-            <Text style={styles.cardTitle}>{section.title}</Text>
-            {section.content.map((line) => (
-              <Text key={line} style={styles.cardText}>
-                {line}
-              </Text>
-            ))}
-          </View>
-        ))}
       </ScrollView>
 
       <Modal
@@ -347,8 +321,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   contentContainer: {
-    padding: 20,
+    paddingTop: 0,
   },
+  pageContent: { alignSelf: "center", maxWidth: 1160, paddingTop: 32, width: "100%" },
+  eyebrow: { color: "#4ade80", fontSize: 12, fontWeight: "800", letterSpacing: 1.6, marginBottom: 8 },
+  headerRow: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
+  headerCopy: { flex: 1, paddingRight: 18 },
+  headerActions: { gap: 10 },
+  roundButton: { alignItems: "center", backgroundColor: "#171e19", borderColor: "rgba(255,255,255,0.1)", borderRadius: 22, borderWidth: 1, height: 44, justifyContent: "center", width: 44 },
+  profileText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  settingsText: { color: "#cbd5e1", fontSize: 18 },
   lockerTitleRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -379,14 +361,15 @@ const styles = StyleSheet.create({
   },
   addButton: {
     alignItems: "center",
-    backgroundColor: "#2563eb",
+    alignSelf: "flex-start",
+    backgroundColor: "#22c55e",
     borderRadius: 12,
     marginBottom: 28,
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
   addButtonText: {
-    color: "#fff",
+    color: "#071109",
     fontSize: 16,
     fontWeight: "bold",
   },
