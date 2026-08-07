@@ -140,7 +140,7 @@ export default function MusicScreen() {
           {
             paddingTop: Math.max(insets.top, 20) + 28,
             paddingHorizontal: isDesktop ? 32 : 20,
-            paddingBottom: 190,
+            paddingBottom: 210,
           },
         ]}>
         <View style={styles.header}>

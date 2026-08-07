@@ -143,7 +143,7 @@ export default function MyLockerScreen() {
         style={styles.container}
         contentContainerStyle={[
           styles.contentContainer,
-          { paddingBottom: insets.bottom + 32 },
+          { paddingBottom: insets.bottom + 140 },
         ]}>
         <View style={[styles.pageContent, { paddingHorizontal: width >= 768 ? 30 : 20 }]}>
         <Text style={styles.eyebrow}>YOUR DIGITAL WARDROBE</Text>

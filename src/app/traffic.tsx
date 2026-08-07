@@ -178,7 +178,7 @@ export default function TrafficScreen() {
       style={styles.screen}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 100 }]}>
+      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 }]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}><Text style={styles.eyebrow}>YOUR COMMUTE HUB</Text><Text style={styles.title}>Traffic</Text><Text style={styles.subtitle}>Know before you go.</Text></View>
         <View style={styles.headerActions}><Pressable accessibilityLabel="Open profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable><Pressable accessibilityLabel="Map layers" onPress={() => Alert.alert('Map layers', 'More simulated map layers are coming soon.')} style={({ pressed }) => [styles.layersButton, pressed && styles.pressed]}><Text style={styles.layersIcon}>▱</Text></Pressable></View>

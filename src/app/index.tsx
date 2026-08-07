@@ -1,530 +1,267 @@
-import { View, Text, StyleSheet, ScrollView, Pressable} from "react-native";
-import { useState, useEffect } from "react";
-import { getWeather, getWeatherCondition } from "@/services/weather";
-import { getSports } from "@/services/sports";
-import { getEntertainment } from "@/services/entertainment";
-import { getTraffic } from "@/services/traffic";
-import { getFinance  } from "@/services/finance";
-import { getMusic } from "@/services/music"
-import { Link, router, type Href } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { router, type Href } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { getEntertainment } from '@/services/entertainment';
+import { getFinance } from '@/services/finance';
+import { getMusic } from '@/services/music';
+import { getSports } from '@/services/sports';
+import { getTraffic } from '@/services/traffic';
+import { getWeather, getWeatherCondition } from '@/services/weather';
 
+type IconName = SymbolViewProps['name'];
+type Action = { label: string; route: Href; icon: IconName; color: string; tint: string };
 
+const COLORS = {
+  ink: '#14243A', muted: '#66758A', green: '#1FA968', line: '#DCE7F1', surface: '#FFFFFF', canvas: '#EFF8FF',
+};
+
+const ACTIONS: Action[] = [
+  { label: 'Weather', route: '/weather', icon: { ios: 'cloud.sun.fill', android: 'partly_cloudy_day', web: 'partly_cloudy_day' }, color: '#2D8FD5', tint: '#E7F4FF' },
+  { label: 'Traffic', route: '/traffic', icon: { ios: 'car.fill', android: 'directions_car', web: 'directions_car' }, color: '#E47745', tint: '#FFF0E8' },
+  { label: 'Flights', route: '/traffic', icon: { ios: 'airplane', android: 'flight', web: 'flight' }, color: '#665BD6', tint: '#EFEDFF' },
+  { label: 'Sports', route: '/sports', icon: { ios: 'basketball.fill', android: 'sports_basketball', web: 'sports_basketball' }, color: '#E2952C', tint: '#FFF5DF' },
+  { label: 'Finance', route: '/finance', icon: { ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' }, color: '#159A62', tint: '#E5F8EF' },
+  { label: 'Music', route: '/music', icon: { ios: 'music.note', android: 'music_note', web: 'music_note' }, color: '#B14EC2', tint: '#FAEAFC' },
+  { label: 'Entertainment', route: '/entertainment', icon: { ios: 'film.fill', android: 'movie', web: 'movie' }, color: '#DA4E69', tint: '#FDEAF0' },
+  { label: 'My Locker', route: '/my-locker', icon: { ios: 'tshirt.fill', android: 'checkroom', web: 'checkroom' }, color: '#5077C8', tint: '#EAF0FC' },
+];
+
+const MARKET_MOVERS = [
+  { symbol: 'NVDA', company: 'NVIDIA', value: '+2.8%', up: true },
+  { symbol: 'AAPL', company: 'Apple', value: '+1.4%', up: true },
+  { symbol: 'TSLA', company: 'Tesla', value: '-0.9%', up: false },
+];
+
+function Icon({ name, color = COLORS.ink, size = 20 }: { name: IconName; color?: string; size?: number }) {
+  return <SymbolView fallback={<Text style={{ color, fontSize: size * 0.65 }}>{'\u25CF'}</Text>} name={name} size={size} tintColor={color} />;
+}
+
+function SectionHeader({ action, label, title }: { action?: string; label?: string; title: string }) {
+  return <View style={styles.sectionHeader}><View>{label ? <Text style={styles.sectionLabel}>{label}</Text> : null}<Text style={styles.sectionTitle}>{title}</Text></View>{action ? <Text style={styles.sectionAction}>{action}</Text> : null}</View>;
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const [temperature, setTemperature] = useState(95);
-  const [condition, setCondition] = useState("Hot");
+  const { width } = useWindowDimensions();
+  const desktop = width >= 900;
+  const tablet = width >= 600 && width < 900;
+  const [temperature, setTemperature] = useState(72);
+  const [condition, setCondition] = useState('Sunny');
   const [loading, setLoading] = useState(true);
-  const [commute, setCommute] = useState("Loading...");
-  const [market, setMarket] = useState("Loading...");
-  const [playlist, setPlaylist] = useState("Loading...");
-  const [games, setGames] = useState<string[]>([]);
-  const [movie, setMovie] = useState("Loading...")
+  const [commute, setCommute] = useState('28 mins');
+  const [market, setMarket] = useState('S&P +0.8%');
+  const [playlist, setPlaylist] = useState('Daily Mix');
+  const [movie, setMovie] = useState('Top entertainment story');
   const [tracks, setTracks] = useState<string[]>([]);
+  const [games, setGames] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    return hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+  }, []);
 
   useEffect(() => {
     async function loadDashboard() {
       try {
         await Promise.all([
-          getWeather()
-            .then((data) => {
-              setTemperature(data.temperature);
-              setCondition(getWeatherCondition(data.weatherCode));
-            })
-            .catch((error) => {
-              console.error("Unable to load weather", error);
-              setCondition("Weather unavailable");
-            }),
-          getMusic()
-            .then((musicData) => {
-              setPlaylist(musicData.playlist);
-              setTracks(musicData.tracks);
-            })
-            .catch((error) => {
-              console.error("Unable to load music", error);
-              setPlaylist("Music unavailable");
-              setTracks(["Music unavailable"]);
-            }),
-          getSports()
-            .then((sportsData) => {
-              setGames(sportsData.games);
-            })
-            .catch((error) => {
-              console.error("Unable to load sports", error);
-              setGames(["Sports unavailable"]);
-            }),
-          getEntertainment()
-            .then((entertainmentData) => {
-              setMovie(entertainmentData.movie);
-            })
-            .catch((error) => {
-              console.error("Unable to load entertainment", error);
-              setMovie("Entertainment unavailable");
-            }),
-          getFinance()
-            .then((financeData) => {
-              setMarket(financeData.market);
-            })
-            .catch((error) => {
-              console.error("Unable to load finance", error);
-              setMarket("Market unavailable");
-            }),
-          getTraffic()
-            .then((trafficData) => {
-              setCommute(trafficData.commute);
-            })
-            .catch((error) => {
-              console.error("Unable to load traffic", error);
-              setCommute("Traffic unavailable");
-            }),
+          getWeather().then((data) => { setTemperature(data.temperature); setCondition(getWeatherCondition(data.weatherCode)); }).catch(() => setCondition('Weather unavailable')),
+          getTraffic().then((data) => setCommute(data.commute)).catch(() => setCommute('Traffic unavailable')),
+          getFinance().then((data) => setMarket(data.market)).catch(() => setMarket('Market unavailable')),
+          getSports().then((data) => setGames(data.games)).catch(() => setGames(['Sports unavailable'])),
+          getEntertainment().then((data) => setMovie(data.movie)).catch(() => setMovie('Entertainment unavailable')),
+          getMusic().then((data) => { setPlaylist(data.playlist); setTracks(data.tracks); }).catch(() => { setPlaylist('Music unavailable'); setTracks([]); }),
         ]);
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     }
-
-    loadDashboard();
+    void loadDashboard();
   }, []);
- 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.contentContainer,
-        {
-          paddingTop: insets.top + 20,
-          paddingBottom: insets.bottom + 20,
-        },
-      ]}>
-      <View style={styles.card}>
 
-        <Text style={styles.heroDate}>
-          
-        </Text>
+  const feelsLike = temperature - 1;
+  const briefing = [
+    { title: 'Traffic', copy: `Leave in 12 minutes for a ${commute} commute`, value: commute, route: '/traffic' as Href, action: undefined, icon: ACTIONS[1] },
+    { title: 'Knicks vs Celtics', copy: games[0] ?? 'Tonight at Madison Square Garden', value: '7:30 PM', route: '/sports' as Href, action: undefined, icon: ACTIONS[3] },
+    { title: 'Weather', copy: `${condition} throughout the afternoon`, value: `${temperature}°`, route: '/weather' as Href, action: undefined, icon: ACTIONS[0] },
+    { title: 'Calendar', copy: 'Two events remaining today', value: '2 events', route: undefined, action: () => Alert.alert('Calendar', 'Calendar integration is coming soon.'), icon: { ...ACTIONS[2], color: '#5077C8', tint: '#EAF0FC', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } as IconName } },
+    { title: 'Top Story', copy: movie, value: '5 min', route: '/entertainment' as Href, action: undefined, icon: ACTIONS[6] },
+    { title: 'Your Playlist', copy: tracks[0] ?? playlist, value: 'Play', route: '/music' as Href, action: undefined, icon: ACTIONS[5] },
+  ];
 
-        <Text style={styles.welcome}>
-          Your Day at a Glance
-        </Text>
+  const trends = [
+    { category: 'NEWS', title: 'The stories shaping business and technology today', time: '12 min ago', route: '/finance' as Href, colors: ['#CBE7FA', '#7CB5DE'], icon: { ios: 'newspaper.fill', android: 'newspaper', web: 'newspaper' } as IconName },
+    { category: 'SPORTS', title: games[0] ?? 'New York gets ready for a big night in sports', time: '24 min ago', route: '/sports' as Href, colors: ['#FFE2C0', '#E59A4F'], icon: ACTIONS[3].icon },
+    { category: 'ENTERTAINMENT', title: movie, time: '38 min ago', route: '/entertainment' as Href, colors: ['#F4D8ED', '#C878B6'], icon: ACTIONS[6].icon },
+  ];
 
-        <Text style={styles.subtitle}>
-          Everything you need, all in one place. 
-        </Text>
-
-        <View style={styles.heroBanner}>
-          <Text style={styles.heroTitle}>
-            {temperature}°F
-          </Text>
-          <Text style={styles.heroSubtitle}>
-           🌤️ {condition} • 🚗 {commute}
-          </Text>
-        </View>
-      
-      <Text style={styles.sectionTitle}>👋 Daily Briefing</Text>
-
-      <Pressable
-        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
-        onPress={() => router.push("/weather")}>
-        <View style={styles.briefingContent}>
-          <View style={styles.briefingTitleRow}>
-            <Text style={styles.briefingLeadingIcon}>👕</Text>
-            <Text style={styles.briefingLabel}>Weather</Text>
-          </View>
-          <Text style={styles.cardValue}>{temperature}°F • {condition}</Text>
-        </View>
-        <Text style={styles.briefingArrow}>➜</Text>
-      </Pressable>
-
-      <Pressable
-        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
-        onPress={() => router.push("/traffic")}>
-        <View style={styles.briefingContent}>
-          <View style={styles.briefingTitleRow}>
-            <Text style={styles.briefingLeadingIcon}>🚗</Text>
-            <Text style={styles.briefingLabel}>Commute</Text>
-          </View>
-          <Text style={styles.cardValue}>{commute}</Text>
-        </View>
-        <Text style={styles.briefingArrow}>➜</Text>
-      </Pressable>
-
-      <Pressable
-        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
-        onPress={() => router.push("/finance")}>
-        <View style={styles.briefingContent}>
-          <View style={styles.briefingTitleRow}>
-            <Text style={styles.briefingLeadingIcon}>💹</Text>
-            <Text style={styles.briefingLabel}>Market</Text>
-          </View>
-          <Text style={styles.cardValue}>{market}</Text>
-        </View>
-        <Text style={styles.briefingArrow}>➜</Text>
-      </Pressable>
-
-      <Pressable
-        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
-        onPress={() => router.push("/music")}>
-        <View style={styles.briefingContent}>
-          <View style={styles.briefingTitleRow}>
-            <Text style={styles.briefingLeadingIcon}>🎵</Text>
-            <Text style={styles.briefingLabel}>Today’s Playlist</Text>
-          </View>
-          <Text style={styles.cardValue}>{tracks[0]}</Text>
-        </View>
-        <Text style={styles.briefingArrow}>➜</Text>
-      </Pressable>
-
-      <Pressable
-        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
-        onPress={() => router.push("/sports")}>
-        <View style={styles.briefingContent}>
-          <View style={styles.briefingTitleRow}>
-            <Text style={styles.briefingLeadingIcon}>🏀</Text>
-            <Text style={styles.briefingLabel}>Top Game</Text>
-          </View>
-          <Text style={styles.cardValue}>{games[0]}</Text>
-        </View>
-        <Text style={styles.briefingArrow}>➜</Text>
-      </Pressable>
-
-      <Pressable
-        style={({ pressed }) => [styles.briefingRow, pressed && styles.briefingRowPressed]}
-        onPress={() => router.push("/entertainment")}>
-        <View style={styles.briefingContent}>
-          <View style={styles.briefingTitleRow}>
-            <Text style={styles.briefingLeadingIcon}>🎬</Text>
-            <Text style={styles.briefingLabel}>Featured Movie</Text>
-          </View>
-          <Text style={styles.cardValue}>{movie}</Text>
-        </View>
-        <Text style={styles.briefingArrow}>➜</Text>
-      </Pressable>
-         </View>
-
-         <View style={styles.quickStatsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{temperature}°</Text>
-            <Text style={styles.statLabel}>🌤️ Weather</Text>
-          </View>
-
-
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{commute}</Text>
-            <Text style={styles.statLabel}>🚗 Traffic</Text>
-         </View>
-
-         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{market}</Text>
-          <Text style={styles.statLabel}>📉 Market</Text>
-        </View>
-      
-
-        <View style={styles.trendsCard}>
-        <Text style={styles.sectionTitle}>
-          🔥 Top Trends Today
-        </Text>
-
-        <Text style={styles.trendsSubtitle}>
-          What's happening right now
-        </Text>
-
-        <Text style={styles.cardText}>
-          🏀 {games[0]}
-        </Text>
-
-        <Text style={styles.cardText}>
-          🎬 {movie}
-        </Text>
-
-        <Text style={styles.cardText}>
-          🎵 {tracks[0]}
-        </Text>
-        
-        </View>
-
-       
-         </View>
-      <Link href="/weather" asChild>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>☀️ Weather</Text>
-      
-      <Text style= {styles.cardText}>
-        {loading ? "Loading weather..." : `${temperature} °F • ${condition}`}
-      </Text>
-
+  return <View style={styles.screen}>
+    <View pointerEvents="none" style={[styles.backgroundBranding, !desktop && styles.backgroundBrandingMobile]}>
+      <View style={[styles.backgroundWordmark, desktop ? styles.backgroundWordmarkDesktop : tablet ? styles.backgroundWordmarkTablet : styles.backgroundWordmarkMobile]}>
+        <Text style={[styles.backgroundLook, desktop ? styles.backgroundTextDesktop : tablet ? styles.backgroundTextTablet : styles.backgroundTextMobile]}>look</Text>
+        <Text style={[styles.backgroundUp, desktop ? styles.backgroundTextDesktop : tablet ? styles.backgroundTextTablet : styles.backgroundTextMobile]}>UP</Text>
       </View>
-      </Link>
+    </View>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140, paddingHorizontal: desktop ? 32 : 18, paddingTop: Math.max(insets.top, 14) + 16 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scrollLayer}>
+    <View style={[styles.topBar, !desktop && styles.topBarMobile]}>
+      <View style={styles.wordmark}><Text style={styles.wordmarkLook}>look</Text><Text style={styles.wordmarkUp}>UP</Text></View>
+      <View style={[styles.searchBar, !desktop && styles.searchBarMobile]}><Icon color="#8190A2" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} /><TextInput accessibilityLabel="Search LookUP" onChangeText={setSearch} onSubmitEditing={() => search.trim() && Alert.alert('Search LookUP', `Search preview for “${search.trim()}”`)} placeholder="Search LookUP" placeholderTextColor="#8493A6" returnKeyType="search" style={styles.searchInput} value={search} /></View>
+      <View style={styles.headerActions}><Pressable accessibilityLabel="Notifications" onPress={() => Alert.alert('Notifications', 'You are all caught up.')} style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}><Icon color="#43546B" name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} /></Pressable><Pressable accessibilityLabel="Profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable></View>
+    </View>
 
-      <Link href="/traffic" asChild>
-      <Pressable style={({ pressed }) => [styles.card, pressed && styles.briefingRowPressed]}>
-        <Text style={styles.cardTitle}>🚗 Traffic</Text>
-        <Text style={styles.cardText}>
-          {loading ? "Loading traffic..." : `Commute: ${commute}`}
-        </Text>
-        
+    <View style={styles.greetingBlock}><Text style={styles.greeting}>{greeting}, Kelvin</Text><Text style={styles.greetingCopy}>Here’s what’s happening today.</Text></View>
+
+    <View style={[styles.heroGrid, !desktop && styles.stack]}>
+      <Pressable onPress={() => router.push('/weather')} style={({ pressed }) => [styles.weatherCard, pressed && styles.cardPressed]}>
+        <View style={styles.skyGlow} /><View style={styles.weatherTop}><View><Text style={styles.weatherLabel}>CURRENT WEATHER</Text><Text style={styles.location}>New York, NY</Text></View><View style={styles.weatherIcon}><Icon color="#2587C6" name={ACTIONS[0].icon} size={34} /></View></View>
+        <View style={styles.weatherPrimary}>{loading ? <ActivityIndicator color={COLORS.green} size="large" /> : <Text style={styles.temperature}>{temperature}°</Text>}<View><Text style={styles.condition}>{condition}</Text><Text style={styles.feels}>Feels like {feelsLike}°</Text></View></View>
+        <View style={styles.weatherMetrics}>{[['Humidity', '58%'], ['Wind', '8 mph'], ['Visibility', '10 mi'], ['UV Index', '4 · Moderate']].map(([label, value]) => <View key={label} style={styles.metric}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>)}</View>
       </Pressable>
-      </Link>
-      <Link href="/sports" asChild>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>🏀 Sports</Text>
-        
-        <Text style={[styles.cardTitle, {marginBottom: 8}]}>
-          Today's Games
-        </Text>
-
-        {games.map((game, index) => (
-          <Text
-             key={index}
-             style={[styles.cardText, {marginBottom: 4 }]}
-             >
-              {game}
-             </Text>
-        ))}
-        
+      <View style={styles.heroSide}>
+        <Pressable onPress={() => router.push('/traffic')} style={({ pressed }) => [styles.miniHero, styles.trafficHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[1].tint }]}><Icon color={ACTIONS[1].color} name={ACTIONS[1].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>TRAFFIC TO WORK</Text><Text style={styles.miniValue}>{commute}</Text><Text style={styles.miniMeta}>Light traffic · 2 min faster</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+        <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>Markets trending higher</Text></View><Text style={styles.arrow}>›</Text></Pressable>
       </View>
-      </Link>
+    </View>
 
-      <Link href="/entertainment" asChild>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>🎬 Entertainment</Text>
+    <SectionHeader label="EVERYTHING IN ONE PLACE" title="Quick Actions" />
+    <ScrollView contentContainerStyle={styles.quickRow} horizontal showsHorizontalScrollIndicator={false}>{ACTIONS.map((action) => <Pressable key={action.label} onPress={() => router.push(action.route)} style={({ pressed }) => [styles.quickCard, pressed && styles.cardPressed]}><View style={[styles.quickIcon, { backgroundColor: action.tint }]}><Icon color={action.color} name={action.icon} size={22} /></View><Text numberOfLines={1} style={styles.quickLabel}>{action.label}</Text></Pressable>)}</ScrollView>
 
-        <Text style={styles.cardText}>
-          Now Showing: {movie}
-        </Text>
-      </View>
-      </Link>
+    <View style={[styles.middleGrid, !desktop && styles.stack]}>
+      <View style={styles.briefingPanel}><SectionHeader label="PERSONAL SNAPSHOT" title="Today’s Briefing" />{briefing.map((item, index) => <View key={item.title}><Pressable onPress={() => item.route ? router.push(item.route) : item.action?.()} style={({ pressed }) => [styles.briefingRow, pressed && styles.rowPressed]}><View style={[styles.rowIcon, { backgroundColor: item.icon.tint }]}><Icon color={item.icon.color} name={item.icon.icon} size={17} /></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{item.title}</Text><Text numberOfLines={1} style={styles.rowDescription}>{item.copy}</Text></View><Text style={styles.rowValue}>{item.value}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < briefing.length - 1 ? <View style={styles.divider} /> : null}</View>)}</View>
+      <View style={styles.trendingPanel}><SectionHeader action="See all" label="CURATED FOR YOU" title="Trending Now" />{trends.map((trend) => <Pressable key={trend.category} onPress={() => router.push(trend.route)} style={({ pressed }) => [styles.storyCard, pressed && styles.cardPressed]}><View style={[styles.storyArt, { experimental_backgroundImage: `linear-gradient(145deg, ${trend.colors[0]}, ${trend.colors[1]})` }]}><Icon color="#FFFFFF" name={trend.icon} size={28} /></View><View style={styles.storyCopy}><Text style={styles.storyCategory}>{trend.category}</Text><Text numberOfLines={2} style={styles.storyTitle}>{trend.title}</Text><Text style={styles.storyTime}>{trend.time}</Text></View></Pressable>)}</View>
+    </View>
 
-      <Link href="/finance" asChild>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>📉 Finance</Text>
-        <Text style={styles.cardText}>{market}</Text>
-        
-      </View>
-      </Link>
+    <SectionHeader label="PICK UP WHERE YOU LEFT OFF" title="Continue Listening" />
+    <View style={styles.musicPanel}><Pressable onPress={() => router.push('/music')} style={({ pressed }) => [styles.musicMain, pressed && styles.rowPressed]}><View style={styles.albumArt}><View style={styles.albumDisc} /><Text style={styles.albumMark}>LU</Text></View><View style={styles.trackCopy}><Text numberOfLines={1} style={styles.trackName}>{tracks[0] ?? 'Your soundtrack is ready'}</Text><Text style={styles.artist}>{playlist}</Text><View style={styles.progressTrack}><View style={styles.progressFill} /></View></View></Pressable><Pressable accessibilityLabel="Play music" onPress={() => router.push('/music')} style={({ pressed }) => [styles.playButton, pressed && styles.pressed]}><Icon color="#FFFFFF" name={{ ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' }} size={20} /></Pressable><View style={styles.nextUp}><Text style={styles.nextLabel}>NEXT UP</Text><Text numberOfLines={1} style={styles.nextTrack}>{tracks[1] ?? 'Daily discovery mix'}</Text><Text numberOfLines={1} style={styles.nextTrack}>{tracks[2] ?? 'Fresh picks for you'}</Text></View></View>
 
-      <Link href={"/my-locker" as Href} asChild>
-        <Pressable
-          style={({ pressed }) => [styles.card, pressed && styles.briefingRowPressed]}>
-          <Text style={styles.cardTitle}>👕 My Locker</Text>
-          <Text style={styles.cardText}>Your AI Wardrobe</Text>
-        </Pressable>
-      </Link>
-
-      
-      <View style={[styles.card, {margin: 24}]}>
-        <Text style={styles.cardTitle}>🎵 Music</Text>
-        
-        <Text style={[styles.cardText, {marginBottom: 8}]}>
-          Top Tracks Today
-        </Text>
-
-        
-
-        
-        
-      </View>
+    <View style={[styles.bottomGrid, !desktop && styles.stack]}>
+      <View style={styles.bottomPanel}><SectionHeader action="See all" label="TONIGHT" title="Upcoming Games" />{(games.length ? games.slice(0, 2) : ['Knicks vs Celtics', 'Yankees vs Red Sox']).map((game, index) => <Pressable key={`${game}-${index}`} onPress={() => router.push('/sports')} style={({ pressed }) => [styles.gameRow, pressed && styles.rowPressed]}><View style={styles.teamBadge}><Text style={styles.teamBadgeText}>{index ? 'NYY' : 'NYK'}</Text></View><View style={styles.gameCopy}><Text numberOfLines={1} style={styles.gameTitle}>{game}</Text><Text style={styles.gameTime}>{index ? 'Tomorrow · 1:05 PM' : 'Tonight · 7:30 PM'}</Text></View><Text style={styles.chevron}>›</Text></Pressable>)}</View>
+      <View style={styles.bottomPanel}><SectionHeader label="SCHEDULE" title="Your Day" />{[['Weather', `${temperature}° · ${condition}`], ['Leave for work', '8:14 AM'], ['Market open', '9:30 AM'], ['Game', '7:30 PM'], ['New music', '9:00 PM']].map(([title, value], index) => <View key={title} style={styles.timelineRow}><View style={styles.timelineRail}><View style={[styles.timelineDot, index === 0 && styles.timelineDotActive]} />{index < 4 ? <View style={styles.timelineLine} /> : null}</View><Text style={styles.timelineTitle}>{title}</Text><Text style={styles.timelineValue}>{value}</Text></View>)}</View>
+      <View style={styles.bottomPanel}><SectionHeader label="LIVE PREVIEW" title="Market Movers" />{MARKET_MOVERS.map((stock) => <Pressable key={stock.symbol} onPress={() => router.push('/finance')} style={({ pressed }) => [styles.stockRow, pressed && styles.rowPressed]}><View><Text style={styles.stockSymbol}>{stock.symbol}</Text><Text style={styles.stockCompany}>{stock.company}</Text></View><Text style={[styles.stockMove, !stock.up && styles.stockDown]}>{stock.value}</Text></Pressable>)}</View>
+    </View>
     </ScrollView>
-  );
+  </View>;
 }
 
-export const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
+const cardShadow = { shadowColor: '#465C76', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 18, elevation: 2 } as const;
 
-  contentContainer: {
-    paddingHorizontal: 20,
-  },
-
-  title: {
-    color:"white",
-    fontSize: 36,
-    fontWeight: "bold",
-    marginTop: 50,
-    marginBottom: 20,
-  },
-
-  card: {
-    backgroundColor: "#1e1e1e",
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor:"rgba(255,255,255,0.12)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8},
-    shadowOpacity: 0.25,
-    elevation: 8,
-  },
-
-  cardTitle: {
-    color: "white",
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 5,
-  },
-
-  cardText: {
-    color: "#b3b3b3",
-    fontSize: 14,
-  },
-
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    marginTop: 20,
-    marginBottom: 10,
-
-  },
-  quickItem: {
-    fontSize: 16,
-    color: "#b3b3b3",
-    marginBottom: 6,
-  },
-
-  subtitle: {
-    color: "#b3b3b3",
-    fontSize: 18,
-    marginBottom: 25,
-  },
-
-  welcome: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 8,
-  },
-
-  quickStatsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginTop: 20,
-  },
-
-  statCard: {
-    flex: 1,
-    backgroundColor: "#1e293b",
-    padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 4,
-    alignItems: "center",
-  },
-
-  statNumber: {
-    color: "#38bdf8",
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-
-  statLabel: {
-    color: "#cbd5e1",
-    marginTop: 4,
-  },
-
-  heroDate: {
-    color: "#94a3b8",
-    fontSize: 16,
-    marginBottom: 20,
-
-  },
-
-  heroBanner: {
-    backgroundColor: "#1e40af",
-    padding: 20,
-    borderRadius: 18,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-  },
-
-  heroTitle:{
-    color: "#fff",
-    fontSize: 42,
-    fontWeight: "bold",
-  },
-
-  heroSubtitle: {
-    color: "#dbeafe",
-    fontSize: 16,
-    marginTop: 6,
-  },
-
-  trendsCard: {
-    width: "100%",
-    backgroundColor: "#1e293b",
-    padding: 20,
-    borderRadius: 18,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-
-  },
-
-  sectionTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
-  },
-
-  trendsSubtitle: {
-    color: "#9ca3af",
-    marginBottom: 12,
-  },
-
-  briefingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderRadius: 12,
-  },
-
-  briefingContent: {
-    flex: 1,
-  },
-
-  briefingTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  briefingLeadingIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-
-  briefingLabel: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-
-  cardValue: {
-    fontSize: 14,
-    color: "#B8C5D6",
-    marginTop: 4,
-  },
-
-  briefingArrow: {
-    color: "#00BFFF",
-    fontSize: 30,
-    fontWeight: "bold",
-    marginLeft: 16,
-  },
-
-  briefingRowPressed: {
-    backgroundColor: "rgba(0,191,255,0.12)",
-  },
-
-  
-
-})
+const styles = StyleSheet.create({
+  screen: { backgroundColor: '#A4B6C9', experimental_backgroundImage: 'linear-gradient(180deg, #AEBFD1 0%, #A4B6C9 50%, #99ADBF 100%)', flex: 1, overflow: 'hidden', position: 'relative', zIndex: 0 },
+  scrollLayer: { backgroundColor: 'transparent', elevation: 2, flex: 1, zIndex: 2 },
+  content: { alignSelf: 'center', maxWidth: 1220, width: '100%' },
+  backgroundBranding: { alignItems: 'center', elevation: 1, height: 430, justifyContent: 'center', left: 0, overflow: 'hidden', position: 'absolute', right: 0, top: 86, zIndex: 1 },
+  backgroundBrandingMobile: { height: 300, top: 126 },
+  backgroundWordmark: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'center' },
+  backgroundWordmarkDesktop: { width: 600 },
+  backgroundWordmarkTablet: { width: 460 },
+  backgroundWordmarkMobile: { width: 290 },
+  backgroundLook: { color: 'rgba(100, 123, 150, 0.11)', fontWeight: '900' },
+  backgroundUp: { color: 'rgba(63, 127, 78, 0.26)', fontWeight: '900' },
+  backgroundTextDesktop: { fontSize: 168, letterSpacing: -11 },
+  backgroundTextTablet: { fontSize: 128, letterSpacing: -8.5 },
+  backgroundTextMobile: { fontSize: 81, letterSpacing: -5.25 },
+  topBar: { alignItems: 'center', flexDirection: 'row', gap: 22, marginBottom: 36 },
+  topBarMobile: { flexWrap: 'wrap', gap: 12 },
+  wordmark: { alignItems: 'baseline', flexDirection: 'row', minWidth: 126 },
+  wordmarkLook: { color: COLORS.ink, fontSize: 28, fontWeight: '900', letterSpacing: -1.5 },
+  wordmarkUp: { color: COLORS.green, fontSize: 28, fontWeight: '900', letterSpacing: -1.5 },
+  searchBar: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.88)', borderColor: '#D9E6F0', borderRadius: 24, borderWidth: 1, flex: 1, flexDirection: 'row', height: 48, maxWidth: 610, paddingHorizontal: 17, ...cardShadow },
+  searchBarMobile: { flexBasis: '100%', maxWidth: '100%', width: '100%' },
+  searchInput: { color: COLORS.ink, flex: 1, fontSize: 14, paddingHorizontal: 11, paddingVertical: 0 },
+  headerActions: { flexDirection: 'row', gap: 10, marginLeft: 'auto' },
+  circleButton: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#D9E6F0', borderRadius: 23, borderWidth: 1, height: 46, justifyContent: 'center', width: 46 },
+  profileButton: { alignItems: 'center', backgroundColor: COLORS.ink, borderColor: '#FFFFFF', borderRadius: 23, borderWidth: 2, height: 46, justifyContent: 'center', width: 46 },
+  profileText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  greetingBlock: { marginBottom: 26 },
+  greeting: { color: COLORS.ink, fontSize: 36, fontWeight: '900', letterSpacing: -1.1 },
+  greetingCopy: { color: COLORS.muted, fontSize: 15, marginTop: 7 },
+  heroGrid: { flexDirection: 'row', gap: 20, marginBottom: 40 },
+  stack: { flexDirection: 'column' },
+  weatherCard: { backgroundColor: '#E2F4FF', borderColor: '#C8E4F3', borderRadius: 24, borderWidth: 1, flex: 1.5, minHeight: 330, overflow: 'hidden', padding: 26, ...cardShadow },
+  skyGlow: { backgroundColor: '#FFFFFF', borderRadius: 210, height: 420, opacity: 0.52, position: 'absolute', right: -160, top: -220, width: 420 },
+  weatherTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  weatherLabel: { color: '#4381A7', fontSize: 9, fontWeight: '900', letterSpacing: 1.3 },
+  location: { color: COLORS.ink, fontSize: 18, fontWeight: '900', marginTop: 7 },
+  weatherIcon: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 24, height: 54, justifyContent: 'center', width: 54 },
+  weatherPrimary: { alignItems: 'flex-end', flexDirection: 'row', gap: 18, marginTop: 26 },
+  temperature: { color: COLORS.ink, fontSize: 70, fontWeight: '900', letterSpacing: -3 },
+  condition: { color: COLORS.ink, fontSize: 18, fontWeight: '900', marginBottom: 7 },
+  feels: { color: COLORS.muted, fontSize: 11, marginBottom: 11 },
+  weatherMetrics: { backgroundColor: 'rgba(255,255,255,0.58)', borderRadius: 17, flexDirection: 'row', marginTop: 25, padding: 15 },
+  metric: { flex: 1, minWidth: 0 },
+  metricLabel: { color: '#77899C', fontSize: 8, fontWeight: '700' },
+  metricValue: { color: COLORS.ink, fontSize: 11, fontWeight: '900', marginTop: 5 },
+  heroSide: { flex: 1, gap: 20 },
+  miniHero: { alignItems: 'center', backgroundColor: COLORS.surface, borderColor: COLORS.line, borderRadius: 22, borderWidth: 1, flex: 1, flexDirection: 'row', minHeight: 155, padding: 21, ...cardShadow },
+  trafficHero: { backgroundColor: 'rgba(227, 233, 240, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)' },
+  marketHero: { backgroundColor: 'rgba(220, 228, 236, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)' },
+  featureIcon: { alignItems: 'center', borderRadius: 18, height: 48, justifyContent: 'center', width: 48 },
+  miniHeroCopy: { flex: 1, marginLeft: 15 },
+  miniLabel: { color: '#79889A', fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  miniValue: { color: COLORS.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.6, marginTop: 8 },
+  miniMeta: { color: COLORS.muted, fontSize: 10, marginTop: 5 },
+  arrow: { color: '#91A0B0', fontSize: 24 },
+  sectionHeader: { alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 17, marginTop: 4 },
+  sectionLabel: { color: COLORS.green, fontSize: 8, fontWeight: '900', letterSpacing: 1.25, marginBottom: 5 },
+  sectionTitle: { color: COLORS.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.5 },
+  sectionAction: { color: COLORS.green, fontSize: 11, fontWeight: '900', marginBottom: 3 },
+  quickRow: { gap: 12, paddingBottom: 39, paddingRight: 24 },
+  quickCard: { alignItems: 'center', backgroundColor: 'rgba(231, 236, 242, 0.94)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 20, borderWidth: 1, height: 104, justifyContent: 'center', width: 132, ...cardShadow },
+  quickIcon: { alignItems: 'center', borderRadius: 16, height: 42, justifyContent: 'center', width: 42 },
+  quickLabel: { color: COLORS.ink, fontSize: 11, fontWeight: '800', marginTop: 11, maxWidth: 116 },
+  middleGrid: { alignItems: 'stretch', flexDirection: 'row', gap: 20, marginBottom: 39 },
+  briefingPanel: { backgroundColor: 'rgba(227, 233, 240, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 24, borderWidth: 1, flex: 1.14, padding: 22, ...cardShadow },
+  trendingPanel: { backgroundColor: 'rgba(220, 228, 236, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 24, borderWidth: 1, flex: 0.86, padding: 22, ...cardShadow },
+  briefingRow: { alignItems: 'center', flexDirection: 'row', minHeight: 63, paddingVertical: 8 },
+  rowIcon: { alignItems: 'center', borderRadius: 13, height: 38, justifyContent: 'center', marginRight: 12, width: 38 },
+  rowCopy: { flex: 1, minWidth: 0 },
+  rowTitle: { color: COLORS.ink, fontSize: 12, fontWeight: '900' },
+  rowDescription: { color: COLORS.muted, fontSize: 9.5, marginTop: 4 },
+  rowValue: { color: '#52657A', fontSize: 9.5, fontWeight: '800', marginLeft: 10 },
+  chevron: { color: '#9AA9B9', fontSize: 19, marginLeft: 9 },
+  divider: { backgroundColor: '#E8EFF5', height: StyleSheet.hairlineWidth, marginLeft: 50 },
+  storyCard: { alignItems: 'center', flexDirection: 'row', marginBottom: 14, minHeight: 96 },
+  storyArt: { alignItems: 'center', borderRadius: 17, height: 86, justifyContent: 'center', overflow: 'hidden', width: 112 },
+  storyCopy: { flex: 1, marginLeft: 13 },
+  storyCategory: { color: COLORS.green, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  storyTitle: { color: COLORS.ink, fontSize: 12, fontWeight: '900', lineHeight: 17, marginTop: 5 },
+  storyTime: { color: '#8997A7', fontSize: 9, marginTop: 7 },
+  musicPanel: { alignItems: 'center', backgroundColor: 'rgba(227, 233, 240, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 24, borderWidth: 1, flexDirection: 'row', marginBottom: 39, minHeight: 122, padding: 17, ...cardShadow },
+  musicMain: { alignItems: 'center', flex: 1.2, flexDirection: 'row', minWidth: 0 },
+  albumArt: { alignItems: 'center', backgroundColor: '#D7C4F0', borderRadius: 18, height: 76, justifyContent: 'center', overflow: 'hidden', width: 76 },
+  albumDisc: { backgroundColor: '#8D66BC', borderRadius: 48, height: 96, opacity: 0.7, position: 'absolute', right: -34, top: -30, width: 96 },
+  albumMark: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  trackCopy: { flex: 1, marginHorizontal: 16, minWidth: 0 },
+  trackName: { color: COLORS.ink, fontSize: 15, fontWeight: '900' },
+  artist: { color: COLORS.muted, fontSize: 10, marginTop: 5 },
+  progressTrack: { backgroundColor: '#E5EAF0', borderRadius: 2, height: 3, marginTop: 14, overflow: 'hidden' },
+  progressFill: { backgroundColor: COLORS.green, borderRadius: 2, height: 3, width: '43%' },
+  playButton: { alignItems: 'center', backgroundColor: COLORS.green, borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
+  nextUp: { borderLeftColor: '#E4ECF3', borderLeftWidth: 1, flex: 0.72, gap: 5, marginLeft: 22, paddingLeft: 22 },
+  nextLabel: { color: COLORS.green, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  nextTrack: { color: '#506075', fontSize: 10, fontWeight: '700' },
+  bottomGrid: { alignItems: 'stretch', flexDirection: 'row', gap: 18, marginBottom: 14 },
+  bottomPanel: { backgroundColor: 'rgba(220, 228, 236, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 22, borderWidth: 1, flex: 1, minHeight: 267, padding: 20, ...cardShadow },
+  gameRow: { alignItems: 'center', backgroundColor: '#D4DEE8', borderRadius: 15, flexDirection: 'row', marginBottom: 10, minHeight: 73, padding: 11 },
+  teamBadge: { alignItems: 'center', backgroundColor: '#E8F1FB', borderRadius: 13, height: 42, justifyContent: 'center', width: 42 },
+  teamBadgeText: { color: '#3D69A2', fontSize: 9, fontWeight: '900' },
+  gameCopy: { flex: 1, marginLeft: 11, minWidth: 0 },
+  gameTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
+  gameTime: { color: COLORS.muted, fontSize: 9, marginTop: 5 },
+  timelineRow: { alignItems: 'flex-start', flexDirection: 'row', minHeight: 36 },
+  timelineRail: { alignItems: 'center', alignSelf: 'stretch', width: 18 },
+  timelineDot: { backgroundColor: '#C9D5DF', borderRadius: 4, height: 7, marginTop: 4, width: 7 },
+  timelineDotActive: { backgroundColor: COLORS.green },
+  timelineLine: { backgroundColor: '#DDE7EF', flex: 1, marginVertical: 3, width: 1 },
+  timelineTitle: { color: COLORS.ink, flex: 1, fontSize: 10, fontWeight: '800', marginLeft: 7 },
+  timelineValue: { color: COLORS.muted, fontSize: 9 },
+  stockRow: { alignItems: 'center', borderBottomColor: '#E8EFF5', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 57 },
+  stockSymbol: { color: COLORS.ink, fontSize: 12, fontWeight: '900' },
+  stockCompany: { color: COLORS.muted, fontSize: 9, marginTop: 3 },
+  stockMove: { color: COLORS.green, fontSize: 13, fontWeight: '900' },
+  stockDown: { color: '#D85A59' },
+  pressed: { opacity: 0.68 },
+  rowPressed: { backgroundColor: '#F1F7FA' },
+  cardPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+});

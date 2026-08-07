@@ -243,7 +243,7 @@ export default function SportsScreen() {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 100 },
+        { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 },
       ]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>

@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Period = '1D' | '1W' | '1M' | '3M' | '1Y';
 type AssetType = 'Stock' | 'ETF' | 'Crypto';
+type MarketStatus = 'Pre-Market' | 'Market Open' | 'After Hours' | 'Market Closed' | 'Holiday' | 'Early Close';
+type MarketException = { type: 'holiday' | 'early-close'; label: string };
 
 type Asset = {
   id: string;
@@ -39,6 +41,71 @@ type NewsStory = {
 };
 
 const PERIODS: Period[] = ['1D', '1W', '1M', '3M', '1Y'];
+
+const MARKET_EXCEPTIONS: Record<string, MarketException> = {
+  '2026-01-01': { type: 'holiday', label: "New Year's Day" },
+  '2026-07-03': { type: 'holiday', label: 'Independence Day observed' },
+  '2026-11-27': { type: 'early-close', label: 'Locally configured early close' },
+  '2026-12-25': { type: 'holiday', label: 'Christmas Day' },
+  '2027-01-01': { type: 'holiday', label: "New Year's Day" },
+  '2027-11-26': { type: 'early-close', label: 'Locally configured early close' },
+  '2027-12-24': { type: 'holiday', label: 'Christmas Day observed' },
+};
+
+const ET_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+  weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+function getEasternParts(date: Date) {
+  const parts = Object.fromEntries(ET_FORMATTER.formatToParts(date).map((part) => [part.type, part.value]));
+  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), hour: Number(parts.hour), minute: Number(parts.minute), weekday: parts.weekday };
+}
+
+function dateKey(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function easternDateToUtc(year: number, month: number, day: number, hour: number, minute: number) {
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
+  const easternAtGuess = getEasternParts(new Date(guess));
+  const representedAsUtc = Date.UTC(easternAtGuess.year, easternAtGuess.month - 1, easternAtGuess.day, easternAtGuess.hour, easternAtGuess.minute);
+  return new Date(guess - (representedAsUtc - guess));
+}
+
+function shiftDate(year: number, month: number, day: number, days: number) {
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate(), weekday: shifted.getUTCDay() };
+}
+
+function isTradingDay(year: number, month: number, day: number) {
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return weekday !== 0 && weekday !== 6 && MARKET_EXCEPTIONS[dateKey(year, month, day)]?.type !== 'holiday';
+}
+
+function nextTradingDate(year: number, month: number, day: number, includeToday = false) {
+  for (let offset = includeToday ? 0 : 1; offset < 10; offset += 1) {
+    const candidate = shiftDate(year, month, day, offset);
+    if (isTradingDay(candidate.year, candidate.month, candidate.day)) return candidate;
+  }
+  return shiftDate(year, month, day, 1);
+}
+
+function formatCountdown(target: Date, now: Date) {
+  const totalMinutes = Math.max(0, Math.ceil((target.getTime() - now.getTime()) / 60000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  return [days ? `${days} day${days === 1 ? '' : 's'}` : '', hours ? `${hours} hr` : '', `${minutes} min`].filter(Boolean).join(' ');
+}
+
+function formatEasternTime(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(date) + ' ET';
+}
+
+function formatEventDate(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', hour: 'numeric', minute: '2-digit' }).format(date) + ' ET';
+}
 
 const CHART_DATA: Record<Period, number[]> = {
   '1D': [32, 34, 31, 38, 42, 40, 47, 45, 52, 57, 54, 61, 59, 66],
@@ -114,13 +181,13 @@ export default function FinanceScreen() {
       style={styles.screen}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 100 }]}>
+      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 }]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}><Text style={styles.eyebrow}>YOUR MONEY HUB</Text><Text style={styles.title}>Finance</Text><Text style={styles.subtitle}>Markets and money at a glance.</Text></View>
         <View style={styles.headerActions}><Pressable accessibilityLabel="Open profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable><Pressable accessibilityLabel="Finance notifications" onPress={() => Alert.alert('Notifications', 'Finance alerts are coming soon.')} style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}><Text style={styles.settingsIcon}>●</Text></Pressable></View>
       </View>
 
-      <View style={styles.marketStatus}><View style={styles.statusLeft}><View style={styles.statusDot} /><Text style={styles.marketOpen}>Market Open</Text><Text style={styles.simulatedBadge}>SIMULATED</Text></View><View style={styles.statusTimes}><Text style={styles.statusTime}>11:42 AM ET</Text><Text style={styles.statusClose}>Closes 4:00 PM</Text></View></View>
+      <MarketHoursCard isDesktop={isDesktop} />
 
       <View style={styles.searchBar}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Search stocks, ETFs, crypto" autoCapitalize="characters" autoCorrect={false} onChangeText={setQuery} placeholder="Search stocks, ETFs, crypto" placeholderTextColor="#7E8793" returnKeyType="search" style={styles.searchInput} value={query} />{query.length > 0 && <Pressable accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}><Text style={styles.clearIcon}>×</Text></Pressable>}</View>
 
@@ -147,6 +214,110 @@ export default function FinanceScreen() {
       )}
     </ScrollView>
   );
+}
+
+function MarketHoursCard({ isDesktop }: { isDesktop: boolean }) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const market = useMemo(() => {
+    const eastern = getEasternParts(now);
+    const key = dateKey(eastern.year, eastern.month, eastern.day);
+    const exception = MARKET_EXCEPTIONS[key];
+    const minutes = eastern.hour * 60 + eastern.minute;
+    const weekend = eastern.weekday === 'Sat' || eastern.weekday === 'Sun';
+    const earlyClose = exception?.type === 'early-close';
+    const closeMinutes = earlyClose ? 13 * 60 : 16 * 60;
+    let status: MarketStatus = 'Market Closed';
+    let activeSession: 'pre' | 'regular' | 'after' | null = null;
+    let countdownLabel = '';
+    let countdownTarget: Date;
+
+    if (exception?.type === 'holiday') {
+      status = 'Holiday';
+      const next = nextTradingDate(eastern.year, eastern.month, eastern.day);
+      countdownTarget = easternDateToUtc(next.year, next.month, next.day, 9, 30);
+      countdownLabel = `Next session opens ${formatEventDate(countdownTarget)}`;
+    } else if (weekend) {
+      const next = nextTradingDate(eastern.year, eastern.month, eastern.day);
+      countdownTarget = easternDateToUtc(next.year, next.month, next.day, 9, 30);
+      countdownLabel = `Next session opens ${formatEventDate(countdownTarget)}`;
+    } else if (minutes < 4 * 60) {
+      countdownTarget = easternDateToUtc(eastern.year, eastern.month, eastern.day, 4, 0);
+      countdownLabel = `Pre-market starts in ${formatCountdown(countdownTarget, now)}`;
+    } else if (minutes < 9 * 60 + 30) {
+      status = 'Pre-Market'; activeSession = 'pre';
+      countdownTarget = easternDateToUtc(eastern.year, eastern.month, eastern.day, 9, 30);
+      countdownLabel = `Market opens in ${formatCountdown(countdownTarget, now)}`;
+    } else if (minutes < closeMinutes) {
+      status = earlyClose ? 'Early Close' : 'Market Open'; activeSession = 'regular';
+      countdownTarget = easternDateToUtc(eastern.year, eastern.month, eastern.day, earlyClose ? 13 : 16, 0);
+      countdownLabel = `Market closes in ${formatCountdown(countdownTarget, now)}`;
+    } else if (minutes < 20 * 60) {
+      status = earlyClose ? 'Early Close' : 'After Hours'; activeSession = 'after';
+      countdownTarget = easternDateToUtc(eastern.year, eastern.month, eastern.day, 20, 0);
+      countdownLabel = `After hours ends in ${formatCountdown(countdownTarget, now)}`;
+    } else {
+      const next = nextTradingDate(eastern.year, eastern.month, eastern.day);
+      countdownTarget = easternDateToUtc(next.year, next.month, next.day, 9, 30);
+      countdownLabel = `Next session opens ${formatEventDate(countdownTarget)}`;
+    }
+
+    const todayTradingDay = isTradingDay(eastern.year, eastern.month, eastern.day);
+    const nextOpenDate = todayTradingDay && minutes < 9 * 60 + 30
+      ? { year: eastern.year, month: eastern.month, day: eastern.day }
+      : nextTradingDate(eastern.year, eastern.month, eastern.day);
+    const nextCloseDate = todayTradingDay && minutes < closeMinutes
+      ? { year: eastern.year, month: eastern.month, day: eastern.day }
+      : nextTradingDate(eastern.year, eastern.month, eastern.day);
+    const nextCloseException = MARKET_EXCEPTIONS[dateKey(nextCloseDate.year, nextCloseDate.month, nextCloseDate.day)];
+    const nextCloseHour = nextCloseException?.type === 'early-close' ? 13 : 16;
+
+    return {
+      status, activeSession, countdownLabel, exception,
+      currentTime: formatEasternTime(now),
+      todayHours: exception?.type === 'holiday' || weekend ? 'Closed' : `9:30 AM-${earlyClose ? '1:00 PM' : '4:00 PM'} ET`,
+      nextOpen: formatEventDate(easternDateToUtc(nextOpenDate.year, nextOpenDate.month, nextOpenDate.day, 9, 30)),
+      nextClose: formatEventDate(easternDateToUtc(nextCloseDate.year, nextCloseDate.month, nextCloseDate.day, nextCloseHour, 0)),
+      calendarType: exception?.type === 'holiday' ? 'Holiday' : earlyClose ? 'Early Close' : 'Full Trading Day',
+    };
+  }, [now]);
+
+  const statusStyle = market.status === 'Market Open' ? styles.statusOpen
+    : market.status === 'Pre-Market' ? styles.statusPre
+      : market.status === 'After Hours' ? styles.statusAfter
+        : market.status === 'Early Close' ? styles.statusEarly : styles.statusClosed;
+
+  const sessions = [
+    { id: 'pre', title: 'Pre-Market', time: '4:00 AM-9:30 AM ET' },
+    { id: 'regular', title: 'Regular Market', time: '9:30 AM-4:00 PM ET' },
+    { id: 'after', title: 'After Hours', time: '4:00 PM-8:00 PM ET' },
+  ] as const;
+
+  return <View style={styles.marketHoursCard}>
+    <View style={[styles.marketHoursGrid, !isDesktop && styles.marketHoursGridMobile]}>
+      <View style={styles.marketSummary}>
+        <View style={styles.marketHoursHeading}><Text style={styles.marketHoursEyebrow}>U.S. MARKET HOURS</Text><Text style={styles.localBadge}>LOCAL ET LOGIC</Text></View>
+        <View style={styles.statusLine}><View style={[styles.marketStatusBadge, statusStyle]}><View style={styles.marketStatusDot} /><Text style={styles.marketStatusText}>{market.status}</Text></View><Text style={styles.currentEt}>{market.currentTime}</Text></View>
+        <Text style={styles.countdown}>{market.countdownLabel}</Text>
+        <View style={styles.regularHours}><View><Text style={styles.marketMetaLabel}>TODAY'S OPEN</Text><Text style={styles.marketMetaValue}>{market.todayHours === 'Closed' ? 'Closed' : '9:30 AM ET'}</Text></View><View><Text style={styles.marketMetaLabel}>TODAY'S CLOSE</Text><Text style={styles.marketMetaValue}>{market.todayHours === 'Closed' ? 'Closed' : market.todayHours.split('-')[1]}</Text></View></View>
+      </View>
+      <View style={styles.sessionsPanel}><Text style={styles.marketPanelTitle}>Trading Sessions</Text><View style={[styles.sessionRows, !isDesktop && styles.sessionRowsMobile]}>{sessions.map((session) => <View key={session.id} style={[styles.sessionChip, market.activeSession === session.id && styles.sessionChipActive]}><Text style={[styles.sessionTitle, market.activeSession === session.id && styles.sessionTitleActive]}>{session.title}</Text><Text style={[styles.sessionTime, market.activeSession === session.id && styles.sessionTimeActive]}>{session.time}</Text></View>)}</View></View>
+    </View>
+    <View style={styles.marketCalendar}>
+      <View style={styles.calendarHeading}><Text style={styles.marketPanelTitle}>Market Calendar</Text><Text style={styles.configuredBadge}>LOCALLY CONFIGURED / SIMULATED</Text></View>
+      <View style={[styles.calendarGrid, !isDesktop && styles.calendarGridMobile]}><CalendarDatum label="TODAY'S SESSION" value={market.todayHours} /><CalendarDatum label="NEXT MARKET OPEN" value={market.nextOpen} /><CalendarDatum label="NEXT MARKET CLOSE" value={market.nextClose} /><CalendarDatum label="CALENDAR" value={market.exception?.label ?? market.calendarType} accent={market.calendarType === 'Early Close'} /></View>
+    </View>
+    <Text style={styles.marketHoursNote}>Market hours are shown in Eastern Time. Holiday schedules and individual securities may vary.</Text>
+  </View>;
+}
+
+function CalendarDatum({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return <View style={styles.calendarDatum}><Text style={styles.calendarLabel}>{label}</Text><Text numberOfLines={2} style={[styles.calendarValue, accent && styles.calendarValueAccent]}>{value}</Text></View>;
 }
 
 function PeriodSelector({ value, onChange }: { value: Period; onChange: (period: Period) => void }) {
@@ -249,14 +420,47 @@ const styles = StyleSheet.create({
   profileText: { color: '#ECF2F8', fontSize: 12, fontWeight: '900' },
   settingsButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#171D25', borderWidth: 1, borderColor: '#29333E', alignItems: 'center', justifyContent: 'center' },
   settingsIcon: { color: '#69E08C', fontSize: 11 },
-  marketStatus: { minHeight: 48, backgroundColor: '#141920', borderWidth: 1, borderColor: '#27303A', borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, marginBottom: 18 },
-  statusLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#69E08C' },
-  marketOpen: { color: '#E8EDF2', fontSize: 12, fontWeight: '900' },
-  simulatedBadge: { color: '#78838F', backgroundColor: '#202731', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, fontSize: 8, fontWeight: '900' },
-  statusTimes: { alignItems: 'flex-end' },
-  statusTime: { color: '#B2BBC5', fontSize: 10, fontWeight: '800' },
-  statusClose: { color: '#6F7A86', fontSize: 9, marginTop: 2 },
+  marketHoursCard: { backgroundColor: '#141A21', borderWidth: 1, borderColor: '#2D3742', borderRadius: 20, padding: 20, marginBottom: 18 },
+  marketHoursGrid: { flexDirection: 'row', gap: 22 },
+  marketHoursGridMobile: { flexDirection: 'column', gap: 18 },
+  marketSummary: { flex: 0.86 },
+  marketHoursHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  marketHoursEyebrow: { color: '#8B97A3', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  localBadge: { backgroundColor: '#202833', borderRadius: 8, color: '#778492', fontSize: 7, fontWeight: '900', paddingHorizontal: 7, paddingVertical: 4 },
+  statusLine: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 11, marginTop: 15 },
+  marketStatusBadge: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', gap: 7, paddingHorizontal: 11, paddingVertical: 8 },
+  marketStatusDot: { backgroundColor: '#D5DCE2', borderRadius: 4, height: 7, width: 7 },
+  marketStatusText: { color: '#F4F7F9', fontSize: 12, fontWeight: '900' },
+  statusOpen: { backgroundColor: 'rgba(105,224,140,0.16)', borderColor: '#69E08C', borderWidth: 1 },
+  statusPre: { backgroundColor: 'rgba(88,157,224,0.18)', borderColor: '#589DE0', borderWidth: 1 },
+  statusAfter: { backgroundColor: 'rgba(126,116,196,0.2)', borderColor: '#7E74C4', borderWidth: 1 },
+  statusClosed: { backgroundColor: '#282F38', borderColor: '#3A444F', borderWidth: 1 },
+  statusEarly: { backgroundColor: 'rgba(232,155,76,0.18)', borderColor: '#E89B4C', borderWidth: 1 },
+  currentEt: { color: '#AAB4BF', fontSize: 11, fontWeight: '800' },
+  countdown: { color: '#FFFFFF', fontSize: 19, fontWeight: '900', lineHeight: 25, marginTop: 16 },
+  regularHours: { flexDirection: 'row', gap: 34, marginTop: 19 },
+  marketMetaLabel: { color: '#6F7B88', fontSize: 7, fontWeight: '900', letterSpacing: 0.8 },
+  marketMetaValue: { color: '#CFD6DD', fontSize: 11, fontWeight: '800', marginTop: 5 },
+  sessionsPanel: { flex: 1.14 },
+  marketPanelTitle: { color: '#F0F3F6', fontSize: 13, fontWeight: '900' },
+  sessionRows: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  sessionRowsMobile: { flexDirection: 'column' },
+  sessionChip: { backgroundColor: '#1C232B', borderColor: '#2B3540', borderRadius: 13, borderWidth: 1, flex: 1, minHeight: 74, padding: 11 },
+  sessionChipActive: { backgroundColor: 'rgba(105,224,140,0.12)', borderColor: '#69E08C' },
+  sessionTitle: { color: '#9AA5B0', fontSize: 10, fontWeight: '900' },
+  sessionTitleActive: { color: '#89E9A5' },
+  sessionTime: { color: '#65717D', fontSize: 8, lineHeight: 12, marginTop: 7 },
+  sessionTimeActive: { color: '#9FBBA7' },
+  marketCalendar: { borderTopColor: '#2A343E', borderTopWidth: StyleSheet.hairlineWidth, marginTop: 20, paddingTop: 17 },
+  calendarHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  configuredBadge: { color: '#737F8B', fontSize: 7, fontWeight: '900', letterSpacing: 0.7 },
+  calendarGrid: { flexDirection: 'row', gap: 10, marginTop: 13 },
+  calendarGridMobile: { flexWrap: 'wrap' },
+  calendarDatum: { backgroundColor: '#1A2129', borderRadius: 12, flex: 1, minHeight: 62, minWidth: 130, padding: 10 },
+  calendarLabel: { color: '#697582', fontSize: 7, fontWeight: '900', letterSpacing: 0.65 },
+  calendarValue: { color: '#CCD3DA', fontSize: 9, fontWeight: '800', lineHeight: 13, marginTop: 6 },
+  calendarValueAccent: { color: '#E8A85F' },
+  marketHoursNote: { color: '#6F7B87', fontSize: 9, lineHeight: 14, marginTop: 15 },
   searchBar: { height: 54, borderRadius: 16, backgroundColor: '#171C23', borderWidth: 1, borderColor: '#29313B', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 30 },
   searchIcon: { color: '#A2ACB8', fontSize: 27, marginRight: 10, marginTop: -4 },
   searchInput: { flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 0 },

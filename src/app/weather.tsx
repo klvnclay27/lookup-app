@@ -120,7 +120,7 @@ export default function WeatherScreen() {
       style={styles.screen}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 100 }]}>
+      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 }]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}><Text style={styles.eyebrow}>YOUR WEATHER HUB</Text><Text style={styles.title}>Weather</Text><Text style={styles.subtitle}>Plan your day with confidence.</Text></View>
         <View style={styles.headerActions}>
