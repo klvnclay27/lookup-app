@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { createMockCalendarEvent, getCalendarEvents, type CalendarEvent } from '@/services/calendar';
 import type { ClothingItem } from '@/constants/starter-wardrobe';
 import { getSports } from '@/services/sports';
 import { getTraffic, type CommuteData, type SubwayCommute } from '@/services/traffic';
@@ -13,6 +14,7 @@ export type DailyIntelligenceInput = {
   now?: Date;
   userName?: string;
   commute?: CommuteData;
+  calendar?: { events?: CalendarEvent[] };
   weather?: { condition?: string; temperature?: number };
   traffic?: { commute?: string; status?: string; usualMinutes?: number };
   music?: { playlist?: string; tracks?: string[] };
@@ -20,7 +22,7 @@ export type DailyIntelligenceInput = {
   locker?: DailyLockerContext;
 };
 export type DailyInsight = {
-  category: 'weather' | 'traffic' | 'transit' | 'sports' | 'music' | 'locker' | 'day';
+  category: 'calendar' | 'weather' | 'traffic' | 'transit' | 'sports' | 'music' | 'locker' | 'day';
   detail: string;
   id: string;
   priority: IntelligencePriority;
@@ -29,7 +31,7 @@ export type DailyInsight = {
 };
 export type DailyIntelligenceResult = { greeting: string; headline: string; insights: DailyInsight[]; priority: IntelligencePriority; summary: string };
 export type DailyIntelligenceSnapshot = DailyIntelligenceResult & {
-  sources: Pick<DailyIntelligenceInput, 'commute' | 'locker' | 'sports' | 'traffic' | 'weather'>;
+  sources: Pick<DailyIntelligenceInput, 'calendar' | 'commute' | 'locker' | 'sports' | 'traffic' | 'weather'>;
 };
 export const DAILY_INTELLIGENCE_TEST_SCENARIOS = [
   { label: 'Normal', value: 'normal' },
@@ -44,11 +46,18 @@ export const DAILY_INTELLIGENCE_TEST_SCENARIOS = [
   { label: 'Major Subway Delay', value: 'major-subway-delay' },
   { label: 'Service Change', value: 'service-change' },
   { label: 'Rain + Subway Delay', value: 'rain-subway-delay' },
+  { label: 'Event Later', value: 'event-later' },
+  { label: 'Event Soon', value: 'event-soon' },
+  { label: 'Event + Subway Delay', value: 'event-subway-delay' },
+  { label: 'Event + Heavy Traffic', value: 'event-heavy-traffic' },
+  { label: 'Event + Rain', value: 'event-rain' },
+  { label: 'Event + Rain + Subway Delay', value: 'event-rain-subway-delay' },
 ] as const;
 export type DailyIntelligenceTestScenario = typeof DAILY_INTELLIGENCE_TEST_SCENARIOS[number]['value'];
 export type PriorityScoreInput = { base: number; compoundBoost?: number; timeBoost?: number };
 export type DailyHeadlineContext = {
   dayPart: 'morning' | 'afternoon' | 'evening';
+  eventTitle?: string;
   gameTeam?: string;
   severeWeather?: boolean;
   topInsight?: DailyInsight;
@@ -68,12 +77,14 @@ export function priorityForScore(score: number): IntelligencePriority {
   return 'routine';
 }
 
-export function buildDailyHeadline({ dayPart, gameTeam, severeWeather, topInsight, secondInsight, wetWeather }: DailyHeadlineContext) {
+export function buildDailyHeadline({ dayPart, eventTitle, gameTeam, severeWeather, topInsight, secondInsight, wetWeather }: DailyHeadlineContext) {
   const multipleUrgent = Boolean(topInsight && secondInsight && topInsight.score >= 75 && secondInsight.score >= 75);
   if (multipleUrgent) return `A couple things need your attention this ${dayPart}.`;
   if (!topInsight || topInsight.score < 45) return `Everything looks pretty smooth this ${dayPart}.`;
 
   switch (topInsight.category) {
+    case 'calendar':
+      return `${eventTitle ?? 'Your next event'} is coming up this ${dayPart}.`;
     case 'weather':
       if (severeWeather) return `Weather is the main thing to watch this ${dayPart}.`;
       if (wetWeather) return `Rain could change your plans this ${dayPart}.`;
@@ -201,6 +212,15 @@ function createInsight(insight: Omit<DailyInsight, 'priority'>): DailyInsight {
   return { ...insight, priority: priorityForScore(insight.score) };
 }
 
+const formatClockTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+function nextCalendarEvent(events: CalendarEvent[] | undefined, now: Date) {
+  return events
+    ?.map((event) => ({ event, start: new Date(event.startAt) }))
+    .filter(({ start }) => !Number.isNaN(start.getTime()) && start.getTime() >= now.getTime())
+    .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+}
+
 export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyIntelligenceResult {
   const now = input.now ?? new Date();
   const hour = now.getHours();
@@ -215,6 +235,8 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   const commuteRelevantNow = isCommuteHour(hour);
   const subway = input.commute?.mode === 'subway' ? input.commute : undefined;
   const game = parseGame(input.sports?.games?.find((item) => item.trim().length > 0), now);
+  const upcomingEvent = nextCalendarEvent(input.calendar?.events, now);
+  const eventMinutesUntil = upcomingEvent ? Math.round((upcomingEvent.start.getTime() - now.getTime()) / 60000) : undefined;
   const dayPart = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
   const naturalTime = hour < 12 ? 'this morning' : hour < 18 ? 'this afternoon' : 'tonight';
   const wardrobeRecommendation = getWardrobeRecommendation({ condition: input.weather?.condition, dayPart, items: input.locker?.items, temperature });
@@ -222,14 +244,28 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   let weatherBase = severeWeather ? 92 : wet ? 80 : typeof temperature === 'number' && (temperature <= 32 || temperature >= 90) ? 70 : typeof temperature === 'number' && (temperature <= 50 || temperature >= 82) ? 45 : typeof temperature === 'number' ? 18 : 0;
   let trafficBase = commuteDelay >= 20 ? 88 : trafficStatusDelayed ? 78 : commuteDelay >= 10 ? 62 : typeof commute === 'number' ? 22 : 0;
   const transitBase = !subway ? 0 : subway.status === 'Major Delays' || subway.delayMinutes >= 20 ? 92 : subway.status === 'Service Change' ? 82 : subway.status === 'Delayed' || subway.delayMinutes >= 10 ? 76 : subway.status === 'Minor Delays' || subway.delayMinutes > 0 ? 56 : 18;
+  const calendarBase = typeof eventMinutesUntil !== 'number' ? 0 : eventMinutesUntil <= 15 ? 84 : eventMinutesUntil <= 60 ? 70 : eventMinutesUntil <= 120 ? 55 : eventMinutesUntil <= 480 ? 32 : eventMinutesUntil <= 1440 ? 24 : 12;
   const weatherAffectsPlans = weatherBase >= 70;
   const trafficAffectsPlans = trafficBase >= 60;
   const transitAffectsPlans = transitBase >= 56;
+  const eventTravelSoon = Boolean(upcomingEvent?.event.travelRequired && typeof eventMinutesUntil === 'number' && eventMinutesUntil <= 120);
+  const eventCommuteRisk = Boolean(eventTravelSoon && (trafficAffectsPlans || transitAffectsPlans));
+  const eventWeatherRisk = Boolean(eventTravelSoon && wet);
   const compoundBoost = weatherAffectsPlans && (trafficAffectsPlans || transitAffectsPlans) ? 6 : 0;
-  const weatherScore = calculatePriorityScore({ base: weatherBase, compoundBoost, timeBoost: wet && commuteRelevantNow ? 8 : 0 });
-  const trafficScore = calculatePriorityScore({ base: trafficBase, compoundBoost, timeBoost: trafficAffectsPlans && commuteRelevantNow ? 8 : 0 });
-  const transitScore = calculatePriorityScore({ base: transitBase, compoundBoost, timeBoost: subway && commuteRelevantNow ? subway.status === 'Good Service' && subway.nextArrivalMinutes <= 5 ? 30 : transitAffectsPlans ? 8 : 0 : 0 });
+  const weatherScore = calculatePriorityScore({ base: weatherBase, compoundBoost: compoundBoost + (eventWeatherRisk ? 5 : 0), timeBoost: wet && commuteRelevantNow ? 8 : 0 });
+  const trafficScore = calculatePriorityScore({ base: trafficBase, compoundBoost: compoundBoost + (eventCommuteRisk ? 5 : 0), timeBoost: trafficAffectsPlans && commuteRelevantNow ? 8 : 0 });
+  const transitScore = calculatePriorityScore({ base: transitBase, compoundBoost: compoundBoost + (eventCommuteRisk ? 5 : 0), timeBoost: subway && commuteRelevantNow ? subway.status === 'Good Service' && subway.nextArrivalMinutes <= 5 ? 30 : transitAffectsPlans ? 8 : 0 : 0 });
+  const calendarScore = calculatePriorityScore({ base: calendarBase, compoundBoost: (eventCommuteRisk ? 8 : 0) + (eventWeatherRisk ? 6 : 0), timeBoost: upcomingEvent?.event.importance === 'high' ? 10 : upcomingEvent?.event.importance === 'low' ? -5 : 0 });
   const insights: DailyInsight[] = [];
+
+  if (upcomingEvent && typeof eventMinutesUntil === 'number') {
+    const event = upcomingEvent.event;
+    const travelMinutes = event.travelRequired ? subway ? 30 + subway.delayMinutes : commute ?? 30 : 0;
+    const leaveBy = event.travelRequired ? new Date(upcomingEvent.start.getTime() - (travelMinutes + 10) * 60000) : undefined;
+    const title = eventMinutesUntil <= 15 ? `${event.title} starts very soon` : eventMinutesUntil <= 60 ? `${event.title} is coming up` : eventMinutesUntil <= 120 ? `${event.title} in about ${Math.ceil(eventMinutesUntil / 30) * 30} minutes` : `${formatClockTime(upcomingEvent.start)} · ${event.title}`;
+    const detailParts = [event.location, leaveBy ? `Leave by ${formatClockTime(leaveBy)}` : event.allDay ? 'All day' : `Starts at ${formatClockTime(upcomingEvent.start)}`].filter(Boolean);
+    insights.push(createInsight({ id: `calendar-${event.id}`, category: 'calendar', score: calendarScore, title, detail: detailParts.join(' · ') }));
+  }
 
   if (weatherScore > 0) {
     if (severeWeather) insights.push(createInsight({ id: 'weather-severe', category: 'weather', score: weatherScore, title: 'Weather needs attention', detail: `${input.weather?.condition ?? 'Severe weather'} could disrupt your plans ${naturalTime}.` }));
@@ -282,7 +318,7 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   const priority = topInsight?.priority ?? 'routine';
   const secondInsight = sortedInsights[1];
   const combinedWeatherTraffic = topInsight?.score >= 75 && secondInsight?.score >= 75 && new Set([topInsight.category, secondInsight.category]).size === 2 && [topInsight.category, secondInsight.category].every((category) => category === 'weather' || category === 'traffic' || category === 'transit');
-  const headline = buildDailyHeadline({ dayPart, gameTeam: game?.away, severeWeather, topInsight, secondInsight, wetWeather: wet });
+  const headline = buildDailyHeadline({ dayPart, eventTitle: upcomingEvent?.event.title, gameTeam: game?.away, severeWeather, topInsight, secondInsight, wetWeather: wet });
 
   const routineBriefingParts: string[] = [];
   if (typeof temperature === 'number') {
@@ -297,6 +333,9 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
       routineBriefingParts.push(`${gameLanguage(game.away, game.home).later} ${timing}`);
     } else routineBriefingParts.push(`${game.text} is on today's sports schedule`);
   }
+  if (upcomingEvent && calendarScore >= 30 && calendarScore < 45) {
+    routineBriefingParts.push(`${upcomingEvent.event.title} is at ${formatClockTime(upcomingEvent.start)}`);
+  }
   if (wardrobeRecommendation && wardrobeRecommendation.score < 10 && routineBriefingParts.length < 2) {
     routineBriefingParts.push(wardrobeRecommendation.detail.replace(/\.$/, '').replace(/^Your /, 'your '));
   }
@@ -306,7 +345,20 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   let summary = routineBriefing
     ? `Your ${dayPart} looks clear. ${routineBriefing.charAt(0).toUpperCase()}${routineBriefing.slice(1)}.`
     : `Your ${dayPart} briefing will update as data becomes available.`;
-  if (combinedWeatherTraffic) summary = `Weather and commute conditions both need attention before you head out this ${dayPart}.`;
+  const eventTravelDelay = subway?.delayMinutes ?? commuteDelay;
+  if (upcomingEvent && typeof eventMinutesUntil === 'number' && eventMinutesUntil <= 120 && upcomingEvent.event.travelRequired && eventWeatherRisk && eventCommuteRisk) {
+    summary = `Rain and a commute delay could affect your trip to ${upcomingEvent.event.title}; leave about ${Math.max(10, eventTravelDelay)} minutes earlier.`;
+  } else if (upcomingEvent && typeof eventMinutesUntil === 'number' && eventMinutesUntil <= 120 && upcomingEvent.event.travelRequired && eventCommuteRisk) {
+    const commuteIssue = subway ? `the ${subway.line} train is delayed` : 'traffic is running heavy';
+    summary = `Your ${upcomingEvent.event.title} is coming up, and ${commuteIssue}; leave about ${Math.max(10, eventTravelDelay)} minutes earlier.`;
+  } else if (upcomingEvent && typeof eventMinutesUntil === 'number' && eventMinutesUntil <= 120 && upcomingEvent.event.travelRequired && eventWeatherRisk) {
+    summary = `Rain could affect your trip to ${upcomingEvent.event.title}, so give yourself a little extra time.`;
+  } else if (combinedWeatherTraffic) summary = `Weather and commute conditions both need attention before you head out this ${dayPart}.`;
+  else if (topInsight?.category === 'calendar' && upcomingEvent) {
+    const travelMinutes = upcomingEvent.event.travelRequired ? subway ? 30 + subway.delayMinutes : commute ?? 30 : 0;
+    const leaveBy = upcomingEvent.event.travelRequired ? new Date(upcomingEvent.start.getTime() - (travelMinutes + 10) * 60000) : undefined;
+    summary = leaveBy ? `Your ${upcomingEvent.event.title} starts at ${formatClockTime(upcomingEvent.start)}; plan to leave by ${formatClockTime(leaveBy)}.` : `Your ${upcomingEvent.event.title} starts at ${formatClockTime(upcomingEvent.start)}.`;
+  }
   else if (topInsight?.category === 'weather' && topInsight.score >= 45) {
     if (severeWeather) summary = `${input.weather?.condition ?? 'Severe weather'} could disrupt your plans ${naturalTime}.`;
     else if (wet) summary = wardrobeRecommendation?.score && wardrobeRecommendation.score >= 50 ? `Rain could affect your plans; ${wardrobeRecommendation.detail.replace(/^Your /, 'your ')}` : commuteRelevantNow ? 'Rain could affect your commute, so keep an umbrella handy.' : `Rain could affect your plans ${naturalTime}.`;
@@ -336,7 +388,7 @@ function scenarioTime(now: Date, hour: number, minute = 0) {
 export function generateDailyIntelligenceTestSnapshot(baseInput: DailyIntelligenceInput, scenario: DailyIntelligenceTestScenario, now = new Date()): DailyIntelligenceSnapshot {
   if (scenario === 'normal') {
     const input = { ...baseInput, now };
-    return { ...generateDailyIntelligence(input), sources: { commute: input.commute, locker: input.locker, sports: input.sports, traffic: input.traffic, weather: input.weather } };
+    return { ...generateDailyIntelligence(input), sources: { calendar: input.calendar, commute: input.commute, locker: input.locker, sports: input.sports, traffic: input.traffic, weather: input.weather } };
   }
 
   let testInput: DailyIntelligenceInput = { ...baseInput, now };
@@ -354,10 +406,29 @@ export function generateDailyIntelligenceTestSnapshot(baseInput: DailyIntelligen
   else if (scenario === 'major-subway-delay') testInput = { ...testInput, commute: { ...subwayNormal, nextArrivalMinutes: 24, followingArrivalMinutes: 34, status: 'Major Delays', delayMinutes: 24 }, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
   else if (scenario === 'service-change') testInput = { ...testInput, commute: { ...subwayNormal, nextArrivalMinutes: 10, followingArrivalMinutes: 18, status: 'Service Change', delayMinutes: 8, serviceChanges: ['Downtown A trains are running local between 59 St and Canal St.'], detour: 'Allow extra time or use the C train.' }, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
   else if (scenario === 'rain-subway-delay') testInput = { ...testInput, commute: { ...subwayNormal, nextArrivalMinutes: 14, followingArrivalMinutes: 23, status: 'Delayed', delayMinutes: 14 }, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Rainy', temperature: 61 } };
+  else if (scenario === 'event-later') {
+    const testNow = scenarioTime(now, 9, 0);
+    testInput = { ...testInput, calendar: { events: [createMockCalendarEvent(testNow, { title: 'Dinner reservation', type: 'dinner', location: 'West Village', travelRequired: true, preferredCommuteMode: 'subway', importance: 'high' }, 360)] }, commute: undefined, now: testNow, sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
+  } else if (scenario === 'event-soon') {
+    const testNow = scenarioTime(now, 8, 0);
+    testInput = { ...testInput, calendar: { events: [createMockCalendarEvent(testNow, { title: 'Doctor appointment', type: 'appointment', location: 'Midtown', travelRequired: true, preferredCommuteMode: 'driving', importance: 'high' }, 50)] }, commute: undefined, now: testNow, sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
+  } else if (scenario === 'event-subway-delay') {
+    const testNow = scenarioTime(now, 8, 0);
+    testInput = { ...testInput, calendar: { events: [createMockCalendarEvent(testNow, { title: 'Client meeting', type: 'meeting', location: 'Downtown Manhattan', travelRequired: true, preferredCommuteMode: 'subway', importance: 'high' }, 60)] }, commute: { ...subwayNormal, status: 'Delayed', delayMinutes: 12, nextArrivalMinutes: 12 }, now: testNow, sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
+  } else if (scenario === 'event-heavy-traffic') {
+    const testNow = scenarioTime(now, 8, 0);
+    testInput = { ...testInput, calendar: { events: [createMockCalendarEvent(testNow, { title: 'Work presentation', type: 'work', location: 'Madison Square', travelRequired: true, preferredCommuteMode: 'driving', importance: 'high' }, 60)] }, commute: undefined, now: testNow, sports: laterGame, traffic: { commute: '52 mins', status: 'Heavy traffic', usualMinutes: 28 }, weather: { condition: 'Sunny', temperature: 72 } };
+  } else if (scenario === 'event-rain') {
+    const testNow = scenarioTime(now, 8, 0);
+    testInput = { ...testInput, calendar: { events: [createMockCalendarEvent(testNow, { title: 'Morning appointment', type: 'appointment', location: 'Upper East Side', travelRequired: true, preferredCommuteMode: 'walking', importance: 'high' }, 60)] }, commute: undefined, now: testNow, sports: laterGame, traffic: normalTraffic, weather: { condition: 'Rainy', temperature: 61 } };
+  } else if (scenario === 'event-rain-subway-delay') {
+    const testNow = scenarioTime(now, 8, 0);
+    testInput = { ...testInput, calendar: { events: [createMockCalendarEvent(testNow, { title: 'Project meeting', type: 'meeting', location: 'Downtown Manhattan', travelRequired: true, preferredCommuteMode: 'subway', importance: 'high' }, 60)] }, commute: { ...subwayNormal, status: 'Delayed', delayMinutes: 14, nextArrivalMinutes: 14 }, now: testNow, sports: laterGame, traffic: normalTraffic, weather: { condition: 'Rainy', temperature: 61 } };
+  }
 
   return {
     ...generateDailyIntelligence(testInput),
-    sources: { commute: testInput.commute, locker: testInput.locker, sports: testInput.sports, traffic: testInput.traffic, weather: testInput.weather },
+    sources: { calendar: testInput.calendar, commute: testInput.commute, locker: testInput.locker, sports: testInput.sports, traffic: testInput.traffic, weather: testInput.weather },
   };
 }
 
@@ -379,11 +450,12 @@ export async function readDailyLockerContext(): Promise<DailyLockerContext | und
 }
 
 export async function getDailyIntelligence(now = new Date()): Promise<DailyIntelligenceSnapshot> {
-  const [weatherResult, trafficResult, sportsResult, lockerResult] = await Promise.allSettled([
+  const [weatherResult, trafficResult, sportsResult, lockerResult, calendarResult] = await Promise.allSettled([
     getWeather(),
     getTraffic(),
     getSports(),
     readDailyLockerContext(),
+    getCalendarEvents(now),
   ]);
 
   const weather = weatherResult.status === 'fulfilled'
@@ -393,7 +465,8 @@ export async function getDailyIntelligence(now = new Date()): Promise<DailyIntel
   const commute = trafficResult.status === 'fulfilled' ? trafficResult.value.commuteData : undefined;
   const sports = sportsResult.status === 'fulfilled' ? sportsResult.value : undefined;
   const locker = lockerResult.status === 'fulfilled' ? lockerResult.value : undefined;
-  const briefing = generateDailyIntelligence({ commute, now, weather, traffic, sports, locker });
+  const calendar = calendarResult.status === 'fulfilled' ? { events: calendarResult.value } : undefined;
+  const briefing = generateDailyIntelligence({ calendar, commute, now, weather, traffic, sports, locker });
 
-  return { ...briefing, sources: { commute, locker, sports, traffic, weather } };
+  return { ...briefing, sources: { calendar, commute, locker, sports, traffic, weather } };
 }

@@ -135,6 +135,11 @@ export default function HomeScreen() {
     { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: 'Comfortable conditions', fallbackDetail: `${condition} and ${temperature}° are expected right now.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'weather') },
     { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: 'Commute check', fallbackDetail: `Current travel time is approximately ${commute}.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'transit') ?? dailyIntelligence.insights.find((insight) => insight.category === 'traffic') },
   ];
+  const calendarInsight = dailyIntelligence.insights.find((insight) => insight.category === 'calendar');
+  if (calendarInsight && calendarInsight.score >= 30) {
+    const replacementIndex = intelligenceDetails.reduce((lowest, item, index, items) => (item.insight?.score ?? 0) < (items[lowest].insight?.score ?? 0) ? index : lowest, 0);
+    intelligenceDetails[replacementIndex] = { key: 'schedule', label: 'SCHEDULE', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } as IconName, fallbackTitle: calendarInsight.title, fallbackDetail: calendarInsight.detail, insight: calendarInsight };
+  }
 
   return <View style={styles.screen}>
     <View pointerEvents="none" style={[styles.backgroundBranding, !desktop && styles.backgroundBrandingMobile]}>
@@ -158,7 +163,7 @@ export default function HomeScreen() {
         <View style={styles.intelligenceHeading}><Text style={styles.intelligenceLabel}>LOOKUP DAILY INTELLIGENCE</Text>{intelligenceEnabled ? <><Text style={styles.intelligenceHeadline}>{dailyIntelligence.headline}</Text><Text style={styles.intelligenceSummary}>{dailyIntelligence.summary}</Text></> : null}</View>
         <View style={styles.intelligenceToggle}><Text style={styles.intelligenceToggleLabel}>Smart Mode</Text><Switch accessibilityLabel="Toggle LookUP Intelligence" ios_backgroundColor="#C8D0D9" onValueChange={updateIntelligencePreference} thumbColor="#FFFFFF" trackColor={{ false: '#C8D0D9', true: COLORS.green }} value={intelligenceEnabled} style={styles.intelligenceSwitch} /></View>
       </View>
-      {__DEV__ ? <View style={styles.testModeRow}><Text style={styles.testModeLabel}>TEST MODE</Text><ScrollView contentContainerStyle={styles.testModeOptions} horizontal showsHorizontalScrollIndicator={false}>{DAILY_INTELLIGENCE_TEST_SCENARIOS.map((scenario) => <Pressable accessibilityRole="button" key={scenario.value} onPress={() => selectTestScenario(scenario.value)} style={({ pressed }) => [styles.testModePill, testScenario === scenario.value && styles.testModePillActive, pressed && styles.pressed]}><Text style={[styles.testModePillText, testScenario === scenario.value && styles.testModePillTextActive]}>{scenario.label}</Text></Pressable>)}</ScrollView></View> : null}
+      {__DEV__ ? <View style={styles.testModeRow}><Text style={styles.testModeLabel}>TEST MODE</Text><ScrollView contentContainerStyle={styles.testModeOptions} horizontal showsHorizontalScrollIndicator={false} style={styles.testModeScroller}>{DAILY_INTELLIGENCE_TEST_SCENARIOS.map((scenario) => <Pressable accessibilityRole="button" key={scenario.value} onPress={() => selectTestScenario(scenario.value)} style={({ pressed }) => [styles.testModePill, testScenario === scenario.value && styles.testModePillActive, pressed && styles.pressed]}><Text style={[styles.testModePillText, testScenario === scenario.value && styles.testModePillTextActive]}>{scenario.label}</Text></Pressable>)}</ScrollView></View> : null}
     </View>
 
     <View style={[styles.intelligenceDetails, !desktop && styles.intelligenceDetailsMobile]}>
@@ -240,9 +245,10 @@ const styles = StyleSheet.create({
   intelligenceToggleLabel: { color: COLORS.muted, fontSize: 9, fontWeight: '700' },
   intelligenceSwitch: { transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }] },
   testModeRow: { alignItems: 'center', borderTopColor: 'rgba(70,92,118,0.1)', borderTopWidth: 1, flexDirection: 'row', gap: 10, marginTop: 13, paddingTop: 11 },
-  testModeLabel: { color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  testModeOptions: { gap: 6, paddingRight: 4 },
-  testModePill: { backgroundColor: 'rgba(255,255,255,0.45)', borderColor: 'rgba(70,92,118,0.12)', borderRadius: 12, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
+  testModeLabel: { color: COLORS.muted, flexShrink: 0, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  testModeScroller: { flex: 1, minWidth: 0 },
+  testModeOptions: { alignItems: 'center', gap: 6, paddingRight: 4 },
+  testModePill: { backgroundColor: 'rgba(255,255,255,0.45)', borderColor: 'rgba(70,92,118,0.12)', borderRadius: 12, borderWidth: 1, flexShrink: 0, paddingHorizontal: 10, paddingVertical: 6 },
   testModePillActive: { backgroundColor: '#DDF3E8', borderColor: 'rgba(31,169,104,0.3)' },
   testModePillText: { color: COLORS.muted, fontSize: 9, fontWeight: '700' },
   testModePillTextActive: { color: '#157A4B', fontWeight: '900' },
