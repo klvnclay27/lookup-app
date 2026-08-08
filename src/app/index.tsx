@@ -6,7 +6,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Te
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getEntertainment } from '@/services/entertainment';
-import { generateDailyIntelligence, getDailyIntelligence, type DailyIntelligenceResult } from '@/services/daily-intelligence';
+import { DAILY_INTELLIGENCE_TEST_SCENARIOS, generateDailyIntelligence, generateDailyIntelligenceTestSnapshot, getDailyIntelligence, type DailyIntelligenceInput, type DailyIntelligenceSnapshot, type DailyIntelligenceTestScenario } from '@/services/daily-intelligence';
 import { getFinance } from '@/services/finance';
 import { getMusic } from '@/services/music';
 
@@ -58,7 +58,9 @@ export default function HomeScreen() {
   const [movie, setMovie] = useState('Top entertainment story');
   const [tracks, setTracks] = useState<string[]>([]);
   const [games, setGames] = useState<string[]>([]);
-  const [dailyIntelligence, setDailyIntelligence] = useState<DailyIntelligenceResult>(() => generateDailyIntelligence({}));
+  const [dailyIntelligence, setDailyIntelligence] = useState<DailyIntelligenceSnapshot>(() => ({ ...generateDailyIntelligence({}), sources: {} }));
+  const [dailyIntelligenceBase, setDailyIntelligenceBase] = useState<DailyIntelligenceInput>({});
+  const [testScenario, setTestScenario] = useState<DailyIntelligenceTestScenario>('normal');
   const [intelligenceEnabled, setIntelligenceEnabled] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -78,6 +80,7 @@ export default function HomeScreen() {
       try {
         await Promise.all([
           getDailyIntelligence().then((data) => {
+            setDailyIntelligenceBase(data.sources);
             setDailyIntelligence(data);
             if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
             else setCondition('Weather unavailable');
@@ -96,6 +99,19 @@ export default function HomeScreen() {
   const updateIntelligencePreference = (enabled: boolean) => {
     setIntelligenceEnabled(enabled);
     void AsyncStorage.setItem(INTELLIGENCE_PREFERENCE_KEY, String(enabled));
+  };
+
+  const applyIntelligenceSnapshot = (data: DailyIntelligenceSnapshot) => {
+    setDailyIntelligence(data);
+    if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
+    else setCondition('Weather unavailable');
+    setCommute(data.sources.traffic?.commute ?? 'Traffic unavailable');
+    setGames(data.sources.sports?.games ?? ['Sports unavailable']);
+  };
+
+  const selectTestScenario = (scenario: DailyIntelligenceTestScenario) => {
+    setTestScenario(scenario);
+    applyIntelligenceSnapshot(generateDailyIntelligenceTestSnapshot(dailyIntelligenceBase, scenario));
   };
 
   const feelsLike = temperature - 1;
@@ -142,6 +158,7 @@ export default function HomeScreen() {
         <View style={styles.intelligenceHeading}><Text style={styles.intelligenceLabel}>LOOKUP DAILY INTELLIGENCE</Text>{intelligenceEnabled ? <><Text style={styles.intelligenceHeadline}>{dailyIntelligence.headline}</Text><Text style={styles.intelligenceSummary}>{dailyIntelligence.summary}</Text></> : null}</View>
         <View style={styles.intelligenceToggle}><Text style={styles.intelligenceToggleLabel}>Smart Mode</Text><Switch accessibilityLabel="Toggle LookUP Intelligence" ios_backgroundColor="#C8D0D9" onValueChange={updateIntelligencePreference} thumbColor="#FFFFFF" trackColor={{ false: '#C8D0D9', true: COLORS.green }} value={intelligenceEnabled} style={styles.intelligenceSwitch} /></View>
       </View>
+      {__DEV__ ? <View style={styles.testModeRow}><Text style={styles.testModeLabel}>TEST MODE</Text><ScrollView contentContainerStyle={styles.testModeOptions} horizontal showsHorizontalScrollIndicator={false}>{DAILY_INTELLIGENCE_TEST_SCENARIOS.map((scenario) => <Pressable accessibilityRole="button" key={scenario.value} onPress={() => selectTestScenario(scenario.value)} style={({ pressed }) => [styles.testModePill, testScenario === scenario.value && styles.testModePillActive, pressed && styles.pressed]}><Text style={[styles.testModePillText, testScenario === scenario.value && styles.testModePillTextActive]}>{scenario.label}</Text></Pressable>)}</ScrollView></View> : null}
     </View>
 
     <View style={[styles.intelligenceDetails, !desktop && styles.intelligenceDetailsMobile]}>
@@ -222,6 +239,13 @@ const styles = StyleSheet.create({
   intelligenceToggle: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 7, marginLeft: 14 },
   intelligenceToggleLabel: { color: COLORS.muted, fontSize: 9, fontWeight: '700' },
   intelligenceSwitch: { transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }] },
+  testModeRow: { alignItems: 'center', borderTopColor: 'rgba(70,92,118,0.1)', borderTopWidth: 1, flexDirection: 'row', gap: 10, marginTop: 13, paddingTop: 11 },
+  testModeLabel: { color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  testModeOptions: { gap: 6, paddingRight: 4 },
+  testModePill: { backgroundColor: 'rgba(255,255,255,0.45)', borderColor: 'rgba(70,92,118,0.12)', borderRadius: 12, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
+  testModePillActive: { backgroundColor: '#DDF3E8', borderColor: 'rgba(31,169,104,0.3)' },
+  testModePillText: { color: COLORS.muted, fontSize: 9, fontWeight: '700' },
+  testModePillTextActive: { color: '#157A4B', fontWeight: '900' },
   intelligenceDetails: { flexDirection: 'row', gap: 12, marginBottom: 26 },
   intelligenceDetailsMobile: { flexDirection: 'column' },
   intelligenceDetailCard: { alignItems: 'center', backgroundColor: 'rgba(231,236,242,0.94)', borderColor: 'rgba(70,92,118,0.12)', borderRadius: 18, borderWidth: 1, flex: 1, flexDirection: 'row', minHeight: 104, padding: 16, ...cardShadow },

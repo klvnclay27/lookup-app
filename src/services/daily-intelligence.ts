@@ -1,11 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { ClothingItem } from '@/constants/starter-wardrobe';
 import { getSports } from '@/services/sports';
 import { getTraffic } from '@/services/traffic';
 import { getWeather, getWeatherCondition } from '@/services/weather';
 
 export type IntelligencePriority = 'routine' | 'useful' | 'important';
-export type DailyLockerContext = { favoriteCount?: number; itemCount?: number };
+export type DailyWardrobeItem = Pick<ClothingItem, 'brand' | 'category' | 'favorite' | 'id' | 'name' | 'primaryColor'>;
+export type DailyLockerContext = { favoriteCount?: number; itemCount?: number; items?: DailyWardrobeItem[] };
+export type WardrobeRecommendation = { detail: string; itemNames: string[]; score: number; title: string };
 export type DailyIntelligenceInput = {
   now?: Date;
   userName?: string;
@@ -25,8 +28,18 @@ export type DailyInsight = {
 };
 export type DailyIntelligenceResult = { greeting: string; headline: string; insights: DailyInsight[]; priority: IntelligencePriority; summary: string };
 export type DailyIntelligenceSnapshot = DailyIntelligenceResult & {
-  sources: Pick<DailyIntelligenceInput, 'sports' | 'traffic' | 'weather'>;
+  sources: Pick<DailyIntelligenceInput, 'locker' | 'sports' | 'traffic' | 'weather'>;
 };
+export const DAILY_INTELLIGENCE_TEST_SCENARIOS = [
+  { label: 'Normal', value: 'normal' },
+  { label: 'Rain', value: 'rain' },
+  { label: 'Cold', value: 'cold' },
+  { label: 'Hot', value: 'hot' },
+  { label: 'Heavy Traffic', value: 'heavy-traffic' },
+  { label: 'Game Soon', value: 'game-soon' },
+  { label: 'Multiple Issues', value: 'multiple-issues' },
+] as const;
+export type DailyIntelligenceTestScenario = typeof DAILY_INTELLIGENCE_TEST_SCENARIOS[number]['value'];
 export type PriorityScoreInput = { base: number; compoundBoost?: number; timeBoost?: number };
 export type DailyHeadlineContext = {
   dayPart: 'morning' | 'afternoon' | 'evening';
@@ -129,6 +142,53 @@ function gameLanguage(away?: string, home?: string) {
   };
 }
 
+const naturalItemName = (name: string) => `${name.charAt(0).toLowerCase()}${name.slice(1)}`;
+const itemSearchText = (item: DailyWardrobeItem) => `${item.name} ${item.brand} ${item.primaryColor} ${item.category}`.toLowerCase();
+const favoriteFirst = (items: DailyWardrobeItem[]) => [...items].sort((a, b) => Number(b.favorite) - Number(a.favorite));
+
+export function getWardrobeRecommendation({ condition, dayPart, items = [], temperature }: {
+  condition?: string;
+  dayPart: 'morning' | 'afternoon' | 'evening';
+  items?: DailyWardrobeItem[];
+  temperature?: number;
+}): WardrobeRecommendation | undefined {
+  if (!items.length) return undefined;
+  const wet = isWetWeather(condition);
+  const named = (pattern: RegExp, category?: DailyWardrobeItem['category']) => favoriteFirst(items.filter((item) => (!category || item.category === category) && pattern.test(itemSearchText(item))));
+
+  if (wet) {
+    const rainLayer = named(/rain|waterproof|water-resistant|shell|trench|parka/, 'Jackets')[0];
+    const rainShoes = named(/waterproof|rain|boot/, 'Shoes')[0];
+    const match = rainLayer ?? rainShoes;
+    if (match) return { detail: `Your ${naturalItemName(match.name)} would work well in the rain this ${dayPart}.`, itemNames: [match.name], score: 55, title: 'A rain-ready option from My Locker' };
+    return undefined;
+  }
+
+  if (typeof temperature === 'number' && temperature <= 50) {
+    const layer = favoriteFirst([
+      ...items.filter((item) => item.category === 'Jackets'),
+      ...items.filter((item) => item.category === 'Shirts' && /hoodie|sweater|sweatshirt|fleece|cardigan/.test(itemSearchText(item))),
+    ])[0];
+    if (layer) return { detail: `Your ${naturalItemName(layer.name)} is a good layer for this ${dayPart}.`, itemNames: [layer.name], score: temperature <= 32 ? 50 : 34, title: 'A warmer layer from My Locker' };
+    return undefined;
+  }
+
+  if (typeof temperature === 'number' && temperature >= 82) {
+    const lightTop = named(/tee|t-shirt|tank|linen|polo|shirt/, 'Shirts')[0];
+    const shorts = named(/short/, 'Pants')[0];
+    const matches = [lightTop, shorts].filter((item): item is DailyWardrobeItem => Boolean(item));
+    if (matches.length) {
+      const names = matches.map((item) => naturalItemName(item.name));
+      const outfit = names.length === 2 ? `${names[0]} and ${names[1]}` : names[0];
+      return { detail: `Your ${outfit} would keep things light this ${dayPart}.`, itemNames: matches.map((item) => item.name), score: temperature >= 90 ? 46 : 30, title: 'A lighter option from My Locker' };
+    }
+    return undefined;
+  }
+
+  const favoriteTop = favoriteFirst(items.filter((item) => item.category === 'Shirts' && item.favorite))[0];
+  return favoriteTop ? { detail: `Your ${naturalItemName(favoriteTop.name)} fits the comfortable weather this ${dayPart}.`, itemNames: [favoriteTop.name], score: 8, title: 'An easy option from My Locker' } : undefined;
+}
+
 function createInsight(insight: Omit<DailyInsight, 'priority'>): DailyInsight {
   return { ...insight, priority: priorityForScore(insight.score) };
 }
@@ -148,6 +208,7 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   const game = parseGame(input.sports?.games?.find((item) => item.trim().length > 0), now);
   const dayPart = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
   const naturalTime = hour < 12 ? 'this morning' : hour < 18 ? 'this afternoon' : 'tonight';
+  const wardrobeRecommendation = getWardrobeRecommendation({ condition: input.weather?.condition, dayPart, items: input.locker?.items, temperature });
 
   let weatherBase = severeWeather ? 92 : wet ? 80 : typeof temperature === 'number' && (temperature <= 32 || temperature >= 90) ? 70 : typeof temperature === 'number' && (temperature <= 50 || temperature >= 82) ? 45 : typeof temperature === 'number' ? 18 : 0;
   let trafficBase = commuteDelay >= 20 ? 88 : trafficStatusDelayed ? 78 : commuteDelay >= 10 ? 62 : typeof commute === 'number' ? 22 : 0;
@@ -160,9 +221,18 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
 
   if (weatherScore > 0) {
     if (severeWeather) insights.push(createInsight({ id: 'weather-severe', category: 'weather', score: weatherScore, title: 'Weather needs attention', detail: `${input.weather?.condition ?? 'Severe weather'} could disrupt your plans ${naturalTime}.` }));
-    else if (wet) insights.push(createInsight({ id: 'weather-rain', category: 'weather', score: weatherScore, title: 'Rain may affect plans', detail: commuteRelevantNow ? 'Rain could affect your commute, so keep an umbrella handy.' : `Rain is in the mix ${naturalTime}, so keep an umbrella handy.` }));
-    else if (typeof temperature === 'number' && temperature <= 50) insights.push(createInsight({ id: 'weather-cold', category: 'weather', score: weatherScore, title: 'Grab an extra layer', detail: `It'll stay cool ${naturalTime} around ${temperature}\u00B0.` }));
-    else if (typeof temperature === 'number' && temperature >= 82) insights.push(createInsight({ id: 'weather-hot', category: 'weather', score: weatherScore, title: 'A warm stretch ahead', detail: `It'll stay warm ${naturalTime} around ${temperature}\u00B0.` }));
+    else if (wet) {
+      const rainDetail = commuteRelevantNow ? 'Rain could affect your commute.' : `Rain is in the mix ${naturalTime}.`;
+      insights.push(createInsight({ id: 'weather-rain', category: 'weather', score: weatherScore, title: 'Rain may affect plans', detail: wardrobeRecommendation?.score && wardrobeRecommendation.score >= 50 ? `${rainDetail} ${wardrobeRecommendation.detail}` : `${rainDetail} Keep an umbrella handy.` }));
+    }
+    else if (typeof temperature === 'number' && temperature <= 50) {
+      const coldDetail = `It'll stay cool ${naturalTime} around ${temperature}\u00B0.`;
+      insights.push(createInsight({ id: 'weather-cold', category: 'weather', score: weatherScore, title: 'Grab an extra layer', detail: wardrobeRecommendation?.score && wardrobeRecommendation.score >= 30 ? `${coldDetail} ${wardrobeRecommendation.detail}` : coldDetail }));
+    }
+    else if (typeof temperature === 'number' && temperature >= 82) {
+      const hotDetail = `It'll stay warm ${naturalTime} around ${temperature}\u00B0.`;
+      insights.push(createInsight({ id: 'weather-hot', category: 'weather', score: weatherScore, title: 'A warm stretch ahead', detail: wardrobeRecommendation?.score && wardrobeRecommendation.score >= 30 ? `${hotDetail} ${wardrobeRecommendation.detail}` : hotDetail }));
+    }
     else if (typeof temperature === 'number') insights.push(createInsight({ id: 'weather-mild', category: 'weather', score: weatherScore, title: 'Comfortable conditions', detail: `It'll stay comfortable ${naturalTime} around ${temperature}\u00B0.` }));
   }
 
@@ -183,10 +253,7 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
 
   const track = input.music?.tracks?.find((item) => item.trim().length > 0);
   if (track || input.music?.playlist) insights.push(createInsight({ id: 'music-pick', category: 'music', score: 12, title: 'A soundtrack for your day', detail: track ? `Start with "${track}" from ${input.music?.playlist ?? 'your music'}.` : `Your ${input.music?.playlist} playlist is ready.` }));
-  if (input.locker?.itemCount) {
-    const favorites = input.locker.favoriteCount ? `, including ${input.locker.favoriteCount} favorite${input.locker.favoriteCount === 1 ? '' : 's'}` : '';
-    insights.push(createInsight({ id: 'locker-ready', category: 'locker', score: weatherAffectsPlans ? 35 : 10, title: 'Your Locker is ready', detail: `${input.locker.itemCount} wardrobe items${favorites} are available for today's look.` }));
-  }
+  if (wardrobeRecommendation) insights.push(createInsight({ id: 'locker-weather-match', category: 'locker', score: wardrobeRecommendation.score, title: wardrobeRecommendation.title, detail: wardrobeRecommendation.detail }));
   if (!insights.length) insights.push(createInsight({ id: 'day-ready', category: 'day', score: 0, title: 'Your day is ready', detail: 'LookUP will add guidance as more daily data becomes available.' }));
 
   const sortedInsights = [...insights].sort((a, b) => b.score - a.score);
@@ -209,6 +276,9 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
       routineBriefingParts.push(`${gameLanguage(game.away, game.home).later} ${timing}`);
     } else routineBriefingParts.push(`${game.text} is on today's sports schedule`);
   }
+  if (wardrobeRecommendation && wardrobeRecommendation.score < 10 && routineBriefingParts.length < 2) {
+    routineBriefingParts.push(wardrobeRecommendation.detail.replace(/\.$/, '').replace(/^Your /, 'your '));
+  }
   const routineBriefing = routineBriefingParts.length > 1
     ? `${routineBriefingParts.slice(0, -1).join(', ')}, and ${routineBriefingParts[routineBriefingParts.length - 1]}`
     : routineBriefingParts[0];
@@ -218,9 +288,9 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   if (combinedWeatherTraffic) summary = `Weather and commute conditions both need attention before you head out this ${dayPart}.`;
   else if (topInsight?.category === 'weather' && topInsight.score >= 45) {
     if (severeWeather) summary = `${input.weather?.condition ?? 'Severe weather'} could disrupt your plans ${naturalTime}.`;
-    else if (wet) summary = commuteRelevantNow ? 'Rain could affect your commute, so keep an umbrella handy.' : `Rain could affect your plans ${naturalTime}.`;
-    else if (typeof temperature === 'number' && temperature >= 82) summary = `It'll stay warm ${naturalTime}, so lighter layers may feel better.`;
-    else summary = `It'll stay cold ${naturalTime}, so grab an extra layer.`;
+    else if (wet) summary = wardrobeRecommendation?.score && wardrobeRecommendation.score >= 50 ? `Rain could affect your plans; ${wardrobeRecommendation.detail.replace(/^Your /, 'your ')}` : commuteRelevantNow ? 'Rain could affect your commute, so keep an umbrella handy.' : `Rain could affect your plans ${naturalTime}.`;
+    else if (typeof temperature === 'number' && temperature >= 82) summary = wardrobeRecommendation?.score && wardrobeRecommendation.score >= 30 ? `It'll stay warm ${naturalTime}; ${wardrobeRecommendation.detail.replace(/^Your /, 'your ')}` : `It'll stay warm ${naturalTime}, so lighter layers may feel better.`;
+    else summary = wardrobeRecommendation?.score && wardrobeRecommendation.score >= 30 ? `It'll stay cold ${naturalTime}; ${wardrobeRecommendation.detail.replace(/^Your /, 'your ')}` : `It'll stay cold ${naturalTime}, so grab an extra layer.`;
   } else if (topInsight?.category === 'traffic' && topInsight.score >= 45) {
     summary = commuteDelay > 0 ? `Your commute is running about ${commuteDelay} minutes longer than usual, so leave extra time.` : `Traffic is moving slower than usual this ${dayPart}.`;
   } else if (topInsight?.category === 'sports' && topInsight.score >= 45 && game) {
@@ -231,13 +301,46 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   return { greeting, headline, insights: sortedInsights, priority, summary };
 }
 
+function scenarioTime(now: Date, hour: number, minute = 0) {
+  const next = new Date(now);
+  next.setHours(hour, minute, 0, 0);
+  return next;
+}
+
+export function generateDailyIntelligenceTestSnapshot(baseInput: DailyIntelligenceInput, scenario: DailyIntelligenceTestScenario, now = new Date()): DailyIntelligenceSnapshot {
+  if (scenario === 'normal') {
+    const input = { ...baseInput, now };
+    return { ...generateDailyIntelligence(input), sources: { locker: input.locker, sports: input.sports, traffic: input.traffic, weather: input.weather } };
+  }
+
+  let testInput: DailyIntelligenceInput = { ...baseInput, now };
+  const normalTraffic = { commute: '28 mins', status: 'Normal', usualMinutes: 28 };
+  const laterGame = { favoriteTeams: ['Knicks'], games: ['Knicks vs Celtics 7:00 PM'] };
+  if (scenario === 'rain') testInput = { ...testInput, now: scenarioTime(now, 8, 15), weather: { condition: 'Rainy', temperature: 64 }, traffic: normalTraffic, sports: laterGame };
+  else if (scenario === 'cold') testInput = { ...testInput, now: scenarioTime(now, 8, 15), weather: { condition: 'Clear', temperature: 28 }, traffic: normalTraffic, sports: laterGame };
+  else if (scenario === 'hot') testInput = { ...testInput, now: scenarioTime(now, 15, 0), weather: { condition: 'Sunny', temperature: 94 }, traffic: normalTraffic, sports: laterGame };
+  else if (scenario === 'heavy-traffic') testInput = { ...testInput, now: scenarioTime(now, 8, 10), weather: { condition: 'Sunny', temperature: 72 }, traffic: { commute: '52 mins', status: 'Heavy traffic', usualMinutes: 28 }, sports: laterGame };
+  else if (scenario === 'game-soon') testInput = { ...testInput, now: scenarioTime(now, 18, 40), weather: { condition: 'Clear', temperature: 72 }, traffic: normalTraffic, sports: { favoriteTeams: ['Knicks'], games: ['Knicks vs Celtics 7:00 PM'] } };
+  else if (scenario === 'multiple-issues') testInput = { ...testInput, now: scenarioTime(now, 8, 15), weather: { condition: 'Rainy', temperature: 61 }, traffic: { commute: '58 mins', status: 'Heavy traffic', usualMinutes: 28 }, sports: laterGame };
+
+  return {
+    ...generateDailyIntelligence(testInput),
+    sources: { locker: testInput.locker, sports: testInput.sports, traffic: testInput.traffic, weather: testInput.weather },
+  };
+}
+
 export async function readDailyLockerContext(): Promise<DailyLockerContext | undefined> {
   try {
     const stored = await AsyncStorage.getItem(WARDROBE_STORAGE_KEY);
     if (!stored) return undefined;
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) return undefined;
-    return { itemCount: parsed.length, favoriteCount: parsed.filter((item) => typeof item === 'object' && item !== null && 'favorite' in item && item.favorite === true).length };
+    const items = parsed.filter((item): item is DailyWardrobeItem => {
+      if (typeof item !== 'object' || item === null) return false;
+      const candidate = item as Partial<DailyWardrobeItem>;
+      return typeof candidate.id === 'string' && typeof candidate.name === 'string' && typeof candidate.brand === 'string' && typeof candidate.primaryColor === 'string' && typeof candidate.favorite === 'boolean' && ['Shirts', 'Pants', 'Shoes', 'Jackets', 'Accessories'].includes(candidate.category ?? '');
+    });
+    return { itemCount: items.length, favoriteCount: items.filter((item) => item.favorite).length, items };
   } catch {
     return undefined;
   }
@@ -259,5 +362,5 @@ export async function getDailyIntelligence(now = new Date()): Promise<DailyIntel
   const locker = lockerResult.status === 'fulfilled' ? lockerResult.value : undefined;
   const briefing = generateDailyIntelligence({ now, weather, traffic, sports, locker });
 
-  return { ...briefing, sources: { sports, traffic, weather } };
+  return { ...briefing, sources: { locker, sports, traffic, weather } };
 }
