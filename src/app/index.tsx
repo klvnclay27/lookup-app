@@ -1,15 +1,14 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { router, type Href } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getEntertainment } from '@/services/entertainment';
+import { generateDailyIntelligence, getDailyIntelligence, type DailyIntelligenceResult } from '@/services/daily-intelligence';
 import { getFinance } from '@/services/finance';
 import { getMusic } from '@/services/music';
-import { getSports } from '@/services/sports';
-import { getTraffic } from '@/services/traffic';
-import { getWeather, getWeatherCondition } from '@/services/weather';
 
 type IconName = SymbolViewProps['name'];
 type Action = { label: string; route: Href; icon: IconName; color: string; tint: string };
@@ -35,6 +34,8 @@ const MARKET_MOVERS = [
   { symbol: 'TSLA', company: 'Tesla', value: '-0.9%', up: false },
 ];
 
+const INTELLIGENCE_PREFERENCE_KEY = 'lookup.dailyIntelligence.enabled.v1';
+
 function Icon({ name, color = COLORS.ink, size = 20 }: { name: IconName; color?: string; size?: number }) {
   return <SymbolView fallback={<Text style={{ color, fontSize: size * 0.65 }}>{'\u25CF'}</Text>} name={name} size={size} tintColor={color} />;
 }
@@ -57,6 +58,8 @@ export default function HomeScreen() {
   const [movie, setMovie] = useState('Top entertainment story');
   const [tracks, setTracks] = useState<string[]>([]);
   const [games, setGames] = useState<string[]>([]);
+  const [dailyIntelligence, setDailyIntelligence] = useState<DailyIntelligenceResult>(() => generateDailyIntelligence({}));
+  const [intelligenceEnabled, setIntelligenceEnabled] = useState(true);
   const [search, setSearch] = useState('');
 
   const greeting = useMemo(() => {
@@ -65,13 +68,23 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    AsyncStorage.getItem(INTELLIGENCE_PREFERENCE_KEY)
+      .then((stored) => { if (stored !== null) setIntelligenceEnabled(stored === 'true'); })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     async function loadDashboard() {
       try {
         await Promise.all([
-          getWeather().then((data) => { setTemperature(data.temperature); setCondition(getWeatherCondition(data.weatherCode)); }).catch(() => setCondition('Weather unavailable')),
-          getTraffic().then((data) => setCommute(data.commute)).catch(() => setCommute('Traffic unavailable')),
+          getDailyIntelligence().then((data) => {
+            setDailyIntelligence(data);
+            if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
+            else setCondition('Weather unavailable');
+            setCommute(data.sources.traffic?.commute ?? 'Traffic unavailable');
+            setGames(data.sources.sports?.games ?? ['Sports unavailable']);
+          }),
           getFinance().then((data) => setMarket(data.market)).catch(() => setMarket('Market unavailable')),
-          getSports().then((data) => setGames(data.games)).catch(() => setGames(['Sports unavailable'])),
           getEntertainment().then((data) => setMovie(data.movie)).catch(() => setMovie('Entertainment unavailable')),
           getMusic().then((data) => { setPlaylist(data.playlist); setTracks(data.tracks); }).catch(() => { setPlaylist('Music unavailable'); setTracks([]); }),
         ]);
@@ -79,6 +92,11 @@ export default function HomeScreen() {
     }
     void loadDashboard();
   }, []);
+
+  const updateIntelligencePreference = (enabled: boolean) => {
+    setIntelligenceEnabled(enabled);
+    void AsyncStorage.setItem(INTELLIGENCE_PREFERENCE_KEY, String(enabled));
+  };
 
   const feelsLike = temperature - 1;
   const briefing = [
@@ -96,6 +114,12 @@ export default function HomeScreen() {
     { category: 'ENTERTAINMENT', title: movie, time: '38 min ago', route: '/entertainment' as Href, colors: ['#F4D8ED', '#C878B6'], icon: ACTIONS[6].icon },
   ];
 
+  const intelligenceDetails = [
+    { category: 'sports' as const, icon: ACTIONS[3].icon, fallbackTitle: 'Game on today', fallbackDetail: games[0] ?? 'Sports schedule unavailable' },
+    { category: 'weather' as const, icon: ACTIONS[0].icon, fallbackTitle: 'Comfortable conditions', fallbackDetail: `${condition} and ${temperature}° are expected right now.` },
+    { category: 'traffic' as const, icon: ACTIONS[1].icon, fallbackTitle: 'Commute check', fallbackDetail: `Current travel time is approximately ${commute}.` },
+  ].map((item) => ({ ...item, insight: dailyIntelligence.insights.find((insight) => insight.category === item.category) }));
+
   return <View style={styles.screen}>
     <View pointerEvents="none" style={[styles.backgroundBranding, !desktop && styles.backgroundBrandingMobile]}>
       <View style={[styles.backgroundWordmark, desktop ? styles.backgroundWordmarkDesktop : tablet ? styles.backgroundWordmarkTablet : styles.backgroundWordmarkMobile]}>
@@ -111,6 +135,18 @@ export default function HomeScreen() {
     </View>
 
     <View style={styles.greetingBlock}><Text style={styles.greeting}>{greeting}, Kelvin</Text><Text style={styles.greetingCopy}>Here’s what’s happening today.</Text></View>
+
+    <View style={styles.intelligenceCard}>
+      <View style={styles.intelligenceHeader}>
+        <View style={styles.intelligenceIcon}><Icon color={COLORS.green} name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }} size={21} /></View>
+        <View style={styles.intelligenceHeading}><Text style={styles.intelligenceLabel}>LOOKUP DAILY INTELLIGENCE</Text>{intelligenceEnabled ? <><Text style={styles.intelligenceHeadline}>{dailyIntelligence.headline}</Text><Text style={styles.intelligenceSummary}>{dailyIntelligence.summary}</Text></> : null}</View>
+        <View style={styles.intelligenceToggle}><Text style={styles.intelligenceToggleLabel}>Smart Mode</Text><Switch accessibilityLabel="Toggle LookUP Intelligence" ios_backgroundColor="#C8D0D9" onValueChange={updateIntelligencePreference} thumbColor="#FFFFFF" trackColor={{ false: '#C8D0D9', true: COLORS.green }} value={intelligenceEnabled} style={styles.intelligenceSwitch} /></View>
+      </View>
+    </View>
+
+    <View style={[styles.intelligenceDetails, !desktop && styles.intelligenceDetailsMobile]}>
+      {intelligenceDetails.map((item) => <View key={item.category} style={styles.intelligenceDetailCard}><View style={styles.intelligenceDetailCopy}><Text style={styles.insightCategory}>{item.category.toUpperCase()}</Text><Text style={styles.insightTitle}>{item.insight?.title ?? item.fallbackTitle}</Text><Text numberOfLines={2} style={styles.insightDetail}>{item.insight?.detail ?? item.fallbackDetail}</Text></View><View style={styles.intelligenceDetailIcon}><Icon color={COLORS.green} name={item.icon} size={20} /></View></View>)}
+    </View>
 
     <View style={[styles.heroGrid, !desktop && styles.stack]}>
       <Pressable onPress={() => router.push('/weather')} style={({ pressed }) => [styles.weatherCard, pressed && styles.cardPressed]}>
@@ -176,6 +212,24 @@ const styles = StyleSheet.create({
   greetingBlock: { marginBottom: 26 },
   greeting: { color: COLORS.ink, fontSize: 36, fontWeight: '900', letterSpacing: -1.1 },
   greetingCopy: { color: COLORS.muted, fontSize: 15, marginTop: 7 },
+  intelligenceCard: { backgroundColor: 'rgba(227,233,240,0.94)', borderColor: 'rgba(70,92,118,0.12)', borderRadius: 22, borderWidth: 1, marginBottom: 12, paddingHorizontal: 20, paddingVertical: 16, ...cardShadow },
+  intelligenceHeader: { alignItems: 'center', flexDirection: 'row', gap: 13 },
+  intelligenceIcon: { alignItems: 'center', backgroundColor: '#DDF3E8', borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
+  intelligenceHeading: { flex: 1 },
+  intelligenceLabel: { color: COLORS.green, fontSize: 9, fontWeight: '900', letterSpacing: 1.3 },
+  intelligenceHeadline: { color: COLORS.ink, fontSize: 17, fontWeight: '800', lineHeight: 23, marginTop: 4 },
+  intelligenceSummary: { color: COLORS.muted, fontSize: 12, lineHeight: 18, marginTop: 6 },
+  intelligenceToggle: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 7, marginLeft: 14 },
+  intelligenceToggleLabel: { color: COLORS.muted, fontSize: 9, fontWeight: '700' },
+  intelligenceSwitch: { transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }] },
+  intelligenceDetails: { flexDirection: 'row', gap: 12, marginBottom: 26 },
+  intelligenceDetailsMobile: { flexDirection: 'column' },
+  intelligenceDetailCard: { alignItems: 'center', backgroundColor: 'rgba(231,236,242,0.94)', borderColor: 'rgba(70,92,118,0.12)', borderRadius: 18, borderWidth: 1, flex: 1, flexDirection: 'row', minHeight: 104, padding: 16, ...cardShadow },
+  intelligenceDetailCopy: { flex: 1, paddingRight: 12 },
+  intelligenceDetailIcon: { alignItems: 'center', backgroundColor: '#DDF3E8', borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
+  insightCategory: { color: COLORS.green, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  insightTitle: { color: COLORS.ink, fontSize: 13, fontWeight: '800', marginTop: 5 },
+  insightDetail: { color: COLORS.muted, fontSize: 11, lineHeight: 16, marginTop: 4 },
   heroGrid: { flexDirection: 'row', gap: 20, marginBottom: 40 },
   stack: { flexDirection: 'column' },
   weatherCard: { backgroundColor: '#E2F4FF', borderColor: '#C8E4F3', borderRadius: 24, borderWidth: 1, flex: 1.5, minHeight: 330, overflow: 'hidden', padding: 26, ...cardShadow },

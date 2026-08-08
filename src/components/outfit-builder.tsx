@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Image, type ImageSource } from "expo-image";
 import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -11,8 +10,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
+import { PremiumMannequinPreview, type MannequinType } from "@/components/premium-mannequin-preview";
 import {
   type ClosetCategory,
   type ClothingItem,
@@ -70,134 +70,6 @@ const emptySelection = (): OutfitSelection => ({
   accessory: null,
 });
 
-const clothingColors: Record<string, string> = {
-  Black: "#171717",
-  Blue: "#2563eb",
-  Brown: "#7c4a2d",
-  Gray: "#64748b",
-  Khaki: "#b6a06a",
-  Navy: "#172554",
-  Silver: "#cbd5e1",
-  White: "#f8fafc",
-};
-
-const mannequinSource = require("../../assets/images/my-locker/prototype/mannequin-base.png");
-const prototypeLayerSources: Record<string, ImageSource> = {
-  "sample-shirt-white-tee": require("@/assets/images/my-locker/prototype/white-tee-layer.png"),
-  "sample-shirt-black-polo": require("@/assets/images/my-locker/prototype/black-polo-layer.png"),
-  "sample-pants-blue-jeans": require("@/assets/images/my-locker/prototype/blue-jeans-layer.png"),
-  "sample-shoes-white-sneakers": require("@/assets/images/my-locker/prototype/white-sneakers-layer.png"),
-  "sample-jacket-denim": require("@/assets/images/my-locker/prototype/denim-jacket-layer.png"),
-  "sample-accessory-watch": require("@/assets/images/my-locker/prototype/silver-watch-layer.png"),
-};
-
-function PrototypeClothingLayer({
-  item,
-  slot,
-  zIndex,
-}: {
-  item: ClothingItem;
-  slot: OutfitSlotKey;
-  zIndex: number;
-}) {
-  const source = prototypeLayerSources[item.id];
-  if (!source) return <ClothingLayer item={item} slot={slot} />;
-
-  return (
-    <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(140)} style={[styles.prototypeCanvas, { zIndex }]}>
-      <Image
-        contentFit="contain"
-        onError={() => console.warn(`Unable to load prototype clothing asset: ${item.name}`)}
-        source={source}
-        style={styles.prototypeCanvas}
-      />
-    </Animated.View>
-  );
-}
-
-function ClothingLayer({ item, slot }: { item: ClothingItem; slot: OutfitSlotKey }) {
-  const color = clothingColors[item.primaryColor] ?? "#2563eb";
-  const animatedProps = { entering: FadeIn.duration(180), exiting: FadeOut.duration(140) };
-
-  if (slot === "top") {
-    return (
-      <Animated.View {...animatedProps} style={styles.topLayer}>
-        <View style={[styles.topSleeve, styles.topSleeveLeft, { backgroundColor: color }]} />
-        <View style={[styles.topBody, { backgroundColor: color }]} />
-        <View style={[styles.topSleeve, styles.topSleeveRight, { backgroundColor: color }]} />
-      </Animated.View>
-    );
-  }
-
-  if (slot === "jacket") {
-    return (
-      <Animated.View {...animatedProps} style={styles.jacketLayer}>
-        <View style={[styles.jacketSleeve, styles.jacketSleeveLeft, { backgroundColor: color }]} />
-        <View style={[styles.jacketBody, { borderColor: color }]}>
-          <View style={[styles.jacketPanel, { backgroundColor: color }]} />
-          <View style={[styles.jacketPanel, { backgroundColor: color }]} />
-        </View>
-        <View style={[styles.jacketSleeve, styles.jacketSleeveRight, { backgroundColor: color }]} />
-      </Animated.View>
-    );
-  }
-
-  if (slot === "bottom") {
-    const isShorts = item.name.includes("Shorts");
-    return (
-      <Animated.View {...animatedProps} style={styles.bottomLayer}>
-        <View style={[styles.waistband, { backgroundColor: color }]} />
-        <View style={styles.pantLegRow}>
-          <View style={[styles.pantLeg, isShorts && styles.shortLeg, { backgroundColor: color }]} />
-          <View style={[styles.pantLeg, isShorts && styles.shortLeg, { backgroundColor: color }]} />
-        </View>
-      </Animated.View>
-    );
-  }
-
-  if (slot === "shoes") {
-    return (
-      <Animated.View {...animatedProps} style={styles.shoesLayer}>
-        <View style={[styles.shoe, styles.leftShoe, { backgroundColor: color }]} />
-        <View style={[styles.shoe, styles.rightShoe, { backgroundColor: color }]} />
-      </Animated.View>
-    );
-  }
-
-  if (item.name.includes("Sunglasses")) {
-    return (
-      <Animated.View {...animatedProps} style={styles.glassesLayer}>
-        <View style={styles.glassesLens} />
-        <View style={styles.glassesBridge} />
-        <View style={styles.glassesLens} />
-      </Animated.View>
-    );
-  }
-
-  if (item.name.includes("Cap")) {
-    return (
-      <Animated.View {...animatedProps} style={[styles.capLayer, { backgroundColor: color }]}>
-        <View style={[styles.capBrim, { backgroundColor: color }]} />
-      </Animated.View>
-    );
-  }
-
-  if (item.name.includes("Belt")) {
-    return (
-      <Animated.View {...animatedProps} style={[styles.beltLayer, { backgroundColor: color }]}>
-        <View style={styles.beltBuckle} />
-      </Animated.View>
-    );
-  }
-
-  return (
-    <Animated.View {...animatedProps} style={styles.watchLayer}>
-      <View style={[styles.watchBand, { backgroundColor: color }]} />
-      <View style={styles.watchFace} />
-    </Animated.View>
-  );
-}
-
 function ClothingCarouselCard({
   item,
   selected,
@@ -240,7 +112,12 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   const [outfitName, setOutfitName] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
-  const [selection, setSelection] = useState<OutfitSelection>(emptySelection);
+  const [mannequinType, setMannequinType] = useState<MannequinType>("male");
+  const [selection, setSelection] = useState<OutfitSelection>(() => ({
+    ...emptySelection(),
+    top: DEVELOPMENT_STARTER_WARDROBE.find((item) => item.id === "sample-shirt-black-polo") ?? null,
+    bottom: DEVELOPMENT_STARTER_WARDROBE.find((item) => item.id === "sample-pants-blue-jeans") ?? null,
+  }));
   const [resetSelection, setResetSelection] = useState<OutfitSelection>(emptySelection);
   const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [wardrobeReady, setWardrobeReady] = useState(false);
@@ -476,30 +353,13 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
 
         <View style={[styles.builderLayout, !isWideLayout && styles.builderLayoutMobile]}>
           <View style={styles.mannequinColumn}>
-            <View style={styles.mannequinDisplayCard}>
-              <Text style={styles.displayEyebrow}>LOOK PREVIEW</Text>
-              <View style={styles.mannequinStage}>
-              <View style={styles.mannequinFrame}>
-                <Image
-                  contentFit="contain"
-                  onError={() => console.warn("Unable to load the local fashion mannequin asset.")}
-                  source={mannequinSource}
-                  style={[styles.prototypeCanvas, styles.mannequinAsset]}
-                />
-                {selection.top && <PrototypeClothingLayer key={selection.top.id} item={selection.top} slot="top" zIndex={10} />}
-                {selection.bottom && <PrototypeClothingLayer key={selection.bottom.id} item={selection.bottom} slot="bottom" zIndex={20} />}
-                {selection.shoes && <PrototypeClothingLayer key={selection.shoes.id} item={selection.shoes} slot="shoes" zIndex={30} />}
-                {selection.jacket && <PrototypeClothingLayer key={selection.jacket.id} item={selection.jacket} slot="jacket" zIndex={40} />}
-                {selection.accessory && <PrototypeClothingLayer key={selection.accessory.id} item={selection.accessory} slot="accessory" zIndex={50} />}
-              </View>
-            </View>
-            </View>
+            <PremiumMannequinPreview bottom={selection.bottom} mannequinType={mannequinType} onMannequinTypeChange={setMannequinType} shoes={selection.shoes} top={selection.top} />
           </View>
           <View style={styles.lookPanel}>
             <Text style={styles.panelEyebrow}>CURRENT OUTFIT</Text>
             <Text style={styles.panelTitle}>Current Look</Text>
             <View style={styles.currentLookGrid}>
-              {(["top", "bottom", "shoes", "accessory"] as OutfitSlotKey[]).map((key) => (
+              {(["top", "bottom", "shoes"] as OutfitSlotKey[]).map((key) => (
                 <Pressable key={key} onPress={() => setActiveSlot(slots.find((slot) => slot.key === key) ?? null)} style={({ pressed }) => [styles.currentLookItem, pressed && styles.pressed]}>
                   <Text style={styles.currentLookLabel}>{slots.find((slot) => slot.key === key)?.label}</Text>
                   <Text numberOfLines={1} style={styles.currentLookValue}>{selection[key]?.name ?? "Not selected"}</Text>
@@ -520,7 +380,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
                 <Text style={styles.saveButtonText}>Save Look</Text>
               </Pressable>
               <Pressable onPress={shuffleOutfit} style={({ pressed }) => [styles.randomButton, pressed && styles.pressed]}>
-                <Text style={styles.randomButtonText}>Randomize</Text>
+                <Text style={styles.randomButtonText}>Randomize Outfit</Text>
               </Pressable>
               <Pressable onPress={clearOutfit} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
                 <Text style={styles.clearButtonText}>Clear</Text>
@@ -675,45 +535,9 @@ const styles = StyleSheet.create({
   sideColumn: { flex: 1, gap: 12, maxWidth: 220, minWidth: 170 },
   centerColumn: { alignItems: "center", flex: 1, maxWidth: 340, minWidth: 250 },
   mannequinColumn: { flex: 1.15, minWidth: 0 },
-  mannequinDisplayCard: { alignItems: "center", backgroundColor: "#0B100D", borderColor: "rgba(105,224,140,0.19)", borderRadius: 24, borderWidth: 1, experimental_backgroundImage: "linear-gradient(145deg, rgba(28,43,34,0.96), rgba(9,14,11,0.98) 58%, rgba(13,29,20,0.98))", justifyContent: "center", minHeight: 480, overflow: "hidden", padding: 24, width: "100%" },
-  displayEyebrow: { alignSelf: "flex-start", color: "#4ade80", fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginBottom: 10 },
-  lookPanel: { backgroundColor: "#151B17", borderColor: "rgba(255,255,255,0.075)", borderRadius: 22, borderWidth: 1, flex: 0.85, justifyContent: "center", maxWidth: 430, minWidth: 300, padding: 20 },
+  lookPanel: { backgroundColor: "#151B17", borderColor: "rgba(255,255,255,0.075)", borderRadius: 22, borderWidth: 1, flex: 0.85, justifyContent: "center", maxWidth: 430, minWidth: 300, padding: 24 },
   panelEyebrow: { color: "#69E08C", fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
   panelTitle: { color: "#FFFFFF", fontSize: 25, fontWeight: "900", letterSpacing: -0.5, marginBottom: 16, marginTop: 6 },
-  mannequinStage: { alignItems: "center", alignSelf: "center", backgroundColor: "rgba(15,23,42,0.72)", borderColor: "rgba(56,189,248,0.16)", borderRadius: 22, borderWidth: 1, height: 360, justifyContent: "center", marginBottom: 16, maxWidth: 340, overflow: "hidden", width: "100%" },
-  mannequinFrame: { aspectRatio: 512 / 768, height: 330, position: "relative" },
-  prototypeCanvas: { bottom: 0, left: 0, position: "absolute", right: 0, top: 0 },
-  mannequinAsset: { zIndex: 1 },
-  topLayer: { height: 103, left: 50, position: "absolute", top: 61, width: 100, zIndex: 10 },
-  topBody: { borderColor: "rgba(15,23,42,0.65)", borderRadius: 12, borderWidth: 1, height: 101, left: 20, position: "absolute", width: 60 },
-  topSleeve: { borderColor: "rgba(15,23,42,0.65)", borderRadius: 9, borderWidth: 1, height: 49, position: "absolute", top: 5, width: 27 },
-  topSleeveLeft: { left: 2, transform: [{ rotate: "8deg" }] },
-  topSleeveRight: { right: 2, transform: [{ rotate: "-8deg" }] },
-  jacketLayer: { height: 119, left: 44, position: "absolute", top: 58, width: 112, zIndex: 40 },
-  jacketBody: { borderRadius: 13, borderWidth: 2, flexDirection: "row", height: 116, left: 23, overflow: "hidden", position: "absolute", width: 66 },
-  jacketPanel: { borderColor: "rgba(255,255,255,0.12)", borderRightWidth: 1, flex: 1 },
-  jacketSleeve: { borderColor: "rgba(15,23,42,0.7)", borderRadius: 9, borderWidth: 1, height: 91, position: "absolute", top: 6, width: 25 },
-  jacketSleeveLeft: { left: 3, transform: [{ rotate: "6deg" }] },
-  jacketSleeveRight: { right: 3, transform: [{ rotate: "-6deg" }] },
-  bottomLayer: { height: 171, left: 65, position: "absolute", top: 160, width: 70, zIndex: 20 },
-  waistband: { borderColor: "rgba(15,23,42,0.7)", borderRadius: 5, borderWidth: 1, height: 16, width: 70 },
-  pantLegRow: { flexDirection: "row", gap: 4 },
-  pantLeg: { borderColor: "rgba(15,23,42,0.7)", borderRadius: 8, borderWidth: 1, height: 155, width: 33 },
-  shortLeg: { height: 54 },
-  shoesLayer: { flexDirection: "row", height: 24, left: 59, position: "absolute", top: 327, width: 82, zIndex: 30 },
-  shoe: { borderColor: "rgba(15,23,42,0.75)", borderRadius: 8, borderWidth: 1, height: 18, position: "absolute", top: 2, width: 38 },
-  leftShoe: { left: 0, transform: [{ rotate: "-2deg" }] },
-  rightShoe: { right: 0, transform: [{ rotate: "2deg" }] },
-  glassesLayer: { alignItems: "center", flexDirection: "row", left: 78, position: "absolute", top: 23, zIndex: 50 },
-  glassesLens: { backgroundColor: "#0f172a", borderColor: "#94a3b8", borderRadius: 8, borderWidth: 1, height: 13, width: 18 },
-  glassesBridge: { backgroundColor: "#94a3b8", height: 2, width: 5 },
-  capLayer: { borderRadius: 16, height: 20, left: 81, position: "absolute", top: 2, width: 38, zIndex: 50 },
-  capBrim: { borderRadius: 4, height: 5, position: "absolute", right: -8, top: 15, width: 24 },
-  beltLayer: { borderColor: "rgba(255,255,255,0.2)", borderRadius: 3, borderWidth: 1, height: 10, left: 65, position: "absolute", top: 163, width: 70, zIndex: 50 },
-  beltBuckle: { borderColor: "#f8fafc", borderRadius: 2, borderWidth: 1, height: 8, left: 24, position: "absolute", top: 0, width: 9 },
-  watchLayer: { alignItems: "center", height: 23, position: "absolute", right: 39, top: 160, width: 15, zIndex: 50 },
-  watchBand: { borderRadius: 3, height: 23, position: "absolute", width: 7 },
-  watchFace: { backgroundColor: "#e2e8f0", borderColor: "#475569", borderRadius: 6, borderWidth: 1, height: 12, position: "absolute", top: 5, width: 12 },
   quickControls: { flexDirection: "row", gap: 10, justifyContent: "center", marginBottom: 12, marginTop: -4 },
   quickButton: { backgroundColor: "rgba(139,92,246,0.12)", borderColor: "rgba(139,92,246,0.35)", borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9 },
   quickButtonText: { color: "#c4b5fd", fontSize: 12, fontWeight: "bold" },
@@ -741,8 +565,8 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.42 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   successText: { color: "#86efac", fontSize: 13, marginTop: 10, textAlign: "center" },
-  currentLookGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  currentLookItem: { backgroundColor: "#0F1511", borderColor: "rgba(255,255,255,0.055)", borderRadius: 12, borderWidth: 1, flexBasis: 135, flexGrow: 1, padding: 12 },
+  currentLookGrid: { borderTopColor: "rgba(255,255,255,0.07)", borderTopWidth: 1 },
+  currentLookItem: { borderBottomColor: "rgba(255,255,255,0.07)", borderBottomWidth: 1, paddingVertical: 14 },
   currentLookLabel: { color: "#7c8b81", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
   currentLookValue: { color: "#fff", fontSize: 13, fontWeight: "700", marginTop: 5 },
   savedTitle: { color: "#fff", fontSize: 20, fontWeight: "bold", marginBottom: 10, marginTop: 18 },
