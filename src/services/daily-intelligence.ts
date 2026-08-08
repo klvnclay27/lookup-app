@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { ClothingItem } from '@/constants/starter-wardrobe';
 import { getSports } from '@/services/sports';
-import { getTraffic } from '@/services/traffic';
+import { getTraffic, type CommuteData, type SubwayCommute } from '@/services/traffic';
 import { getWeather, getWeatherCondition } from '@/services/weather';
 
 export type IntelligencePriority = 'routine' | 'useful' | 'important';
@@ -12,6 +12,7 @@ export type WardrobeRecommendation = { detail: string; itemNames: string[]; scor
 export type DailyIntelligenceInput = {
   now?: Date;
   userName?: string;
+  commute?: CommuteData;
   weather?: { condition?: string; temperature?: number };
   traffic?: { commute?: string; status?: string; usualMinutes?: number };
   music?: { playlist?: string; tracks?: string[] };
@@ -19,7 +20,7 @@ export type DailyIntelligenceInput = {
   locker?: DailyLockerContext;
 };
 export type DailyInsight = {
-  category: 'weather' | 'traffic' | 'sports' | 'music' | 'locker' | 'day';
+  category: 'weather' | 'traffic' | 'transit' | 'sports' | 'music' | 'locker' | 'day';
   detail: string;
   id: string;
   priority: IntelligencePriority;
@@ -28,7 +29,7 @@ export type DailyInsight = {
 };
 export type DailyIntelligenceResult = { greeting: string; headline: string; insights: DailyInsight[]; priority: IntelligencePriority; summary: string };
 export type DailyIntelligenceSnapshot = DailyIntelligenceResult & {
-  sources: Pick<DailyIntelligenceInput, 'locker' | 'sports' | 'traffic' | 'weather'>;
+  sources: Pick<DailyIntelligenceInput, 'commute' | 'locker' | 'sports' | 'traffic' | 'weather'>;
 };
 export const DAILY_INTELLIGENCE_TEST_SCENARIOS = [
   { label: 'Normal', value: 'normal' },
@@ -38,6 +39,11 @@ export const DAILY_INTELLIGENCE_TEST_SCENARIOS = [
   { label: 'Heavy Traffic', value: 'heavy-traffic' },
   { label: 'Game Soon', value: 'game-soon' },
   { label: 'Multiple Issues', value: 'multiple-issues' },
+  { label: 'Subway Normal', value: 'subway-normal' },
+  { label: 'Subway Delay', value: 'subway-delay' },
+  { label: 'Major Subway Delay', value: 'major-subway-delay' },
+  { label: 'Service Change', value: 'service-change' },
+  { label: 'Rain + Subway Delay', value: 'rain-subway-delay' },
 ] as const;
 export type DailyIntelligenceTestScenario = typeof DAILY_INTELLIGENCE_TEST_SCENARIOS[number]['value'];
 export type PriorityScoreInput = { base: number; compoundBoost?: number; timeBoost?: number };
@@ -74,6 +80,8 @@ export function buildDailyHeadline({ dayPart, gameTeam, severeWeather, topInsigh
       return `The temperature is worth planning around this ${dayPart}.`;
     case 'traffic':
       return `Give yourself some extra time this ${dayPart}.`;
+    case 'transit':
+      return topInsight.score >= 75 ? `Your train needs attention this ${dayPart}.` : `Your train is the next thing to watch this ${dayPart}.`;
     case 'sports': {
       const team = sentenceCase(withArticle(gameTeam));
       const timing = dayPart === 'evening' ? 'tonight' : dayPart === 'afternoon' ? 'this afternoon' : 'later today';
@@ -205,6 +213,7 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   const commuteDelay = typeof commute === 'number' ? Math.max(0, commute - usualCommute) : 0;
   const trafficStatusDelayed = Boolean(input.traffic?.status && /heavy|delay|slow/i.test(input.traffic.status));
   const commuteRelevantNow = isCommuteHour(hour);
+  const subway = input.commute?.mode === 'subway' ? input.commute : undefined;
   const game = parseGame(input.sports?.games?.find((item) => item.trim().length > 0), now);
   const dayPart = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
   const naturalTime = hour < 12 ? 'this morning' : hour < 18 ? 'this afternoon' : 'tonight';
@@ -212,11 +221,14 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
 
   let weatherBase = severeWeather ? 92 : wet ? 80 : typeof temperature === 'number' && (temperature <= 32 || temperature >= 90) ? 70 : typeof temperature === 'number' && (temperature <= 50 || temperature >= 82) ? 45 : typeof temperature === 'number' ? 18 : 0;
   let trafficBase = commuteDelay >= 20 ? 88 : trafficStatusDelayed ? 78 : commuteDelay >= 10 ? 62 : typeof commute === 'number' ? 22 : 0;
+  const transitBase = !subway ? 0 : subway.status === 'Major Delays' || subway.delayMinutes >= 20 ? 92 : subway.status === 'Service Change' ? 82 : subway.status === 'Delayed' || subway.delayMinutes >= 10 ? 76 : subway.status === 'Minor Delays' || subway.delayMinutes > 0 ? 56 : 18;
   const weatherAffectsPlans = weatherBase >= 70;
   const trafficAffectsPlans = trafficBase >= 60;
-  const compoundBoost = weatherAffectsPlans && trafficAffectsPlans ? 6 : 0;
+  const transitAffectsPlans = transitBase >= 56;
+  const compoundBoost = weatherAffectsPlans && (trafficAffectsPlans || transitAffectsPlans) ? 6 : 0;
   const weatherScore = calculatePriorityScore({ base: weatherBase, compoundBoost, timeBoost: wet && commuteRelevantNow ? 8 : 0 });
   const trafficScore = calculatePriorityScore({ base: trafficBase, compoundBoost, timeBoost: trafficAffectsPlans && commuteRelevantNow ? 8 : 0 });
+  const transitScore = calculatePriorityScore({ base: transitBase, compoundBoost, timeBoost: subway && commuteRelevantNow ? subway.status === 'Good Service' && subway.nextArrivalMinutes <= 5 ? 30 : transitAffectsPlans ? 8 : 0 : 0 });
   const insights: DailyInsight[] = [];
 
   if (weatherScore > 0) {
@@ -242,6 +254,15 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
     else if (typeof commute === 'number') insights.push(createInsight({ id: 'traffic-normal', category: 'traffic', score: trafficScore, title: 'Commute check', detail: `Your commute is looking normal at about ${commute} minutes.` }));
   }
 
+  if (subway && transitScore > 0) {
+    const route = `${subway.line} train · ${subway.direction}`;
+    if (subway.status === 'Major Delays' || subway.delayMinutes >= 20) insights.push(createInsight({ id: 'transit-major-delay', category: 'transit', score: transitScore, title: `${subway.line} train has major delays`, detail: `${route} is about ${subway.delayMinutes} minutes behind schedule.` }));
+    else if (subway.status === 'Service Change') insights.push(createInsight({ id: 'transit-service-change', category: 'transit', score: transitScore, title: `${subway.line} train service change`, detail: subway.serviceChanges?.[0] ?? `${route} is running with a service change.` }));
+    else if (subway.status === 'Delayed' || subway.delayMinutes >= 10) insights.push(createInsight({ id: 'transit-delay', category: 'transit', score: transitScore, title: `${subway.line} train is delayed`, detail: `${route} is about ${subway.delayMinutes} minutes behind schedule.` }));
+    else if (subway.status === 'Minor Delays' || subway.delayMinutes > 0) insights.push(createInsight({ id: 'transit-minor-delay', category: 'transit', score: transitScore, title: `Minor ${subway.line} train delays`, detail: `${route} is running about ${subway.delayMinutes} minutes late.` }));
+    else insights.push(createInsight({ id: 'transit-normal', category: 'transit', score: transitScore, title: `${subway.line} train arriving soon`, detail: `${route} arrives in ${subway.nextArrivalMinutes} minutes. ${subway.status}.` }));
+  }
+
   if (game) {
     const startsSoon = typeof game.minutesUntil === 'number' && game.minutesUntil >= 0 && game.minutesUntil <= 120;
     const startsVerySoon = typeof game.minutesUntil === 'number' && game.minutesUntil >= 0 && game.minutesUntil <= 30;
@@ -260,7 +281,7 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
   const topInsight = sortedInsights[0];
   const priority = topInsight?.priority ?? 'routine';
   const secondInsight = sortedInsights[1];
-  const combinedWeatherTraffic = topInsight?.score >= 75 && secondInsight?.score >= 75 && new Set([topInsight.category, secondInsight.category]).size === 2 && [topInsight.category, secondInsight.category].every((category) => category === 'weather' || category === 'traffic');
+  const combinedWeatherTraffic = topInsight?.score >= 75 && secondInsight?.score >= 75 && new Set([topInsight.category, secondInsight.category]).size === 2 && [topInsight.category, secondInsight.category].every((category) => category === 'weather' || category === 'traffic' || category === 'transit');
   const headline = buildDailyHeadline({ dayPart, gameTeam: game?.away, severeWeather, topInsight, secondInsight, wetWeather: wet });
 
   const routineBriefingParts: string[] = [];
@@ -293,6 +314,11 @@ export function generateDailyIntelligence(input: DailyIntelligenceInput): DailyI
     else summary = wardrobeRecommendation?.score && wardrobeRecommendation.score >= 30 ? `It'll stay cold ${naturalTime}; ${wardrobeRecommendation.detail.replace(/^Your /, 'your ')}` : `It'll stay cold ${naturalTime}, so grab an extra layer.`;
   } else if (topInsight?.category === 'traffic' && topInsight.score >= 45) {
     summary = commuteDelay > 0 ? `Your commute is running about ${commuteDelay} minutes longer than usual, so leave extra time.` : `Traffic is moving slower than usual this ${dayPart}.`;
+  } else if (topInsight?.category === 'transit' && subway) {
+    if (subway.status === 'Service Change') summary = `A service change is affecting the ${subway.line} train, so check your route before leaving.`;
+    else if (subway.delayMinutes >= 10) summary = `The ${subway.line} train is about ${subway.delayMinutes} minutes behind schedule, so leave earlier.`;
+    else if (subway.delayMinutes > 0) summary = `The ${subway.line} train is running about ${subway.delayMinutes} minutes late.`;
+    else summary = `Your ${subway.line} train arrives in about ${subway.nextArrivalMinutes} minutes.`;
   } else if (topInsight?.category === 'sports' && topInsight.score >= 45 && game) {
     const sportsCopy = gameLanguage(game.away, game.home);
     summary = typeof game.minutesUntil === 'number' && game.minutesUntil <= 30 ? `${sentenceCase(sportsCopy.startsIn)} in about ${Math.max(0, game.minutesUntil)} minutes.` : `${sentenceCase(sportsCopy.later)}${game.time ? ` at ${game.time}` : ' soon'}.`;
@@ -310,22 +336,28 @@ function scenarioTime(now: Date, hour: number, minute = 0) {
 export function generateDailyIntelligenceTestSnapshot(baseInput: DailyIntelligenceInput, scenario: DailyIntelligenceTestScenario, now = new Date()): DailyIntelligenceSnapshot {
   if (scenario === 'normal') {
     const input = { ...baseInput, now };
-    return { ...generateDailyIntelligence(input), sources: { locker: input.locker, sports: input.sports, traffic: input.traffic, weather: input.weather } };
+    return { ...generateDailyIntelligence(input), sources: { commute: input.commute, locker: input.locker, sports: input.sports, traffic: input.traffic, weather: input.weather } };
   }
 
   let testInput: DailyIntelligenceInput = { ...baseInput, now };
   const normalTraffic = { commute: '28 mins', status: 'Normal', usualMinutes: 28 };
   const laterGame = { favoriteTeams: ['Knicks'], games: ['Knicks vs Celtics 7:00 PM'] };
+  const subwayNormal: SubwayCommute = { mode: 'subway', line: 'A', station: '72 St · Central Park West', direction: 'Downtown Manhattan', nextArrivalMinutes: 4, followingArrivalMinutes: 11, status: 'Good Service', delayMinutes: 0 };
   if (scenario === 'rain') testInput = { ...testInput, now: scenarioTime(now, 8, 15), weather: { condition: 'Rainy', temperature: 64 }, traffic: normalTraffic, sports: laterGame };
   else if (scenario === 'cold') testInput = { ...testInput, now: scenarioTime(now, 8, 15), weather: { condition: 'Clear', temperature: 28 }, traffic: normalTraffic, sports: laterGame };
   else if (scenario === 'hot') testInput = { ...testInput, now: scenarioTime(now, 15, 0), weather: { condition: 'Sunny', temperature: 94 }, traffic: normalTraffic, sports: laterGame };
   else if (scenario === 'heavy-traffic') testInput = { ...testInput, now: scenarioTime(now, 8, 10), weather: { condition: 'Sunny', temperature: 72 }, traffic: { commute: '52 mins', status: 'Heavy traffic', usualMinutes: 28 }, sports: laterGame };
   else if (scenario === 'game-soon') testInput = { ...testInput, now: scenarioTime(now, 18, 40), weather: { condition: 'Clear', temperature: 72 }, traffic: normalTraffic, sports: { favoriteTeams: ['Knicks'], games: ['Knicks vs Celtics 7:00 PM'] } };
   else if (scenario === 'multiple-issues') testInput = { ...testInput, now: scenarioTime(now, 8, 15), weather: { condition: 'Rainy', temperature: 61 }, traffic: { commute: '58 mins', status: 'Heavy traffic', usualMinutes: 28 }, sports: laterGame };
+  else if (scenario === 'subway-normal') testInput = { ...testInput, commute: subwayNormal, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
+  else if (scenario === 'subway-delay') testInput = { ...testInput, commute: { ...subwayNormal, nextArrivalMinutes: 12, followingArrivalMinutes: 20, status: 'Delayed', delayMinutes: 12 }, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
+  else if (scenario === 'major-subway-delay') testInput = { ...testInput, commute: { ...subwayNormal, nextArrivalMinutes: 24, followingArrivalMinutes: 34, status: 'Major Delays', delayMinutes: 24 }, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
+  else if (scenario === 'service-change') testInput = { ...testInput, commute: { ...subwayNormal, nextArrivalMinutes: 10, followingArrivalMinutes: 18, status: 'Service Change', delayMinutes: 8, serviceChanges: ['Downtown A trains are running local between 59 St and Canal St.'], detour: 'Allow extra time or use the C train.' }, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Sunny', temperature: 72 } };
+  else if (scenario === 'rain-subway-delay') testInput = { ...testInput, commute: { ...subwayNormal, nextArrivalMinutes: 14, followingArrivalMinutes: 23, status: 'Delayed', delayMinutes: 14 }, now: scenarioTime(now, 8, 15), sports: laterGame, traffic: normalTraffic, weather: { condition: 'Rainy', temperature: 61 } };
 
   return {
     ...generateDailyIntelligence(testInput),
-    sources: { locker: testInput.locker, sports: testInput.sports, traffic: testInput.traffic, weather: testInput.weather },
+    sources: { commute: testInput.commute, locker: testInput.locker, sports: testInput.sports, traffic: testInput.traffic, weather: testInput.weather },
   };
 }
 
@@ -358,9 +390,10 @@ export async function getDailyIntelligence(now = new Date()): Promise<DailyIntel
     ? { condition: getWeatherCondition(weatherResult.value.weatherCode), temperature: weatherResult.value.temperature }
     : undefined;
   const traffic = trafficResult.status === 'fulfilled' ? trafficResult.value : undefined;
+  const commute = trafficResult.status === 'fulfilled' ? trafficResult.value.commuteData : undefined;
   const sports = sportsResult.status === 'fulfilled' ? sportsResult.value : undefined;
   const locker = lockerResult.status === 'fulfilled' ? lockerResult.value : undefined;
-  const briefing = generateDailyIntelligence({ now, weather, traffic, sports, locker });
+  const briefing = generateDailyIntelligence({ commute, now, weather, traffic, sports, locker });
 
-  return { ...briefing, sources: { locker, sports, traffic, weather } };
+  return { ...briefing, sources: { commute, locker, sports, traffic, weather } };
 }

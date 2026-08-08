@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MOCK_SUBWAY_COMMUTES } from '@/services/traffic';
+
 type TravelMode = 'Drive' | 'Transit' | 'Walk' | 'Bike';
 type TrafficLevel = 'Light' | 'Moderate' | 'Heavy';
 type HubMode = 'Road' | 'Flights';
@@ -80,12 +82,13 @@ const INCIDENTS: Incident[] = [
   { id: 'congestion', icon: '≈', road: 'Brooklyn Bridge', description: 'Heavy congestion approaching Manhattan', distance: '4.1 mi away', severity: 'Medium', delay: '+9 min' },
 ];
 
-const TRANSIT = [
-  { line: '4', station: '86 St · Lexington Ave', arrival: '3 min', status: 'On time', color: '#2A9D55' },
-  { line: '6', station: '77 St · Lexington Ave', arrival: '7 min', status: 'On time', color: '#2A9D55' },
-  { line: 'M15', station: '1st Ave · E 79th St', arrival: '5 min', status: 'Minor delays', color: '#C98B38' },
-  { line: 'Q', station: '72 St · 2nd Ave', arrival: '9 min', status: 'On time', color: '#D49B35' },
-];
+const TRANSIT = MOCK_SUBWAY_COMMUTES.map((train) => ({
+  line: train.line,
+  station: `${train.station} · ${train.direction}`,
+  arrival: `${train.nextArrivalMinutes} min`,
+  status: train.status,
+  color: train.status === 'Good Service' ? '#2A9D55' : '#C98B38',
+}));
 
 const HISTORY = [
   { destination: DESTINATIONS[1], day: 'Yesterday', time: '31 min', level: 'Heavy', mode: 'Drive' as TravelMode },

@@ -131,10 +131,10 @@ export default function HomeScreen() {
   ];
 
   const intelligenceDetails = [
-    { category: 'sports' as const, icon: ACTIONS[3].icon, fallbackTitle: 'Game on today', fallbackDetail: games[0] ?? 'Sports schedule unavailable' },
-    { category: 'weather' as const, icon: ACTIONS[0].icon, fallbackTitle: 'Comfortable conditions', fallbackDetail: `${condition} and ${temperature}° are expected right now.` },
-    { category: 'traffic' as const, icon: ACTIONS[1].icon, fallbackTitle: 'Commute check', fallbackDetail: `Current travel time is approximately ${commute}.` },
-  ].map((item) => ({ ...item, insight: dailyIntelligence.insights.find((insight) => insight.category === item.category) }));
+    { key: 'sports', label: 'SPORTS', icon: ACTIONS[3].icon, fallbackTitle: 'Game on today', fallbackDetail: games[0] ?? 'Sports schedule unavailable', insight: dailyIntelligence.insights.find((insight) => insight.category === 'sports') },
+    { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: 'Comfortable conditions', fallbackDetail: `${condition} and ${temperature}° are expected right now.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'weather') },
+    { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: 'Commute check', fallbackDetail: `Current travel time is approximately ${commute}.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'transit') ?? dailyIntelligence.insights.find((insight) => insight.category === 'traffic') },
+  ];
 
   return <View style={styles.screen}>
     <View pointerEvents="none" style={[styles.backgroundBranding, !desktop && styles.backgroundBrandingMobile]}>
@@ -162,7 +162,7 @@ export default function HomeScreen() {
     </View>
 
     <View style={[styles.intelligenceDetails, !desktop && styles.intelligenceDetailsMobile]}>
-      {intelligenceDetails.map((item) => <View key={item.category} style={styles.intelligenceDetailCard}><View style={styles.intelligenceDetailCopy}><Text style={styles.insightCategory}>{item.category.toUpperCase()}</Text><Text style={styles.insightTitle}>{item.insight?.title ?? item.fallbackTitle}</Text><Text numberOfLines={2} style={styles.insightDetail}>{item.insight?.detail ?? item.fallbackDetail}</Text></View><View style={styles.intelligenceDetailIcon}><Icon color={COLORS.green} name={item.icon} size={20} /></View></View>)}
+      {intelligenceDetails.map((item) => <View key={item.key} style={styles.intelligenceDetailCard}><View style={styles.intelligenceDetailCopy}><Text style={styles.insightCategory}>{item.label}</Text><Text style={styles.insightTitle}>{item.insight?.title ?? item.fallbackTitle}</Text><Text numberOfLines={2} style={styles.insightDetail}>{item.insight?.detail ?? item.fallbackDetail}</Text></View><View style={styles.intelligenceDetailIcon}><Icon color={COLORS.green} name={item.icon} size={20} /></View></View>)}
     </View>
 
     <View style={[styles.heroGrid, !desktop && styles.stack]}>
