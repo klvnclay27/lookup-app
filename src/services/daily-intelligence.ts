@@ -1,9 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { createMockCalendarEvent, getCalendarEvents, type CalendarEvent } from '@/services/calendar';
+import { createMockCalendarEvent, type CalendarEvent } from '@/services/calendar';
 import type { ClothingItem } from '@/constants/starter-wardrobe';
-import { getSports } from '@/services/sports';
-import { getTraffic, type CommuteData, type SubwayCommute } from '@/services/traffic';
+import { type CommuteData, type SubwayCommute } from '@/services/traffic';
 import { getWeather, getWeatherCondition } from '@/services/weather';
 
 export type IntelligencePriority = 'routine' | 'useful' | 'important';
@@ -450,23 +449,18 @@ export async function readDailyLockerContext(): Promise<DailyLockerContext | und
 }
 
 export async function getDailyIntelligence(now = new Date()): Promise<DailyIntelligenceSnapshot> {
-  const [weatherResult, trafficResult, sportsResult, lockerResult, calendarResult] = await Promise.allSettled([
+  // Calendar, sports, traffic, and transit currently expose MVP fixtures only.
+  // Normal mode intentionally omits them; the same fixtures remain available through TEST MODE.
+  const [weatherResult, lockerResult] = await Promise.allSettled([
     getWeather(),
-    getTraffic(),
-    getSports(),
     readDailyLockerContext(),
-    getCalendarEvents(now),
   ]);
 
   const weather = weatherResult.status === 'fulfilled'
     ? { condition: getWeatherCondition(weatherResult.value.weatherCode), temperature: weatherResult.value.temperature }
     : undefined;
-  const traffic = trafficResult.status === 'fulfilled' ? trafficResult.value : undefined;
-  const commute = trafficResult.status === 'fulfilled' ? trafficResult.value.commuteData : undefined;
-  const sports = sportsResult.status === 'fulfilled' ? sportsResult.value : undefined;
   const locker = lockerResult.status === 'fulfilled' ? lockerResult.value : undefined;
-  const calendar = calendarResult.status === 'fulfilled' ? { events: calendarResult.value } : undefined;
-  const briefing = generateDailyIntelligence({ calendar, commute, now, weather, traffic, sports, locker });
+  const briefing = generateDailyIntelligence({ now, weather, locker });
 
-  return { ...briefing, sources: { calendar, commute, locker, sports, traffic, weather } };
+  return { ...briefing, sources: { locker, weather } };
 }

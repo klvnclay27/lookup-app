@@ -50,9 +50,9 @@ export default function HomeScreen() {
   const desktop = width >= 900;
   const tablet = width >= 600 && width < 900;
   const [temperature, setTemperature] = useState(72);
-  const [condition, setCondition] = useState('Sunny');
+  const [condition, setCondition] = useState('Weather loading');
   const [loading, setLoading] = useState(true);
-  const [commute, setCommute] = useState('28 mins');
+  const [commute, setCommute] = useState('Live traffic data not connected');
   const [market, setMarket] = useState('S&P +0.8%');
   const [playlist, setPlaylist] = useState('Daily Mix');
   const [movie, setMovie] = useState('Top entertainment story');
@@ -84,8 +84,8 @@ export default function HomeScreen() {
             setDailyIntelligence(data);
             if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
             else setCondition('Weather unavailable');
-            setCommute(data.sources.traffic?.commute ?? 'Traffic unavailable');
-            setGames(data.sources.sports?.games ?? ['Sports unavailable']);
+            setCommute(data.sources.traffic?.commute ?? 'Live traffic data not connected');
+            setGames(data.sources.sports?.games ?? []);
           }),
           getFinance().then((data) => setMarket(data.market)).catch(() => setMarket('Market unavailable')),
           getEntertainment().then((data) => setMovie(data.movie)).catch(() => setMovie('Entertainment unavailable')),
@@ -110,16 +110,16 @@ export default function HomeScreen() {
   const applyFactualSources = (sources: DailyIntelligenceInput) => {
     if (sources.weather) { setTemperature(sources.weather.temperature ?? 72); setCondition(sources.weather.condition ?? 'Unknown'); }
     else setCondition('Weather unavailable');
-    setCommute(sources.traffic?.commute ?? 'Traffic unavailable');
-    setGames(sources.sports?.games ?? ['Sports unavailable']);
+    setCommute(sources.traffic?.commute ?? 'Live traffic data not connected');
+    setGames(sources.sports?.games ?? []);
   };
 
   const applyIntelligenceSnapshot = (data: DailyIntelligenceSnapshot) => {
     setDailyIntelligence(data);
     if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
     else setCondition('Weather unavailable');
-    setCommute(data.sources.traffic?.commute ?? 'Traffic unavailable');
-    setGames(data.sources.sports?.games ?? ['Sports unavailable']);
+    setCommute(data.sources.traffic?.commute ?? 'Live traffic data not connected');
+    setGames(data.sources.sports?.games ?? []);
   };
 
   const selectTestScenario = (scenario: DailyIntelligenceTestScenario) => {
@@ -127,30 +127,35 @@ export default function HomeScreen() {
     applyIntelligenceSnapshot(generateDailyIntelligenceTestSnapshot(dailyIntelligenceBase, scenario));
   };
 
+  const displayedSources = __DEV__ && intelligenceEnabled && testScenario !== 'normal' ? dailyIntelligence.sources : dailyIntelligenceBase;
+  const hasLiveWeather = Boolean(displayedSources.weather);
+  const hasLiveTraffic = Boolean(displayedSources.traffic);
+  const hasLiveSports = Boolean(displayedSources.sports?.games?.length);
+  const displayedCalendarEvent = displayedSources.calendar?.events?.[0];
   const feelsLike = temperature - 1;
   const briefing = [
-    { title: 'Traffic', copy: `Leave in 12 minutes for a ${commute} commute`, value: commute, route: '/traffic' as Href, action: undefined, icon: ACTIONS[1] },
-    { title: 'Knicks vs Celtics', copy: games[0] ?? 'Tonight at Madison Square Garden', value: '7:30 PM', route: '/sports' as Href, action: undefined, icon: ACTIONS[3] },
-    { title: 'Weather', copy: `${condition} throughout the afternoon`, value: `${temperature}°`, route: '/weather' as Href, action: undefined, icon: ACTIONS[0] },
-    { title: 'Calendar', copy: 'Two events remaining today', value: '2 events', route: undefined, action: () => Alert.alert('Calendar', 'Calendar integration is coming soon.'), icon: { ...ACTIONS[2], color: '#5077C8', tint: '#EAF0FC', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } as IconName } },
+    { title: 'Traffic', copy: hasLiveTraffic ? `Current commute: ${commute}` : 'Live traffic data not connected', value: hasLiveTraffic ? commute : 'Not connected', route: '/traffic' as Href, action: undefined, icon: ACTIONS[1] },
+    { title: games[0] ?? 'Sports', copy: games[0] ?? 'Live sports data not connected', value: hasLiveSports ? 'View' : 'Not connected', route: '/sports' as Href, action: undefined, icon: ACTIONS[3] },
+    { title: 'Weather', copy: hasLiveWeather ? `${condition} right now` : 'Live weather data unavailable', value: hasLiveWeather ? `${temperature}°` : 'Unavailable', route: '/weather' as Href, action: undefined, icon: ACTIONS[0] },
+    { title: 'Calendar', copy: displayedCalendarEvent?.title ?? 'No live calendar data connected', value: displayedCalendarEvent ? 'Test data' : 'Not connected', route: undefined, action: () => Alert.alert('Calendar', 'Calendar integration is coming soon.'), icon: { ...ACTIONS[2], color: '#5077C8', tint: '#EAF0FC', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } as IconName } },
     { title: 'Top Story', copy: movie, value: '5 min', route: '/entertainment' as Href, action: undefined, icon: ACTIONS[6] },
     { title: 'Your Playlist', copy: tracks[0] ?? playlist, value: 'Play', route: '/music' as Href, action: undefined, icon: ACTIONS[5] },
   ];
 
   const trends = [
     { category: 'NEWS', title: 'The stories shaping business and technology today', time: '12 min ago', route: '/finance' as Href, colors: ['#CBE7FA', '#7CB5DE'], icon: { ios: 'newspaper.fill', android: 'newspaper', web: 'newspaper' } as IconName },
-    { category: 'SPORTS', title: games[0] ?? 'New York gets ready for a big night in sports', time: '24 min ago', route: '/sports' as Href, colors: ['#FFE2C0', '#E59A4F'], icon: ACTIONS[3].icon },
+    { category: 'SPORTS', title: games[0] ?? 'Live sports data not connected', time: hasLiveSports ? 'Sports schedule' : 'Not connected', route: '/sports' as Href, colors: ['#FFE2C0', '#E59A4F'], icon: ACTIONS[3].icon },
     { category: 'ENTERTAINMENT', title: movie, time: '38 min ago', route: '/entertainment' as Href, colors: ['#F4D8ED', '#C878B6'], icon: ACTIONS[6].icon },
   ];
 
   const intelligenceDetails = intelligenceEnabled ? [
-    { key: 'sports', label: 'SPORTS', icon: ACTIONS[3].icon, fallbackTitle: 'Game on today', fallbackDetail: games[0] ?? 'Sports schedule unavailable', insight: dailyIntelligence.insights.find((insight) => insight.category === 'sports') },
-    { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: 'Comfortable conditions', fallbackDetail: `${condition} and ${temperature}° are expected right now.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'weather') },
-    { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: 'Commute check', fallbackDetail: `Current travel time is approximately ${commute}.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'transit') ?? dailyIntelligence.insights.find((insight) => insight.category === 'traffic') },
+    { key: 'sports', label: 'SPORTS', icon: ACTIONS[3].icon, fallbackTitle: hasLiveSports ? 'Sports update' : 'Sports connection', fallbackDetail: games[0] ?? 'Live sports data not connected', insight: dailyIntelligence.insights.find((insight) => insight.category === 'sports') },
+    { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: hasLiveWeather ? 'Current conditions' : 'Weather connection', fallbackDetail: hasLiveWeather ? `${condition} and ${temperature}° are reported right now.` : 'Live weather data unavailable', insight: dailyIntelligence.insights.find((insight) => insight.category === 'weather') },
+    { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: hasLiveTraffic ? 'Commute check' : 'Traffic connection', fallbackDetail: hasLiveTraffic ? `Current travel time is approximately ${commute}.` : 'Live traffic and transit data not connected', insight: dailyIntelligence.insights.find((insight) => insight.category === 'transit') ?? dailyIntelligence.insights.find((insight) => insight.category === 'traffic') },
   ] : [
-    { key: 'sports', label: 'SPORTS', icon: ACTIONS[3].icon, fallbackTitle: 'Sports update', fallbackDetail: games[0] ?? 'Sports schedule unavailable', insight: undefined },
-    { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: 'Current conditions', fallbackDetail: `${condition} and ${temperature}° right now.`, insight: undefined },
-    { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: 'Current commute', fallbackDetail: `Travel time is ${commute}.`, insight: undefined },
+    { key: 'sports', label: 'SPORTS', icon: ACTIONS[3].icon, fallbackTitle: 'Sports connection', fallbackDetail: games[0] ?? 'Live sports data not connected', insight: undefined },
+    { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: hasLiveWeather ? 'Current conditions' : 'Weather connection', fallbackDetail: hasLiveWeather ? `${condition} and ${temperature}° right now.` : 'Live weather data unavailable', insight: undefined },
+    { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: 'Traffic connection', fallbackDetail: hasLiveTraffic ? `Travel time is ${commute}.` : 'Live traffic and transit data not connected', insight: undefined },
   ];
   const calendarInsight = dailyIntelligence.insights.find((insight) => insight.category === 'calendar');
   if (intelligenceEnabled && calendarInsight && calendarInsight.score >= 30) {
@@ -190,11 +195,11 @@ export default function HomeScreen() {
     <View style={[styles.heroGrid, !desktop && styles.stack]}>
       <Pressable onPress={() => router.push('/weather')} style={({ pressed }) => [styles.weatherCard, pressed && styles.cardPressed]}>
         <View style={styles.skyGlow} /><View style={styles.weatherTop}><View><Text style={styles.weatherLabel}>CURRENT WEATHER</Text><Text style={styles.location}>New York, NY</Text></View><View style={styles.weatherIcon}><Icon color="#2587C6" name={ACTIONS[0].icon} size={34} /></View></View>
-        <View style={styles.weatherPrimary}>{loading ? <ActivityIndicator color={COLORS.green} size="large" /> : <Text style={styles.temperature}>{temperature}°</Text>}<View><Text style={styles.condition}>{condition}</Text><Text style={styles.feels}>Feels like {feelsLike}°</Text></View></View>
-        <View style={styles.weatherMetrics}>{[['Humidity', '58%'], ['Wind', '8 mph'], ['Visibility', '10 mi'], ['UV Index', '4 · Moderate']].map(([label, value]) => <View key={label} style={styles.metric}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>)}</View>
+        <View style={styles.weatherPrimary}>{loading ? <ActivityIndicator color={COLORS.green} size="large" /> : <Text style={styles.temperature}>{hasLiveWeather ? `${temperature}°` : '—'}</Text>}<View><Text style={styles.condition}>{hasLiveWeather ? condition : 'Weather unavailable'}</Text>{hasLiveWeather ? <Text style={styles.feels}>Feels like {feelsLike}°</Text> : null}</View></View>
+        <View style={styles.weatherMetrics}>{[['Humidity', '—'], ['Wind', '—'], ['Visibility', '—'], ['UV Index', '—']].map(([label, value]) => <View key={label} style={styles.metric}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>)}</View>
       </Pressable>
       <View style={styles.heroSide}>
-        <Pressable onPress={() => router.push('/traffic')} style={({ pressed }) => [styles.miniHero, styles.trafficHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[1].tint }]}><Icon color={ACTIONS[1].color} name={ACTIONS[1].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>TRAFFIC TO WORK</Text><Text style={styles.miniValue}>{commute}</Text><Text style={styles.miniMeta}>Light traffic · 2 min faster</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+        <Pressable onPress={() => router.push('/traffic')} style={({ pressed }) => [styles.miniHero, styles.trafficHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[1].tint }]}><Icon color={ACTIONS[1].color} name={ACTIONS[1].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>TRAFFIC TO WORK</Text><Text style={styles.miniValue}>{commute}</Text><Text style={styles.miniMeta}>{hasLiveTraffic ? 'Current commute information' : 'Connect a live traffic source for updates'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
         <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>Markets trending higher</Text></View><Text style={styles.arrow}>›</Text></Pressable>
       </View>
     </View>
@@ -211,8 +216,8 @@ export default function HomeScreen() {
     <View style={styles.musicPanel}><Pressable onPress={() => router.push('/music')} style={({ pressed }) => [styles.musicMain, pressed && styles.rowPressed]}><View style={styles.albumArt}><View style={styles.albumDisc} /><Text style={styles.albumMark}>LU</Text></View><View style={styles.trackCopy}><Text numberOfLines={1} style={styles.trackName}>{tracks[0] ?? 'Your soundtrack is ready'}</Text><Text style={styles.artist}>{playlist}</Text><View style={styles.progressTrack}><View style={styles.progressFill} /></View></View></Pressable><Pressable accessibilityLabel="Play music" onPress={() => router.push('/music')} style={({ pressed }) => [styles.playButton, pressed && styles.pressed]}><Icon color="#FFFFFF" name={{ ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' }} size={20} /></Pressable><View style={styles.nextUp}><Text style={styles.nextLabel}>NEXT UP</Text><Text numberOfLines={1} style={styles.nextTrack}>{tracks[1] ?? 'Daily discovery mix'}</Text><Text numberOfLines={1} style={styles.nextTrack}>{tracks[2] ?? 'Fresh picks for you'}</Text></View></View>
 
     <View style={[styles.bottomGrid, !desktop && styles.stack]}>
-      <View style={styles.bottomPanel}><SectionHeader action="See all" label="TONIGHT" title="Upcoming Games" />{(games.length ? games.slice(0, 2) : ['Knicks vs Celtics', 'Yankees vs Red Sox']).map((game, index) => <Pressable key={`${game}-${index}`} onPress={() => router.push('/sports')} style={({ pressed }) => [styles.gameRow, pressed && styles.rowPressed]}><View style={styles.teamBadge}><Text style={styles.teamBadgeText}>{index ? 'NYY' : 'NYK'}</Text></View><View style={styles.gameCopy}><Text numberOfLines={1} style={styles.gameTitle}>{game}</Text><Text style={styles.gameTime}>{index ? 'Tomorrow · 1:05 PM' : 'Tonight · 7:30 PM'}</Text></View><Text style={styles.chevron}>›</Text></Pressable>)}</View>
-      <View style={styles.bottomPanel}><SectionHeader label="SCHEDULE" title="Your Day" />{[['Weather', `${temperature}° · ${condition}`], ['Leave for work', '8:14 AM'], ['Market open', '9:30 AM'], ['Game', '7:30 PM'], ['New music', '9:00 PM']].map(([title, value], index) => <View key={title} style={styles.timelineRow}><View style={styles.timelineRail}><View style={[styles.timelineDot, index === 0 && styles.timelineDotActive]} />{index < 4 ? <View style={styles.timelineLine} /> : null}</View><Text style={styles.timelineTitle}>{title}</Text><Text style={styles.timelineValue}>{value}</Text></View>)}</View>
+      <View style={styles.bottomPanel}><SectionHeader action="See all" label="SPORTS" title="Upcoming Games" />{(games.length ? games.slice(0, 2) : ['Live sports data not connected']).map((game, index) => <Pressable key={`${game}-${index}`} onPress={() => router.push('/sports')} style={({ pressed }) => [styles.gameRow, pressed && styles.rowPressed]}><View style={styles.teamBadge}><Text style={styles.teamBadgeText}>{hasLiveSports ? 'GAME' : '—'}</Text></View><View style={styles.gameCopy}><Text numberOfLines={1} style={styles.gameTitle}>{game}</Text><Text style={styles.gameTime}>{hasLiveSports ? 'Sports schedule' : 'Connect a live source to see upcoming games'}</Text></View><Text style={styles.chevron}>›</Text></Pressable>)}</View>
+      <View style={styles.bottomPanel}><SectionHeader label="SCHEDULE" title="Your Day" />{[['Weather', hasLiveWeather ? `${temperature}° · ${condition}` : 'Live weather data unavailable'], ['Calendar', displayedCalendarEvent?.title ?? 'No live calendar data connected'], ['Traffic', hasLiveTraffic ? commute : 'Live traffic data not connected'], ['Sports', games[0] ?? 'Live sports data not connected'], ['Music', 'Open Music for your local listening preview']].map(([title, value], index) => <View key={title} style={styles.timelineRow}><View style={styles.timelineRail}><View style={[styles.timelineDot, index === 0 && styles.timelineDotActive]} />{index < 4 ? <View style={styles.timelineLine} /> : null}</View><Text style={styles.timelineTitle}>{title}</Text><Text style={styles.timelineValue}>{value}</Text></View>)}</View>
       <View style={styles.bottomPanel}><SectionHeader label="LIVE PREVIEW" title="Market Movers" />{MARKET_MOVERS.map((stock) => <Pressable key={stock.symbol} onPress={() => router.push('/finance')} style={({ pressed }) => [styles.stockRow, pressed && styles.rowPressed]}><View><Text style={styles.stockSymbol}>{stock.symbol}</Text><Text style={styles.stockCompany}>{stock.company}</Text></View><Text style={[styles.stockMove, !stock.up && styles.stockDown]}>{stock.value}</Text></Pressable>)}</View>
     </View>
     </ScrollView>
