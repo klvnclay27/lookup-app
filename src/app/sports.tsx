@@ -224,7 +224,12 @@ export default function SportsScreen() {
     [favoriteOddsGames],
   );
 
-  const openGame = (_game: Game) => router.push('/game-details');
+  const openGameById = (gameId: string) => router.push({
+    pathname: '/game-details',
+    params: { gameId },
+  });
+
+  const openGame = (game: Game) => openGameById(game.id);
   const toggleFavorite = (short: string) => {
     setFavorites((current) => current.includes(short) ? current.filter((team) => team !== short) : [...current, short]);
   };
@@ -321,7 +326,7 @@ export default function SportsScreen() {
               selected={selectedOddsGame === game.id}
               onPress={() => {
                 setSelectedOddsGame(game.id);
-                setTimeout(() => router.push('/game-details'), 160);
+                setTimeout(() => openGameById(game.id), 160);
               }}
               onToggleFavorite={() => setFavoriteOddsGames((current) => current.includes(game.id) ? current.filter((id) => id !== game.id) : [...current, game.id])}
             />
