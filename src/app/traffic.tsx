@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MOCK_SUBWAY_COMMUTES } from '@/services/traffic';
+import { getTraffic, MOCK_SUBWAY_COMMUTES, type TrafficDataProvenance } from '@/services/traffic';
 
 type TravelMode = 'Drive' | 'Transit' | 'Walk' | 'Bike';
 type TrafficLevel = 'Light' | 'Moderate' | 'Heavy';
@@ -114,6 +114,7 @@ export default function TrafficScreen() {
   const [routeStarted, setRouteStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [trafficProvenance, setTrafficProvenance] = useState<TrafficDataProvenance>('unavailable');
   const [flightQuery, setFlightQuery] = useState('');
   const [submittedFlightQuery, setSubmittedFlightQuery] = useState('');
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
@@ -122,9 +123,18 @@ export default function TrafficScreen() {
   const [flightsLoading, setFlightsLoading] = useState(false);
   const [flightError, setFlightError] = useState<string | null>(null);
 
+  const loadTraffic = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    const result = await getTraffic();
+    setTrafficProvenance(result.provenance);
+    if (result.provenance === 'unavailable') setError(result.error);
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 520);
-    return () => clearTimeout(timer);
+    void loadTraffic();
   }, []);
 
   const searchResults = useMemo(() => {
@@ -172,7 +182,7 @@ export default function TrafficScreen() {
   const toggleSavedFlight = (flightId: string) => setSavedFlightIds((current) => current.includes(flightId) ? current.filter((id) => id !== flightId) : [...current, flightId]);
 
   if (isLoading) return <ScreenState loading title="Loading your commute" copy="Preparing simulated route information…" />;
-  if (error) return <ScreenState title="Traffic is unavailable" copy={error} action="Try again" onAction={() => { setError(null); setIsLoading(true); setTimeout(() => setIsLoading(false), 450); }} />;
+  if (error) return <ScreenState title="Traffic is unavailable" copy={error} action="Try again" onAction={() => { void loadTraffic(); }} />;
 
   const route = selectedDestination.modes[mode];
 
@@ -216,7 +226,7 @@ export default function TrafficScreen() {
           <View style={styles.section}><SectionHeader title="Commute History" /><View style={styles.listCard}>{HISTORY.map((trip, index) => <View key={`${trip.destination.id}-${trip.day}`}><Pressable onPress={() => { selectDestination(trip.destination); selectMode(trip.mode); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyIcon}><Text style={styles.historyIconText}>{trip.destination.icon}</Text></View><View style={styles.historyCopy}><Text style={styles.historyDestination}>{trip.destination.name}</Text><Text style={styles.historyMeta}>{trip.day} · {trip.mode} · {trip.level} traffic</Text></View><Text style={styles.historyTime}>{trip.time}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < HISTORY.length - 1 && <View style={styles.historyDivider} />}</View>)}</View></View>
 
           <View style={styles.sectionLast}><SectionHeader title="Traffic Overview" /><TrafficOverview /></View>
-          <Text style={styles.disclaimer}>Traffic, transit, and route information shown in this MVP is simulated.</Text>
+          <Text style={styles.disclaimer}>{trafficProvenance === 'live' ? 'Commute information is live. Transit and route previews may still be simulated.' : 'Traffic, transit, and route information shown in this MVP is simulated.'}</Text>
         </>
       )}
       </> : (

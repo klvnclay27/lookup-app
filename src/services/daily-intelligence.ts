@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createMockCalendarEvent, type CalendarEvent } from '@/services/calendar';
 import type { ClothingItem } from '@/constants/starter-wardrobe';
-import { type CommuteData, type SubwayCommute } from '@/services/traffic';
+import { type CommuteData, type SubwayCommute, type TrafficSummary } from '@/services/traffic';
 import { getWeather, getWeatherCondition } from '@/services/weather';
 
 export type IntelligencePriority = 'routine' | 'useful' | 'important';
@@ -15,7 +15,7 @@ export type DailyIntelligenceInput = {
   commute?: CommuteData;
   calendar?: { events?: CalendarEvent[] };
   weather?: { condition?: string; temperature?: number };
-  traffic?: { commute?: string; status?: string; usualMinutes?: number };
+  traffic?: Partial<TrafficSummary>;
   music?: { playlist?: string; tracks?: string[] };
   sports?: { favoriteTeams?: string[]; games?: string[] };
   locker?: DailyLockerContext;
