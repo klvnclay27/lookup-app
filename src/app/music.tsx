@@ -13,44 +13,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type Song = {
-  id: string;
-  title: string;
-  artist: string;
-  duration: string;
-  explicit?: boolean;
-  colors: [string, string];
-};
-
-type Playlist = {
-  id: string;
-  title: string;
-  description: string;
-  colors: [string, string];
-};
-
-const RECENT_SONGS: Song[] = [
-  { id: 'midnight', title: 'Midnight Drive', artist: 'Nova Lane', duration: '3:42', colors: ['#5836A5', '#D85B9B'] },
-  { id: 'golden', title: 'Golden Hour', artist: 'Maya Rivers', duration: '3:18', colors: ['#B75B24', '#F1B84B'] },
-  { id: 'satellite', title: 'Satellite Hearts', artist: 'The Wild North', duration: '4:05', colors: ['#176487', '#3BB5A5'] },
-  { id: 'afterglow', title: 'Afterglow', artist: 'Soren Blue', duration: '2:58', colors: ['#773755', '#E2695D'] },
-];
-
-const TRENDING_SONGS: Song[] = [
-  { id: 'not-like-us', title: 'Not Like Us', artist: 'Kendrick Lamar', duration: '4:34', explicit: true, colors: ['#685A4A', '#C3A77E'] },
-  { id: 'like-that', title: 'Like That', artist: 'Future, Metro Boomin, Kendrick Lamar', duration: '4:27', explicit: true, colors: ['#3E4559', '#8391AF'] },
-  { id: 'good-luck', title: 'Good Luck, Babe!', artist: 'Chappell Roan', duration: '3:38', colors: ['#A93461', '#F0859D'] },
-  { id: 'type-shit', title: 'Type Shit', artist: 'Future, Metro Boomin, Travis Scott', duration: '3:48', explicit: true, colors: ['#49302B', '#B65A3D'] },
-];
-
-const ALL_SONGS = [...RECENT_SONGS, ...TRENDING_SONGS];
-
-const PLAYLISTS: Playlist[] = [
-  { id: 'mix-1', title: 'Daily Mix 1', description: 'Nova Lane, Ari Bloom and more', colors: ['#5B36A5', '#B468DE'] },
-  { id: 'mix-2', title: 'Daily Mix 2', description: 'Maya Rivers, June Arcade and more', colors: ['#176846', '#64B86B'] },
-  { id: 'chill', title: 'Chill Vibes', description: 'Soft sounds for slower moments', colors: ['#195C8C', '#55A9D3'] },
-  { id: 'energy', title: 'Energy Shift', description: 'Big hooks and brighter beats', colors: ['#8C302F', '#E06B4F'] },
-];
+import {
+  getMusic,
+  MOCK_MUSIC_CATALOG,
+  searchMusicCatalog,
+  type MusicDataProvenance,
+  type MusicPlaylist,
+  type MusicSong,
+} from '@/services/music';
 
 function Cover({ colors, size, label }: { colors: [string, string]; size: number; label?: string }) {
   return (
@@ -91,35 +61,51 @@ export default function MusicScreen() {
   const playlistWidth = isDesktop ? 232 : 212;
 
   const [query, setQuery] = useState('');
-  const [selectedSong, setSelectedSong] = useState<Song>(RECENT_SONGS[0]);
+  const [catalog, setCatalog] = useState(MOCK_MUSIC_CATALOG);
+  const [musicProvenance, setMusicProvenance] = useState<MusicDataProvenance>('unavailable');
+  const [selectedSong, setSelectedSong] = useState<MusicSong>(MOCK_MUSIC_CATALOG.songs[0]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadMusic = async () => {
+    setIsLoading(true);
+    setError(null);
+    const result = await getMusic();
+    setMusicProvenance(result.provenance);
+    if (result.provenance === 'unavailable') setError(result.error);
+    else {
+      setCatalog(result.data);
+      setSelectedSong((current) => result.data.songs.find((song) => song.id === current.id)
+        ?? result.data.songs.find((song) => song.id === result.data.initialSongId)
+        ?? result.data.songs[0]
+        ?? current);
+    }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
+    void loadMusic();
   }, []);
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredSongs = useMemo(
-    () => ALL_SONGS.filter((song) => `${song.title} ${song.artist}`.toLowerCase().includes(normalizedQuery)),
-    [normalizedQuery],
-  );
-  const filteredPlaylists = useMemo(
-    () => PLAYLISTS.filter((playlist) => `${playlist.title} ${playlist.description}`.toLowerCase().includes(normalizedQuery)),
-    [normalizedQuery],
-  );
+  const songsById = useMemo(() => new Map(catalog.songs.map((song) => [song.id, song])), [catalog.songs]);
+  const recentSongs = useMemo(() => catalog.recentlyPlayedIds.map((id) => songsById.get(id)).filter((song): song is MusicSong => Boolean(song)), [catalog.recentlyPlayedIds, songsById]);
+  const trendingSongs = useMemo(() => catalog.trendingIds.map((id) => songsById.get(id)).filter((song): song is MusicSong => Boolean(song)), [catalog.trendingIds, songsById]);
 
-  const selectSong = (song: Song) => {
+  const normalizedQuery = query.trim().toLowerCase();
+  const searchResults = useMemo(() => searchMusicCatalog(catalog, normalizedQuery), [catalog, normalizedQuery]);
+
+  const selectSong = (song: MusicSong) => {
     setSelectedSong(song);
     setIsPlaying(true);
   };
 
   const skipSong = (direction: -1 | 1) => {
-    const currentIndex = ALL_SONGS.findIndex((song) => song.id === selectedSong.id);
-    const nextIndex = (currentIndex + direction + ALL_SONGS.length) % ALL_SONGS.length;
-    selectSong(ALL_SONGS[nextIndex]);
+    const currentIndex = catalog.songs.findIndex((song) => song.id === selectedSong.id);
+    const nextIndex = (currentIndex + direction + catalog.songs.length) % catalog.songs.length;
+    const nextSong = catalog.songs[nextIndex];
+    if (nextSong) selectSong(nextSong);
   };
 
   const toggleFavorite = (id: string) => {
@@ -131,6 +117,16 @@ export default function MusicScreen() {
       <View style={styles.loadingScreen}>
         <ActivityIndicator color="#69E08C" size="large" />
         <Text style={styles.loadingText}>Loading your soundtrack…</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.loadingScreen}>
+        <Text style={styles.errorTitle}>Music is unavailable</Text>
+        <Text style={styles.loadingText}>{error}</Text>
+        <Pressable onPress={() => { void loadMusic(); }} style={styles.retryButton}><Text style={styles.retryText}>Try again</Text></Pressable>
       </View>
     );
   }
@@ -164,6 +160,8 @@ export default function MusicScreen() {
           </View>
         </View>
 
+        {musicProvenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED MUSIC DATA</Text> : null}
+
         <View style={styles.searchBar}>
           <Text style={styles.searchIcon}>⌕</Text>
           <TextInput
@@ -186,8 +184,8 @@ export default function MusicScreen() {
 
         {normalizedQuery ? (
           <SearchResults
-            playlists={filteredPlaylists}
-            songs={filteredSongs}
+            playlists={searchResults.playlists}
+            songs={searchResults.songs}
             query={query.trim()}
             selectedSong={selectedSong}
             isPlaying={isPlaying}
@@ -200,7 +198,7 @@ export default function MusicScreen() {
             <View style={styles.section}>
               <SectionHeader title="Recently Played" />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRow}>
-                {RECENT_SONGS.map((song) => (
+                {recentSongs.map((song) => (
                   <View key={song.id} style={[styles.recentCard, { width: recentSize }]}>
                     <Pressable onPress={() => selectSong(song)} style={({ pressed }) => pressed && styles.cardPressed}>
                       <Cover colors={song.colors} size={recentSize} />
@@ -218,10 +216,13 @@ export default function MusicScreen() {
             <View style={styles.section}>
               <SectionHeader title="Made for You" />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRow}>
-                {PLAYLISTS.map((playlist, index) => (
+                {catalog.playlists.map((playlist) => (
                   <Pressable
                     key={playlist.id}
-                    onPress={() => selectSong(RECENT_SONGS[index])}
+                    onPress={() => {
+                      const featuredSong = songsById.get(playlist.featuredSongId);
+                      if (featuredSong) selectSong(featuredSong);
+                    }}
                     style={({ pressed }) => [styles.playlistCard, { width: playlistWidth, backgroundColor: playlist.colors[0] }, pressed && styles.cardPressed]}>
                     <View style={[styles.playlistGlow, { backgroundColor: playlist.colors[1] }]} />
                     <Text style={styles.playlistKicker}>MADE FOR YOU</Text>
@@ -237,7 +238,7 @@ export default function MusicScreen() {
             <View style={styles.sectionLast}>
               <SectionHeader title="Trending Now" />
               <View style={styles.trendingCard}>
-                {TRENDING_SONGS.map((song, index) => (
+                {trendingSongs.map((song, index) => (
                   <View key={song.id}>
                     <TrendingRow
                       song={song}
@@ -246,7 +247,7 @@ export default function MusicScreen() {
                       onSelect={selectSong}
                       onFavorite={() => toggleFavorite(song.id)}
                     />
-                    {index < TRENDING_SONGS.length - 1 && <View style={styles.divider} />}
+                    {index < trendingSongs.length - 1 && <View style={styles.divider} />}
                   </View>
                 ))}
               </View>
@@ -298,7 +299,7 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
-function TrendingRow({ song, rank, favorite, onSelect, onFavorite }: { song: Song; rank: number; favorite: boolean; onSelect: (song: Song) => void; onFavorite: () => void }) {
+function TrendingRow({ song, rank, favorite, onSelect, onFavorite }: { song: MusicSong; rank: number; favorite: boolean; onSelect: (song: MusicSong) => void; onFavorite: () => void }) {
   return (
     <View style={styles.trendingRow}>
       <Pressable onPress={() => onSelect(song)} style={({ pressed }) => [styles.trendingMain, pressed && styles.cardPressed]}>
@@ -318,7 +319,7 @@ function TrendingRow({ song, rank, favorite, onSelect, onFavorite }: { song: Son
   );
 }
 
-function SearchResults({ playlists, songs, query, selectedSong, isPlaying, onClear, onSelect, onTogglePlay }: { playlists: Playlist[]; songs: Song[]; query: string; selectedSong: Song; isPlaying: boolean; onClear: () => void; onSelect: (song: Song) => void; onTogglePlay: (song: Song) => void }) {
+function SearchResults({ playlists, songs, query, selectedSong, isPlaying, onClear, onSelect, onTogglePlay }: { playlists: MusicPlaylist[]; songs: MusicSong[]; query: string; selectedSong: MusicSong; isPlaying: boolean; onClear: () => void; onSelect: (song: MusicSong) => void; onTogglePlay: (song: MusicSong) => void }) {
   const hasResults = playlists.length > 0 || songs.length > 0;
   return (
     <View style={styles.searchResults}>
@@ -364,6 +365,9 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 1160, alignSelf: 'center' },
   loadingScreen: { flex: 1, backgroundColor: '#0B0E12', alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#919AA7', fontSize: 14, marginTop: 14 },
+  errorTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
+  retryButton: { backgroundColor: '#69E08C', borderRadius: 20, marginTop: 20, paddingHorizontal: 18, paddingVertical: 10 },
+  retryText: { color: '#09140E', fontSize: 13, fontWeight: '900' },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 },
   headerCopy: { flex: 1 },
   eyebrow: { color: '#69E08C', fontSize: 11, fontWeight: '900', letterSpacing: 1.9, marginBottom: 7 },
@@ -374,6 +378,7 @@ const styles = StyleSheet.create({
   profileText: { color: '#ECF2F8', fontSize: 12, fontWeight: '900' },
   filterButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#171D25', borderWidth: 1, borderColor: '#29333E', alignItems: 'center', justifyContent: 'center' },
   filterIcon: { color: '#AEB7C2', fontSize: 18, fontWeight: '800', transform: [{ rotate: '90deg' }] },
+  simulatedDataLabel: { color: '#697582', fontSize: 8, fontWeight: '900', letterSpacing: 0.9, marginTop: -16, marginBottom: 18, textAlign: 'right' },
   searchBar: { height: 54, borderRadius: 16, backgroundColor: '#171C23', borderWidth: 1, borderColor: '#29313B', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 38 },
   searchIcon: { color: '#A2ACB8', fontSize: 27, lineHeight: 29, marginRight: 10, marginTop: -4 },
   searchInput: { flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 0 },

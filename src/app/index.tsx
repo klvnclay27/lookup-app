@@ -57,6 +57,7 @@ export default function HomeScreen() {
   const [playlist, setPlaylist] = useState('Daily Mix');
   const [movie, setMovie] = useState('Top entertainment story');
   const [tracks, setTracks] = useState<string[]>([]);
+  const [musicIsMock, setMusicIsMock] = useState(false);
   const [games, setGames] = useState<string[]>([]);
   const [dailyIntelligence, setDailyIntelligence] = useState<DailyIntelligenceSnapshot>(() => ({ ...generateDailyIntelligence({}), sources: {} }));
   const [dailyIntelligenceBase, setDailyIntelligenceBase] = useState<DailyIntelligenceInput>({});
@@ -92,7 +93,19 @@ export default function HomeScreen() {
             setMarket(summary?.market ?? (result.provenance === 'mock' ? 'Simulated market preview' : 'Market unavailable'));
           }).catch(() => setMarket('Market unavailable')),
           getEntertainment().then((data) => setMovie(data.movie)).catch(() => setMovie('Entertainment unavailable')),
-          getMusic().then((data) => { setPlaylist(data.playlist); setTracks(data.tracks); }).catch(() => { setPlaylist('Music unavailable'); setTracks([]); }),
+          getMusic().then((result) => {
+            if (result.provenance === 'unavailable') {
+              setPlaylist('Music unavailable');
+              setTracks([]);
+              setMusicIsMock(false);
+              return;
+            }
+            const previewPlaylist = result.data.playlists[0];
+            const songsById = new Map(result.data.songs.map((song) => [song.id, song]));
+            setPlaylist(previewPlaylist?.title ?? 'Music preview');
+            setTracks(previewPlaylist?.trackIds.map((id) => songsById.get(id)?.title).filter((title): title is string => Boolean(title)) ?? []);
+            setMusicIsMock(result.provenance === 'mock');
+          }).catch(() => { setPlaylist('Music unavailable'); setTracks([]); setMusicIsMock(false); }),
         ]);
       } finally { setLoading(false); }
     }
@@ -142,7 +155,7 @@ export default function HomeScreen() {
     { title: 'Weather', copy: hasLiveWeather ? `${condition} right now` : 'Live weather data unavailable', value: hasLiveWeather ? `${temperature}°` : 'Unavailable', route: '/weather' as Href, action: undefined, icon: ACTIONS[0] },
     { title: 'Calendar', copy: displayedCalendarEvent?.title ?? 'No live calendar data connected', value: displayedCalendarEvent ? 'Test data' : 'Not connected', route: undefined, action: () => Alert.alert('Calendar', 'Calendar integration is coming soon.'), icon: { ...ACTIONS[2], color: '#5077C8', tint: '#EAF0FC', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } as IconName } },
     { title: 'Top Story', copy: movie, value: '5 min', route: '/entertainment' as Href, action: undefined, icon: ACTIONS[6] },
-    { title: 'Your Playlist', copy: tracks[0] ?? playlist, value: 'Play', route: '/music' as Href, action: undefined, icon: ACTIONS[5] },
+    { title: 'Your Playlist', copy: musicIsMock ? `Simulated preview: ${tracks[0] ?? playlist}` : tracks[0] ?? playlist, value: 'Play', route: '/music' as Href, action: undefined, icon: ACTIONS[5] },
   ];
 
   const trends = [
@@ -215,7 +228,7 @@ export default function HomeScreen() {
       <View style={styles.trendingPanel}><SectionHeader action="See all" label="CURATED FOR YOU" title="Trending Now" />{trends.map((trend) => <Pressable key={trend.category} onPress={() => router.push(trend.route)} style={({ pressed }) => [styles.storyCard, pressed && styles.cardPressed]}><View style={[styles.storyArt, { experimental_backgroundImage: `linear-gradient(145deg, ${trend.colors[0]}, ${trend.colors[1]})` }]}><Icon color="#FFFFFF" name={trend.icon} size={28} /></View><View style={styles.storyCopy}><Text style={styles.storyCategory}>{trend.category}</Text><Text numberOfLines={2} style={styles.storyTitle}>{trend.title}</Text><Text style={styles.storyTime}>{trend.time}</Text></View></Pressable>)}</View>
     </View>
 
-    <SectionHeader label="PICK UP WHERE YOU LEFT OFF" title="Continue Listening" />
+    <SectionHeader label={musicIsMock ? 'SIMULATED MUSIC PREVIEW' : 'PICK UP WHERE YOU LEFT OFF'} title="Continue Listening" />
     <View style={styles.musicPanel}><Pressable onPress={() => router.push('/music')} style={({ pressed }) => [styles.musicMain, pressed && styles.rowPressed]}><View style={styles.albumArt}><View style={styles.albumDisc} /><Text style={styles.albumMark}>LU</Text></View><View style={styles.trackCopy}><Text numberOfLines={1} style={styles.trackName}>{tracks[0] ?? 'Your soundtrack is ready'}</Text><Text style={styles.artist}>{playlist}</Text><View style={styles.progressTrack}><View style={styles.progressFill} /></View></View></Pressable><Pressable accessibilityLabel="Play music" onPress={() => router.push('/music')} style={({ pressed }) => [styles.playButton, pressed && styles.pressed]}><Icon color="#FFFFFF" name={{ ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' }} size={20} /></Pressable><View style={styles.nextUp}><Text style={styles.nextLabel}>NEXT UP</Text><Text numberOfLines={1} style={styles.nextTrack}>{tracks[1] ?? 'Daily discovery mix'}</Text><Text numberOfLines={1} style={styles.nextTrack}>{tracks[2] ?? 'Fresh picks for you'}</Text></View></View>
 
     <View style={[styles.bottomGrid, !desktop && styles.stack]}>
