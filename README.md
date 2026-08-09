@@ -1,56 +1,69 @@
-# Welcome to your Expo app 👋
+# LookUP
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+### The smartest personal dashboard on your phone.
 
-## Get started
+LookUP is a mobile app I'm building to make it easier to keep up with the things that matter throughout your day without constantly switching between apps.
 
-1. Install dependencies
+The idea is simple: **open one app and get a better picture of your day.**
 
-   ```bash
-   npm install
-   ```
+## What LookUP Does
 
-2. Start the app
+LookUP brings several everyday tools into one dashboard:
 
-   ```bash
-   npx expo start
-   ```
+* 🌤 **Weather** – Current weather and conditions
+* 🚗 **Traffic & Transportation** – Commute, traffic, transit, and travel information
+* 🏀 **Sports** – Games, scores, teams, players, stats, and matchups
+* 🎵 **Music** – Listen to music while using the rest of LookUP
+* 💰 **Finance** – Quick access to useful market information
+* 👕 **My Locker** – A digital wardrobe for organizing clothes, building outfits, and eventually getting personalized style suggestions
 
-In the output, you'll find options to open the app in a
+## Why I'm Building It
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+I'm not trying to replace every app on your phone.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+I want to reduce how often you need to jump between them.
 
-## Get a fresh project
+Eventually, LookUP should be something you can open in the morning and quickly see what you need to know about your day.
 
-When you're ready, run:
+## LookUP + AI
 
-```bash
-npm run reset-project
-```
+AI will help connect different parts of LookUP instead of each feature working on its own.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+For example, LookUP could eventually understand the weather, your commute, and what's happening that day and surface the information that's useful to you at the right time.
 
-### Other setup steps
+AI will be optional for users who prefer not to use it.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Built With
 
-## Learn more
+* React Native
+* Expo
+* TypeScript
+* Expo Router
+* APIs
+* Git & GitHub
 
-To learn more about developing your project with Expo, look at the following resources:
+## Current Status
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+🚧 **LookUP is currently in active development.**
 
-## Join the community
+I'm working on finishing the core features, connecting live data, building the backend, improving the mobile experience, and getting the app ready for early testing.
 
-Join our community of developers creating universal apps.
+Some features currently use test or placeholder data while live integrations are being built.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## What's Next
+
+* Finish the core MVP
+* Build and connect the backend
+* Add more live data
+* Improve security and privacy
+* Continue building LookUP's AI features
+* Test with a small group of users
+* Improve the app based on their feedback
+
+---
+
+### LookUP
+
+**One app. Your day. At a glance.**
+
+*Currently in development.*
