@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createMockCalendarEvent, type CalendarEvent } from '@/services/calendar';
 import type { ClothingItem } from '@/constants/starter-wardrobe';
+import type { FinanceIntelligenceSummary } from '@/services/finance';
 import type { SportsIntelligenceSummary } from '@/services/sports';
 import { type CommuteData, type SubwayCommute, type TrafficSummary } from '@/services/traffic';
 import { getWeather, getWeatherCondition } from '@/services/weather';
@@ -17,6 +18,7 @@ export type DailyIntelligenceInput = {
   calendar?: { events?: CalendarEvent[] };
   weather?: { condition?: string; temperature?: number };
   traffic?: Partial<TrafficSummary>;
+  finance?: FinanceIntelligenceSummary;
   music?: { playlist?: string; tracks?: string[] };
   sports?: SportsIntelligenceSummary;
   locker?: DailyLockerContext;
@@ -31,7 +33,7 @@ export type DailyInsight = {
 };
 export type DailyIntelligenceResult = { greeting: string; headline: string; insights: DailyInsight[]; priority: IntelligencePriority; summary: string };
 export type DailyIntelligenceSnapshot = DailyIntelligenceResult & {
-  sources: Pick<DailyIntelligenceInput, 'calendar' | 'commute' | 'locker' | 'sports' | 'traffic' | 'weather'>;
+  sources: Pick<DailyIntelligenceInput, 'calendar' | 'commute' | 'finance' | 'locker' | 'sports' | 'traffic' | 'weather'>;
 };
 export const DAILY_INTELLIGENCE_TEST_SCENARIOS = [
   { label: 'Normal', value: 'normal' },

@@ -13,23 +13,19 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  getMarketData,
+  MOCK_FINANCE_ASSETS,
+  MOCK_FINANCE_INDEXES,
+  searchFinanceAssets,
+  type FinanceAsset,
+  type FinanceDataProvenance,
+  type FinanceMarketIndex,
+} from '@/services/finance';
+
 type Period = '1D' | '1W' | '1M' | '3M' | '1Y';
-type AssetType = 'Stock' | 'ETF' | 'Crypto';
 type MarketStatus = 'Pre-Market' | 'Market Open' | 'After Hours' | 'Market Closed' | 'Holiday' | 'Early Close';
 type MarketException = { type: 'holiday' | 'early-close'; label: string };
-
-type Asset = {
-  id: string;
-  name: string;
-  ticker: string;
-  type: AssetType;
-  price: string;
-  change: number;
-  marketCap: string;
-  range: string;
-  description: string;
-  colors: [string, string];
-};
 
 type NewsStory = {
   id: string;
@@ -115,29 +111,6 @@ const CHART_DATA: Record<Period, number[]> = {
   '1Y': [28, 33, 30, 39, 43, 48, 45, 55, 59, 64, 70, 74, 81, 88],
 };
 
-const ASSETS: Asset[] = [
-  { id: 'aapl', name: 'Apple', ticker: 'AAPL', type: 'Stock', price: '$228.34', change: 1.24, marketCap: '$3.42T', range: '$164.08 – $237.49', description: 'Apple designs consumer devices, software, and digital services worldwide.', colors: ['#3F4752', '#AAB3BD'] },
-  { id: 'msft', name: 'Microsoft', ticker: 'MSFT', type: 'Stock', price: '$421.77', change: 0.86, marketCap: '$3.13T', range: '$344.77 – $468.35', description: 'Microsoft develops cloud, productivity, gaming, and AI products.', colors: ['#185A82', '#58A6C9'] },
-  { id: 'tsla', name: 'Tesla', ticker: 'TSLA', type: 'Stock', price: '$248.91', change: -1.72, marketCap: '$794.2B', range: '$138.80 – $299.29', description: 'Tesla builds electric vehicles, energy storage, and charging products.', colors: ['#762C34', '#D55C65'] },
-  { id: 'nvda', name: 'Nvidia', ticker: 'NVDA', type: 'Stock', price: '$138.62', change: 2.48, marketCap: '$3.39T', range: '$45.01 – $152.89', description: 'Nvidia creates accelerated computing platforms and graphics processors.', colors: ['#315C2B', '#76B852'] },
-  { id: 'amzn', name: 'Amazon', ticker: 'AMZN', type: 'Stock', price: '$207.09', change: -0.38, marketCap: '$2.18T', range: '$142.81 – $215.90', description: 'Amazon operates commerce, cloud computing, media, and logistics services.', colors: ['#374A65', '#E39B43'] },
-  { id: 'spy', name: 'SPDR S&P 500 ETF', ticker: 'SPY', type: 'ETF', price: '$598.73', change: 0.44, marketCap: '$550.8B', range: '$455.16 – $599.64', description: 'A mock exchange-traded fund designed to track the S&P 500 index.', colors: ['#32506A', '#6D9AC0'] },
-  { id: 'btc', name: 'Bitcoin', ticker: 'BTC', type: 'Crypto', price: '$98,420', change: 2.14, marketCap: '$1.95T', range: '$38,505 – $108,268', description: 'Bitcoin is a decentralized digital asset represented here with simulated data.', colors: ['#80521F', '#F0A33A'] },
-  { id: 'eth', name: 'Ethereum', ticker: 'ETH', type: 'Crypto', price: '$3,842', change: 1.32, marketCap: '$462.5B', range: '$2,111 – $4,092', description: 'Ethereum is a programmable blockchain asset represented with mock values.', colors: ['#3D4673', '#8B93D3'] },
-  { id: 'sol', name: 'Solana', ticker: 'SOL', type: 'Crypto', price: '$217.18', change: -0.91, marketCap: '$105.6B', range: '$79.22 – $264.38', description: 'Solana is a blockchain network asset shown here using simulated prices.', colors: ['#4B286B', '#57D0A4'] },
-  { id: 'xrp', name: 'XRP', ticker: 'XRP', type: 'Crypto', price: '$2.41', change: 0.67, marketCap: '$138.9B', range: '$0.39 – $2.87', description: 'XRP is a digital asset displayed with entirely local sample information.', colors: ['#314658', '#7DA0B8'] },
-];
-
-const WATCHLIST = ASSETS.slice(0, 5);
-const CRYPTO = ASSETS.filter((asset) => asset.type === 'Crypto');
-
-const INDEXES = [
-  { name: 'S&P 500', value: '5,998.74', points: '+26.12', change: 0.44, trend: [4, 6, 5, 7, 8, 7, 10, 12] },
-  { name: 'Dow Jones', value: '43,612.08', points: '-84.21', change: -0.19, trend: [11, 10, 12, 9, 8, 7, 8, 6] },
-  { name: 'Nasdaq', value: '19,215.44', points: '+122.18', change: 0.64, trend: [5, 6, 8, 7, 10, 9, 12, 14] },
-  { name: 'Russell 2000', value: '2,327.05', points: '-7.31', change: -0.31, trend: [12, 11, 9, 10, 8, 9, 7, 6] },
-];
-
 const NEWS: NewsStory[] = [
   { id: 'rates', headline: 'Markets weigh the latest signals on interest rates', source: 'Market Brief', time: '14m ago', category: 'Economy', colors: ['#234B58', '#64A7A2'] },
   { id: 'chips', headline: 'Chipmakers lead as technology shares regain momentum', source: 'Closing Bell', time: '38m ago', category: 'Technology', colors: ['#344170', '#7588D0'] },
@@ -153,28 +126,46 @@ export default function FinanceScreen() {
   const [query, setQuery] = useState('');
   const [portfolioPeriod, setPortfolioPeriod] = useState<Period>('1M');
   const [assetPeriod, setAssetPeriod] = useState<Period>('1D');
-  const [selectedAsset, setSelectedAsset] = useState<Asset>(WATCHLIST[0]);
+  const [assets, setAssets] = useState<FinanceAsset[]>(MOCK_FINANCE_ASSETS);
+  const [indexes, setIndexes] = useState<FinanceMarketIndex[]>(MOCK_FINANCE_INDEXES);
+  const [financeProvenance, setFinanceProvenance] = useState<FinanceDataProvenance>('unavailable');
+  const [selectedAsset, setSelectedAsset] = useState<FinanceAsset>(MOCK_FINANCE_ASSETS[0]);
   const [favorites, setFavorites] = useState<string[]>(['aapl', 'nvda']);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadFinance = async () => {
+    setIsLoading(true);
+    setError(null);
+    const result = await getMarketData();
+    setFinanceProvenance(result.provenance);
+    if (result.provenance === 'unavailable') setError(result.error);
+    else {
+      setAssets(result.data.assets);
+      setIndexes(result.data.indexes);
+      setSelectedAsset((current) => result.data.assets.find((asset) => asset.id === current.id) ?? result.data.assets[0] ?? current);
+    }
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 540);
-    return () => clearTimeout(timer);
+    void loadFinance();
   }, []);
 
+  const watchlist = useMemo(() => assets.filter((asset) => asset.assetType === 'Stock').slice(0, 5), [assets]);
+  const crypto = useMemo(() => assets.filter((asset) => asset.assetType === 'Crypto'), [assets]);
+
   const searchResults = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return normalized ? ASSETS.filter((asset) => `${asset.name} ${asset.ticker} ${asset.type}`.toLowerCase().includes(normalized)) : [];
-  }, [query]);
+    return searchFinanceAssets(assets, query);
+  }, [assets, query]);
 
   const toggle = (id: string, setter: Dispatch<SetStateAction<string[]>>) => {
     setter((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   };
 
   if (isLoading) return <ScreenState loading title="Loading your money hub" copy="Preparing simulated market data…" />;
-  if (error) return <ScreenState title="Finance is unavailable" copy={error} action="Try again" onAction={() => { setError(null); setIsLoading(true); setTimeout(() => setIsLoading(false), 450); }} />;
+  if (error) return <ScreenState title="Finance is unavailable" copy={error} action="Try again" onAction={() => { void loadFinance(); }} />;
 
   return (
     <ScrollView
@@ -189,6 +180,8 @@ export default function FinanceScreen() {
 
       <MarketHoursCard isDesktop={isDesktop} />
 
+      {financeProvenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED MARKET DATA</Text> : null}
+
       <View style={styles.searchBar}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Search stocks, ETFs, crypto" autoCapitalize="characters" autoCorrect={false} onChangeText={setQuery} placeholder="Search stocks, ETFs, crypto" placeholderTextColor="#7E8793" returnKeyType="search" style={styles.searchInput} value={query} />{query.length > 0 && <Pressable accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}><Text style={styles.clearIcon}>×</Text></Pressable>}</View>
 
       {query.trim() ? (
@@ -197,13 +190,13 @@ export default function FinanceScreen() {
         <>
           <PortfolioCard period={portfolioPeriod} onPeriod={setPortfolioPeriod} chartWidth={chartWidth} />
 
-          <View style={styles.section}><SectionHeader title="Market Indexes" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{INDEXES.map((index) => <IndexCard key={index.name} index={index} />)}</ScrollView></View>
+          <View style={styles.section}><SectionHeader title="Market Indexes" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{indexes.map((index) => <IndexCard key={index.id} index={index} />)}</ScrollView></View>
 
-          <View style={styles.section}><SectionHeader title="Watchlist" /><View style={styles.listCard}>{WATCHLIST.map((asset, index) => <View key={asset.id}><WatchlistRow asset={asset} favorite={favorites.includes(asset.id)} onSelect={() => setSelectedAsset(asset)} onFavorite={() => toggle(asset.id, setFavorites)} />{index < WATCHLIST.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
+          <View style={styles.section}><SectionHeader title="Watchlist" /><View style={styles.listCard}>{watchlist.map((asset, index) => <View key={asset.id}><WatchlistRow asset={asset} favorite={favorites.includes(asset.id)} onSelect={() => setSelectedAsset(asset)} onFavorite={() => toggle(asset.id, setFavorites)} />{index < watchlist.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
 
           <View style={styles.section}><SectionHeader title="Asset Snapshot" /><AssetDetail asset={selectedAsset} period={assetPeriod} onPeriod={setAssetPeriod} chartWidth={chartWidth} /></View>
 
-          <View style={styles.section}><SectionHeader title="Crypto" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{CRYPTO.map((asset) => <CryptoCard key={asset.id} asset={asset} onPress={() => setSelectedAsset(asset)} />)}</ScrollView></View>
+          <View style={styles.section}><SectionHeader title="Crypto" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{crypto.map((asset) => <CryptoCard key={asset.id} asset={asset} onPress={() => setSelectedAsset(asset)} />)}</ScrollView></View>
 
           <View style={styles.section}><SectionHeader title="Market News" /><View style={styles.newsCard}>{NEWS.map((story, index) => <View key={story.id}><NewsRow story={story} saved={bookmarks.includes(story.id)} onBookmark={() => toggle(story.id, setBookmarks)} />{index < NEWS.length - 1 && <View style={styles.newsDivider} />}</View>)}</View></View>
 
@@ -358,29 +351,29 @@ function MiniTrend({ values, positive }: { values: number[]; positive: boolean }
   return <View style={styles.miniTrend}>{values.map((value, index) => <View key={index} style={[styles.miniBar, !positive && styles.miniBarNegative, { height: 5 + (value / max) * 24 }]} />)}</View>;
 }
 
-function IndexCard({ index }: { index: typeof INDEXES[number] }) {
-  const positive = index.change >= 0;
-  return <View style={styles.indexCard}><Text style={styles.indexName}>{index.name}</Text><Text style={styles.indexValue}>{index.value}</Text><View style={styles.indexBottom}><View><Text style={[styles.marketChange, !positive && styles.negative]}>{index.points}</Text><Text style={[styles.marketPercent, !positive && styles.negative]}>{positive ? '+' : ''}{index.change.toFixed(2)}%</Text></View><MiniTrend values={index.trend} positive={positive} /></View></View>;
+function IndexCard({ index }: { index: FinanceMarketIndex }) {
+  const positive = index.dailyChangePercent >= 0;
+  return <View style={styles.indexCard}><Text style={styles.indexName}>{index.name}</Text><Text style={styles.indexValue}>{index.displayValue}</Text><View style={styles.indexBottom}><View><Text style={[styles.marketChange, !positive && styles.negative]}>{index.dailyChangeDisplay}</Text><Text style={[styles.marketPercent, !positive && styles.negative]}>{positive ? '+' : ''}{index.dailyChangePercent.toFixed(2)}%</Text></View><MiniTrend values={index.trend} positive={positive} /></View></View>;
 }
 
-function AssetLogo({ asset, size = 42 }: { asset: Asset; size?: number }) {
-  return <View style={[styles.assetLogo, { width: size, height: size, borderRadius: size / 2, backgroundColor: asset.colors[0], borderColor: asset.colors[1] }]}><Text style={[styles.assetLogoText, { fontSize: size * 0.25 }]}>{asset.ticker.slice(0, 3)}</Text></View>;
+function AssetLogo({ asset, size = 42 }: { asset: FinanceAsset; size?: number }) {
+  return <View style={[styles.assetLogo, { width: size, height: size, borderRadius: size / 2, backgroundColor: asset.colors[0], borderColor: asset.colors[1] }]}><Text style={[styles.assetLogoText, { fontSize: size * 0.25 }]}>{asset.symbol.slice(0, 3)}</Text></View>;
 }
 
-function WatchlistRow({ asset, favorite, onSelect, onFavorite }: { asset: Asset; favorite: boolean; onSelect: () => void; onFavorite: () => void }) {
-  const positive = asset.change >= 0;
-  return <View style={styles.watchRow}><Pressable onPress={onSelect} style={({ pressed }) => [styles.watchMain, pressed && styles.cardPressed]}><AssetLogo asset={asset} /><View style={styles.watchName}><Text style={styles.assetName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.ticker} · {asset.type}</Text></View><MiniTrend values={positive ? [4, 6, 5, 8, 7, 10] : [10, 8, 9, 6, 7, 4]} positive={positive} /><View style={styles.watchPrice}><Text style={styles.priceText}>{asset.price}</Text><Text style={[styles.changeText, !positive && styles.negative]}>{positive ? '+' : ''}{asset.change.toFixed(2)}%</Text></View></Pressable><Pressable accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${asset.name} favorite`} onPress={onFavorite} style={({ pressed }) => [styles.starButton, favorite && styles.starActive, pressed && styles.pressed]}><Text style={[styles.starText, favorite && styles.starTextActive]}>★</Text></Pressable></View>;
+function WatchlistRow({ asset, favorite, onSelect, onFavorite }: { asset: FinanceAsset; favorite: boolean; onSelect: () => void; onFavorite: () => void }) {
+  const positive = asset.dailyChangePercent >= 0;
+  return <View style={styles.watchRow}><Pressable onPress={onSelect} style={({ pressed }) => [styles.watchMain, pressed && styles.cardPressed]}><AssetLogo asset={asset} /><View style={styles.watchName}><Text style={styles.assetName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.symbol} · {asset.assetType}</Text></View><MiniTrend values={positive ? [4, 6, 5, 8, 7, 10] : [10, 8, 9, 6, 7, 4]} positive={positive} /><View style={styles.watchPrice}><Text style={styles.priceText}>{asset.displayValue}</Text><Text style={[styles.changeText, !positive && styles.negative]}>{positive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%</Text></View></Pressable><Pressable accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${asset.name} favorite`} onPress={onFavorite} style={({ pressed }) => [styles.starButton, favorite && styles.starActive, pressed && styles.pressed]}><Text style={[styles.starText, favorite && styles.starTextActive]}>★</Text></Pressable></View>;
 }
 
-function AssetDetail({ asset, period, onPeriod, chartWidth }: { asset: Asset; period: Period; onPeriod: (period: Period) => void; chartWidth: number }) {
-  const positive = asset.change >= 0;
+function AssetDetail({ asset, period, onPeriod, chartWidth }: { asset: FinanceAsset; period: Period; onPeriod: (period: Period) => void; chartWidth: number }) {
+  const positive = asset.dailyChangePercent >= 0;
   const data = positive ? CHART_DATA[period] : [...CHART_DATA[period]].reverse();
-  return <View style={styles.assetCard}><View style={styles.assetHeader}><View style={styles.assetIdentity}><AssetLogo asset={asset} size={50} /><View><Text style={styles.assetDetailName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.ticker} · {asset.type}</Text></View></View><View><Text style={styles.assetDetailPrice}>{asset.price}</Text><Text style={[styles.assetDetailChange, !positive && styles.negative]}>{positive ? '+' : ''}{asset.change.toFixed(2)}% today</Text></View></View><ScrollView horizontal showsHorizontalScrollIndicator={false}><ViewLineChart data={data} width={chartWidth} positive={positive} height={112} /></ScrollView><PeriodSelector value={period} onChange={onPeriod} /><View style={styles.assetStats}><View><Text style={styles.statLabel}>MARKET CAP</Text><Text style={styles.statValue}>{asset.marketCap}</Text></View><View><Text style={styles.statLabel}>52-WEEK RANGE</Text><Text style={styles.statValue}>{asset.range}</Text></View></View><Text style={styles.assetDescription}>{asset.description}</Text><Pressable onPress={() => Alert.alert(asset.name, 'A full asset details experience is coming soon.')} style={({ pressed }) => [styles.detailsButton, pressed && styles.pressed]}><Text style={styles.detailsText}>View details</Text></Pressable></View>;
+  return <View style={styles.assetCard}><View style={styles.assetHeader}><View style={styles.assetIdentity}><AssetLogo asset={asset} size={50} /><View><Text style={styles.assetDetailName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.symbol} · {asset.assetType}</Text></View></View><View><Text style={styles.assetDetailPrice}>{asset.displayValue}</Text><Text style={[styles.assetDetailChange, !positive && styles.negative]}>{positive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}% today</Text></View></View><ScrollView horizontal showsHorizontalScrollIndicator={false}><ViewLineChart data={data} width={chartWidth} positive={positive} height={112} /></ScrollView><PeriodSelector value={period} onChange={onPeriod} /><View style={styles.assetStats}><View><Text style={styles.statLabel}>MARKET CAP</Text><Text style={styles.statValue}>{asset.marketCap}</Text></View><View><Text style={styles.statLabel}>52-WEEK RANGE</Text><Text style={styles.statValue}>{asset.range}</Text></View></View><Text style={styles.assetDescription}>{asset.description}</Text><Pressable onPress={() => Alert.alert(asset.name, 'A full asset details experience is coming soon.')} style={({ pressed }) => [styles.detailsButton, pressed && styles.pressed]}><Text style={styles.detailsText}>View details</Text></Pressable></View>;
 }
 
-function CryptoCard({ asset, onPress }: { asset: Asset; onPress: () => void }) {
-  const positive = asset.change >= 0;
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.cryptoCard, pressed && styles.cardPressed]}><View style={styles.cryptoTop}><AssetLogo asset={asset} /><Text style={[styles.trendArrow, !positive && styles.negative]}>{positive ? '↗' : '↘'}</Text></View><Text style={styles.cryptoName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.ticker}</Text><Text style={styles.cryptoPrice}>{asset.price}</Text><Text style={[styles.changeText, !positive && styles.negative]}>{positive ? '+' : ''}{asset.change.toFixed(2)}%</Text></Pressable>;
+function CryptoCard({ asset, onPress }: { asset: FinanceAsset; onPress: () => void }) {
+  const positive = asset.dailyChangePercent >= 0;
+  return <Pressable onPress={onPress} style={({ pressed }) => [styles.cryptoCard, pressed && styles.cardPressed]}><View style={styles.cryptoTop}><AssetLogo asset={asset} /><Text style={[styles.trendArrow, !positive && styles.negative]}>{positive ? '↗' : '↘'}</Text></View><Text style={styles.cryptoName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.symbol}</Text><Text style={styles.cryptoPrice}>{asset.displayValue}</Text><Text style={[styles.changeText, !positive && styles.negative]}>{positive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%</Text></Pressable>;
 }
 
 function NewsRow({ story, saved, onBookmark }: { story: NewsStory; saved: boolean; onBookmark: () => void }) {
@@ -395,8 +388,8 @@ function SpendingCategory({ name, amount, color }: { name: string; amount: strin
   return <View style={styles.spendingCategory}><View style={[styles.categoryDot, { backgroundColor: color }]} /><View><Text style={styles.categoryName}>{name}</Text><Text style={styles.categoryAmount}>{amount}</Text></View></View>;
 }
 
-function SearchResults({ results, query, onSelect }: { results: Asset[]; query: string; onSelect: (asset: Asset) => void }) {
-  return <View style={styles.searchResults}><Text style={styles.sectionTitle}>Search results</Text>{results.length === 0 ? <EmptyState title={`No matches for “${query}”`} copy="Try a company, ticker, ETF, or crypto asset." /> : <View style={styles.listCard}>{results.map((asset, index) => <View key={asset.id}><Pressable onPress={() => onSelect(asset)} style={({ pressed }) => [styles.searchRow, pressed && styles.cardPressed]}><AssetLogo asset={asset} /><View style={styles.watchName}><Text style={styles.assetName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.ticker} · {asset.type}</Text></View><View style={styles.watchPrice}><Text style={styles.priceText}>{asset.price}</Text><Text style={[styles.changeText, asset.change < 0 && styles.negative]}>{asset.change >= 0 ? '+' : ''}{asset.change.toFixed(2)}%</Text></View></Pressable>{index < results.length - 1 && <View style={styles.divider} />}</View>)}</View>}</View>;
+function SearchResults({ results, query, onSelect }: { results: FinanceAsset[]; query: string; onSelect: (asset: FinanceAsset) => void }) {
+  return <View style={styles.searchResults}><Text style={styles.sectionTitle}>Search results</Text>{results.length === 0 ? <EmptyState title={`No matches for “${query}”`} copy="Try a company, symbol, ETF, index, crypto asset, or bond." /> : <View style={styles.listCard}>{results.map((asset, index) => <View key={asset.id}><Pressable onPress={() => onSelect(asset)} style={({ pressed }) => [styles.searchRow, pressed && styles.cardPressed]}><AssetLogo asset={asset} /><View style={styles.watchName}><Text style={styles.assetName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.symbol} · {asset.assetType}</Text></View><View style={styles.watchPrice}><Text style={styles.priceText}>{asset.displayValue}</Text><Text style={[styles.changeText, asset.dailyChangePercent < 0 && styles.negative]}>{asset.dailyChangePercent >= 0 ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%</Text></View></Pressable>{index < results.length - 1 && <View style={styles.divider} />}</View>)}</View>}</View>;
 }
 
 function EmptyState({ title, copy }: { title: string; copy: string }) {
@@ -420,6 +413,7 @@ const styles = StyleSheet.create({
   profileText: { color: '#ECF2F8', fontSize: 12, fontWeight: '900' },
   settingsButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#171D25', borderWidth: 1, borderColor: '#29333E', alignItems: 'center', justifyContent: 'center' },
   settingsIcon: { color: '#69E08C', fontSize: 11 },
+  simulatedDataLabel: { color: '#697582', fontSize: 8, fontWeight: '900', letterSpacing: 0.9, marginBottom: 10, textAlign: 'right' },
   marketHoursCard: { backgroundColor: '#141A21', borderWidth: 1, borderColor: '#2D3742', borderRadius: 20, padding: 20, marginBottom: 18 },
   marketHoursGrid: { flexDirection: 'row', gap: 22 },
   marketHoursGridMobile: { flexDirection: 'column', gap: 18 },

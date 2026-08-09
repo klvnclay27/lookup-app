@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getEntertainment } from '@/services/entertainment';
 import { DAILY_INTELLIGENCE_TEST_SCENARIOS, generateDailyIntelligence, generateDailyIntelligenceTestSnapshot, getDailyIntelligence, type DailyIntelligenceInput, type DailyIntelligenceSnapshot, type DailyIntelligenceTestScenario } from '@/services/daily-intelligence';
-import { getFinance } from '@/services/finance';
+import { getFinance, getFinanceSummary } from '@/services/finance';
 import { getMusic } from '@/services/music';
 
 type IconName = SymbolViewProps['name'];
@@ -53,7 +53,7 @@ export default function HomeScreen() {
   const [condition, setCondition] = useState('Weather loading');
   const [loading, setLoading] = useState(true);
   const [commute, setCommute] = useState('Live traffic data not connected');
-  const [market, setMarket] = useState('S&P +0.8%');
+  const [market, setMarket] = useState('Market data not connected');
   const [playlist, setPlaylist] = useState('Daily Mix');
   const [movie, setMovie] = useState('Top entertainment story');
   const [tracks, setTracks] = useState<string[]>([]);
@@ -87,7 +87,10 @@ export default function HomeScreen() {
             setCommute(data.sources.traffic?.commute ?? 'Live traffic data not connected');
             setGames(data.sources.sports?.games ?? []);
           }),
-          getFinance().then((data) => setMarket(data.market)).catch(() => setMarket('Market unavailable')),
+          getFinance().then((result) => {
+            const summary = getFinanceSummary(result);
+            setMarket(summary?.market ?? (result.provenance === 'mock' ? 'Simulated market preview' : 'Market unavailable'));
+          }).catch(() => setMarket('Market unavailable')),
           getEntertainment().then((data) => setMovie(data.movie)).catch(() => setMovie('Entertainment unavailable')),
           getMusic().then((data) => { setPlaylist(data.playlist); setTracks(data.tracks); }).catch(() => { setPlaylist('Music unavailable'); setTracks([]); }),
         ]);
@@ -200,7 +203,7 @@ export default function HomeScreen() {
       </Pressable>
       <View style={styles.heroSide}>
         <Pressable onPress={() => router.push('/traffic')} style={({ pressed }) => [styles.miniHero, styles.trafficHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[1].tint }]}><Icon color={ACTIONS[1].color} name={ACTIONS[1].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>TRAFFIC TO WORK</Text><Text style={styles.miniValue}>{commute}</Text><Text style={styles.miniMeta}>{hasLiveTraffic ? 'Current commute information' : 'Connect a live traffic source for updates'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
-        <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>Markets trending higher</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+        <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>Open Finance for the simulated MVP preview</Text></View><Text style={styles.arrow}>›</Text></Pressable>
       </View>
     </View>
 
@@ -218,7 +221,7 @@ export default function HomeScreen() {
     <View style={[styles.bottomGrid, !desktop && styles.stack]}>
       <View style={styles.bottomPanel}><SectionHeader action="See all" label="SPORTS" title="Upcoming Games" />{(games.length ? games.slice(0, 2) : ['Live sports data not connected']).map((game, index) => <Pressable key={`${game}-${index}`} onPress={() => router.push('/sports')} style={({ pressed }) => [styles.gameRow, pressed && styles.rowPressed]}><View style={styles.teamBadge}><Text style={styles.teamBadgeText}>{hasLiveSports ? 'GAME' : '—'}</Text></View><View style={styles.gameCopy}><Text numberOfLines={1} style={styles.gameTitle}>{game}</Text><Text style={styles.gameTime}>{hasLiveSports ? 'Sports schedule' : 'Connect a live source to see upcoming games'}</Text></View><Text style={styles.chevron}>›</Text></Pressable>)}</View>
       <View style={styles.bottomPanel}><SectionHeader label="SCHEDULE" title="Your Day" />{[['Weather', hasLiveWeather ? `${temperature}° · ${condition}` : 'Live weather data unavailable'], ['Calendar', displayedCalendarEvent?.title ?? 'No live calendar data connected'], ['Traffic', hasLiveTraffic ? commute : 'Live traffic data not connected'], ['Sports', games[0] ?? 'Live sports data not connected'], ['Music', 'Open Music for your local listening preview']].map(([title, value], index) => <View key={title} style={styles.timelineRow}><View style={styles.timelineRail}><View style={[styles.timelineDot, index === 0 && styles.timelineDotActive]} />{index < 4 ? <View style={styles.timelineLine} /> : null}</View><Text style={styles.timelineTitle}>{title}</Text><Text style={styles.timelineValue}>{value}</Text></View>)}</View>
-      <View style={styles.bottomPanel}><SectionHeader label="LIVE PREVIEW" title="Market Movers" />{MARKET_MOVERS.map((stock) => <Pressable key={stock.symbol} onPress={() => router.push('/finance')} style={({ pressed }) => [styles.stockRow, pressed && styles.rowPressed]}><View><Text style={styles.stockSymbol}>{stock.symbol}</Text><Text style={styles.stockCompany}>{stock.company}</Text></View><Text style={[styles.stockMove, !stock.up && styles.stockDown]}>{stock.value}</Text></Pressable>)}</View>
+      <View style={styles.bottomPanel}><SectionHeader label="SIMULATED PREVIEW" title="Market Movers" />{MARKET_MOVERS.map((stock) => <Pressable key={stock.symbol} onPress={() => router.push('/finance')} style={({ pressed }) => [styles.stockRow, pressed && styles.rowPressed]}><View><Text style={styles.stockSymbol}>{stock.symbol}</Text><Text style={styles.stockCompany}>{stock.company}</Text></View><Text style={[styles.stockMove, !stock.up && styles.stockDown]}>{stock.value}</Text></Pressable>)}</View>
     </View>
     </ScrollView>
   </View>;
