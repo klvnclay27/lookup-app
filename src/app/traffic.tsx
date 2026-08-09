@@ -12,75 +12,28 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getTraffic, MOCK_SUBWAY_COMMUTES, type TrafficDataProvenance } from '@/services/traffic';
+import {
+  getTraffic,
+  MOCK_FLIGHTS,
+  MOCK_ROAD_DESTINATIONS,
+  MOCK_ROAD_INCIDENTS,
+  MOCK_SUBWAY_COMMUTES,
+  searchFlights as filterFlights,
+  type AirportWeather,
+  type FlightData as Flight,
+  type FlightStatus,
+  type RoadDestination as Destination,
+  type RoadIncident as Incident,
+  type TrafficDataProvenance,
+  type TravelMode,
+} from '@/services/traffic';
 
-type TravelMode = 'Drive' | 'Transit' | 'Walk' | 'Bike';
-type TrafficLevel = 'Light' | 'Moderate' | 'Heavy';
 type HubMode = 'Road' | 'Flights';
-type FlightStatus = 'On Time' | 'Delayed' | 'Boarding' | 'Landed';
-
-type AirportWeather = {
-  temperature: string;
-  condition: string;
-  precipitation: string;
-  wind: string;
-};
-
-type Flight = {
-  id: string;
-  airline: string;
-  number: string;
-  origin: { code: string; city: string; weather: AirportWeather };
-  destination: { code: string; city: string; weather: AirportWeather };
-  departure: string;
-  arrival: string;
-  terminal: string;
-  gate: string;
-  duration: string;
-  status: FlightStatus;
-  timezoneDifference: string;
-  delayLevel: string;
-  destinationDrive: string;
-  packingSuggestion: string;
-  clothing: string[];
-  reminder?: string;
-};
-
-type Destination = {
-  id: string;
-  name: string;
-  address: string;
-  icon: string;
-  condition: TrafficLevel;
-  modes: Record<TravelMode, { time: string; distance: string; arrival: string; route: string }>;
-};
-
-type Incident = {
-  id: string;
-  icon: string;
-  road: string;
-  description: string;
-  distance: string;
-  severity: 'Low' | 'Medium' | 'High' | 'Severe';
-  delay: string;
-};
 
 const MODES: TravelMode[] = ['Drive', 'Transit', 'Walk', 'Bike'];
 
-const DESTINATIONS: Destination[] = [
-  { id: 'home', name: 'Home', address: '128 W 74th St, Manhattan', icon: 'H', condition: 'Moderate', modes: { Drive: { time: '28 min', distance: '8.4 mi', arrival: '12:18 PM', route: 'FDR Drive via E 96th St' }, Transit: { time: '36 min', distance: '7 stops', arrival: '12:26 PM', route: '4 train → 2 train' }, Walk: { time: '2 hr 18 min', distance: '6.7 mi', arrival: '2:08 PM', route: 'Lexington Ave → Central Park W' }, Bike: { time: '46 min', distance: '7.2 mi', arrival: '12:36 PM', route: 'East River Greenway' } } },
-  { id: 'work', name: 'Work', address: '11 Madison Ave, Manhattan', icon: 'W', condition: 'Heavy', modes: { Drive: { time: '34 min', distance: '7.8 mi', arrival: '12:24 PM', route: 'FDR Drive → E 23rd St' }, Transit: { time: '29 min', distance: '6 stops', arrival: '12:19 PM', route: '6 train to 23rd St' }, Walk: { time: '1 hr 42 min', distance: '5.1 mi', arrival: '1:32 PM', route: 'Park Ave southbound' }, Bike: { time: '39 min', distance: '5.8 mi', arrival: '12:29 PM', route: '2nd Ave bike lane' } } },
-  { id: 'gym', name: 'Gym', address: '250 Mercer St, Manhattan', icon: 'G', condition: 'Light', modes: { Drive: { time: '22 min', distance: '5.9 mi', arrival: '12:12 PM', route: 'FDR Drive → Houston St' }, Transit: { time: '31 min', distance: '5 stops', arrival: '12:21 PM', route: '6 train to Bleecker St' }, Walk: { time: '1 hr 25 min', distance: '4.2 mi', arrival: '1:15 PM', route: 'Broadway southbound' }, Bike: { time: '31 min', distance: '4.7 mi', arrival: '12:21 PM', route: 'Broadway protected lanes' } } },
-  { id: 'restaurant', name: 'Favorite Restaurant', address: '42 Grove St, West Village', icon: 'R', condition: 'Moderate', modes: { Drive: { time: '31 min', distance: '6.3 mi', arrival: '12:21 PM', route: 'FDR Drive → Houston St' }, Transit: { time: '38 min', distance: '8 stops', arrival: '12:28 PM', route: 'A train to W 4th St' }, Walk: { time: '1 hr 51 min', distance: '5.5 mi', arrival: '1:41 PM', route: '5th Ave → Greenwich Ave' }, Bike: { time: '37 min', distance: '5.4 mi', arrival: '12:27 PM', route: 'Hudson River Greenway' } } },
-  { id: 'museum', name: 'Metropolitan Museum', address: '1000 5th Ave, Manhattan', icon: 'M', condition: 'Light', modes: { Drive: { time: '14 min', distance: '2.8 mi', arrival: '12:04 PM', route: '5th Ave northbound' }, Transit: { time: '24 min', distance: '3 stops', arrival: '12:14 PM', route: '4 train → M86 bus' }, Walk: { time: '43 min', distance: '2.1 mi', arrival: '12:33 PM', route: 'Madison Ave → E 82nd St' }, Bike: { time: '18 min', distance: '2.4 mi', arrival: '12:08 PM', route: 'Central Park loop' } } },
-];
-
-const INCIDENTS: Incident[] = [
-  { id: 'accident', icon: '!', road: 'FDR Drive · E 71st St', description: 'Two-vehicle accident blocking the right lane', distance: '1.2 mi away', severity: 'High', delay: '+12 min' },
-  { id: 'construction', icon: '◇', road: '2nd Ave · E 42nd St', description: 'Night construction with one lane restricted', distance: '2.8 mi away', severity: 'Medium', delay: '+6 min' },
-  { id: 'closure', icon: '×', road: 'W 34th St · 7th Ave', description: 'Road closed for a scheduled public event', distance: '3.4 mi away', severity: 'Severe', delay: '+18 min' },
-  { id: 'congestion', icon: '≈', road: 'Brooklyn Bridge', description: 'Heavy congestion approaching Manhattan', distance: '4.1 mi away', severity: 'Medium', delay: '+9 min' },
-];
+const DESTINATIONS = MOCK_ROAD_DESTINATIONS;
+const INCIDENTS = MOCK_ROAD_INCIDENTS;
 
 const TRANSIT = MOCK_SUBWAY_COMMUTES.map((train) => ({
   line: train.line,
@@ -96,12 +49,7 @@ const HISTORY = [
   { destination: DESTINATIONS[0], day: 'Sunday', time: '35 min', level: 'Moderate', mode: 'Transit' as TravelMode },
 ];
 
-const FLIGHTS: Flight[] = [
-  { id: 'dl2451', airline: 'Delta Air Lines', number: 'DL2451', origin: { code: 'JFK', city: 'New York', weather: { temperature: '72°', condition: 'Partly cloudy', precipitation: '20%', wind: 'SW 9 mph' } }, destination: { code: 'MIA', city: 'Miami', weather: { temperature: '86°', condition: 'Warm and sunny', precipitation: '10%', wind: 'E 12 mph' } }, departure: '2:35 PM', arrival: '5:48 PM', terminal: '4', gate: 'B31', duration: '3h 13m', status: 'On Time', timezoneDifference: 'Same time zone', delayLevel: 'Low', destinationDrive: '24 min to downtown', packingSuggestion: 'Light layers and breathable shoes', clothing: ['Tops', 'Shoes', 'Accessories'] },
-  { id: 'aa118', airline: 'American Airlines', number: 'AA118', origin: { code: 'JFK', city: 'New York', weather: { temperature: '72°', condition: 'Partly cloudy', precipitation: '20%', wind: 'SW 9 mph' } }, destination: { code: 'LHR', city: 'London', weather: { temperature: '58°', condition: 'Light rain', precipitation: '70%', wind: 'W 14 mph' } }, departure: '6:20 PM', arrival: '6:30 AM', terminal: '8', gate: '12', duration: '7h 10m', status: 'Boarding', timezoneDifference: '+5 hours', delayLevel: 'Moderate', destinationDrive: '45 min to central London', packingSuggestion: 'Waterproof jacket and umbrella', clothing: ['Outerwear', 'Bottoms', 'Shoes'], reminder: 'Umbrella recommended' },
-  { id: 'ua205', airline: 'United Airlines', number: 'UA205', origin: { code: 'EWR', city: 'Newark', weather: { temperature: '70°', condition: 'Cloudy', precipitation: '25%', wind: 'W 11 mph' } }, destination: { code: 'SFO', city: 'San Francisco', weather: { temperature: '62°', condition: 'Cool and breezy', precipitation: '15%', wind: 'W 18 mph' } }, departure: '9:10 AM', arrival: '12:24 PM', terminal: 'C', gate: 'C74', duration: '6h 14m', status: 'Delayed', timezoneDifference: '-3 hours', delayLevel: 'High', destinationDrive: '32 min to downtown', packingSuggestion: 'Layered top, light coat, and closed-toe shoes', clothing: ['Outerwear', 'Tops', 'Shoes'], reminder: 'Light coat recommended' },
-  { id: 'b61204', airline: 'JetBlue', number: 'B61204', origin: { code: 'JFK', city: 'New York', weather: { temperature: '72°', condition: 'Partly cloudy', precipitation: '20%', wind: 'SW 9 mph' } }, destination: { code: 'BOS', city: 'Boston', weather: { temperature: '66°', condition: 'Clear', precipitation: '5%', wind: 'NW 8 mph' } }, departure: '7:05 AM', arrival: '8:19 AM', terminal: '5', gate: '22', duration: '1h 14m', status: 'Landed', timezoneDifference: 'Same time zone', delayLevel: 'Low', destinationDrive: '18 min to downtown', packingSuggestion: 'Comfortable layers and walking shoes', clothing: ['Tops', 'Bottoms', 'Shoes'] },
-];
+const FLIGHTS = MOCK_FLIGHTS;
 
 export default function TrafficScreen() {
   const insets = useSafeAreaInsets();
@@ -115,6 +63,10 @@ export default function TrafficScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trafficProvenance, setTrafficProvenance] = useState<TrafficDataProvenance>('unavailable');
+  const [roadDestinations, setRoadDestinations] = useState<Destination[]>(DESTINATIONS);
+  const [roadIncidents, setRoadIncidents] = useState<Incident[]>(INCIDENTS);
+  const [nearbyTransit, setNearbyTransit] = useState(TRANSIT);
+  const [flights, setFlights] = useState<Flight[]>(FLIGHTS);
   const [flightQuery, setFlightQuery] = useState('');
   const [submittedFlightQuery, setSubmittedFlightQuery] = useState('');
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
@@ -129,7 +81,21 @@ export default function TrafficScreen() {
 
     const result = await getTraffic();
     setTrafficProvenance(result.provenance);
-    if (result.provenance === 'unavailable') setError(result.error);
+    if (result.provenance === 'unavailable') {
+      setError(result.error);
+    } else {
+      setRoadDestinations(result.data.roadDestinations);
+      setRoadIncidents(result.data.roadIncidents);
+      setNearbyTransit(result.data.subwayCommutes.map((train) => ({
+        line: train.line,
+        station: `${train.station} · ${train.direction}`,
+        arrival: train.estimatedArrival,
+        status: train.status,
+        color: train.status === 'Good Service' ? '#2A9D55' : '#C98B38',
+      })));
+      setFlights(result.data.flights);
+      setSelectedDestination((current) => result.data.roadDestinations.find((place) => place.id === current.id) ?? result.data.roadDestinations[0] ?? current);
+    }
     setIsLoading(false);
   };
 
@@ -139,15 +105,12 @@ export default function TrafficScreen() {
 
   const searchResults = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return normalized ? DESTINATIONS.filter((place) => `${place.name} ${place.address}`.toLowerCase().includes(normalized)) : [];
-  }, [query]);
+    return normalized ? roadDestinations.filter((place) => `${place.name} ${place.address}`.toLowerCase().includes(normalized)) : [];
+  }, [query, roadDestinations]);
   const flightResults = useMemo(() => {
-    const normalized = submittedFlightQuery.trim().toLowerCase();
-    return normalized
-      ? FLIGHTS.filter((flight) => `${flight.airline} ${flight.number} ${flight.origin.code} ${flight.origin.city} ${flight.destination.code} ${flight.destination.city}`.toLowerCase().includes(normalized))
-      : FLIGHTS;
-  }, [submittedFlightQuery]);
-  const savedFlights = useMemo(() => FLIGHTS.filter((flight) => savedFlightIds.includes(flight.id)), [savedFlightIds]);
+    return filterFlights(flights, submittedFlightQuery);
+  }, [flights, submittedFlightQuery]);
+  const savedFlights = useMemo(() => flights.filter((flight) => savedFlightIds.includes(flight.id)), [flights, savedFlightIds]);
 
   const selectDestination = (destination: Destination) => {
     setSelectedDestination(destination);
@@ -176,7 +139,7 @@ export default function TrafficScreen() {
     setFlightQuery(normalized);
     setSubmittedFlightQuery(normalized);
     if (normalized) setRecentFlightSearches((current) => [normalized, ...current.filter((item) => item !== normalized)].slice(0, 4));
-    const match = FLIGHTS.find((flight) => flight.number === normalized);
+    const match = flights.find((flight) => flight.number === normalized);
     if (match) setSelectedFlight(match);
   };
   const toggleSavedFlight = (flightId: string) => setSavedFlightIds((current) => current.includes(flightId) ? current.filter((id) => id !== flightId) : [...current, flightId]);
@@ -208,7 +171,7 @@ export default function TrafficScreen() {
       {hubMode === 'Road' ? <>
       <View style={styles.searchBar}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Where are you going?" autoCorrect={false} onChangeText={setQuery} placeholder="Where are you going?" placeholderTextColor="#7E8793" returnKeyType="search" style={styles.searchInput} value={query} />{query.length > 0 && <Pressable accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}><Text style={styles.clearIcon}>×</Text></Pressable>}</View>
 
-      <View style={styles.shortcuts}><Pressable onPress={() => selectDestination(DESTINATIONS[0])} style={({ pressed }) => [styles.shortcutButton, selectedDestination.id === 'home' && styles.shortcutActive, pressed && styles.pressed]}><Text style={styles.shortcutIcon}>H</Text><Text style={styles.shortcutText}>Home</Text></Pressable><Pressable onPress={() => selectDestination(DESTINATIONS[1])} style={({ pressed }) => [styles.shortcutButton, selectedDestination.id === 'work' && styles.shortcutActive, pressed && styles.pressed]}><Text style={styles.shortcutIcon}>W</Text><Text style={styles.shortcutText}>Work</Text></Pressable></View>
+      <View style={styles.shortcuts}><Pressable onPress={() => selectDestination(roadDestinations.find((place) => place.id === 'home') ?? selectedDestination)} style={({ pressed }) => [styles.shortcutButton, selectedDestination.id === 'home' && styles.shortcutActive, pressed && styles.pressed]}><Text style={styles.shortcutIcon}>H</Text><Text style={styles.shortcutText}>Home</Text></Pressable><Pressable onPress={() => selectDestination(roadDestinations.find((place) => place.id === 'work') ?? selectedDestination)} style={({ pressed }) => [styles.shortcutButton, selectedDestination.id === 'work' && styles.shortcutActive, pressed && styles.pressed]}><Text style={styles.shortcutIcon}>W</Text><Text style={styles.shortcutText}>Work</Text></Pressable></View>
 
       {query.trim() ? <DestinationResults results={searchResults} query={query.trim()} onSelect={selectDestination} /> : (
         <>
@@ -217,11 +180,11 @@ export default function TrafficScreen() {
 
           <View style={styles.section}><SectionHeader title="Commute Options" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeRow}>{MODES.map((item) => <Pressable key={item} onPress={() => selectMode(item)} style={({ pressed }) => [styles.modeButton, mode === item && styles.modeActive, pressed && styles.pressed]}><Text style={[styles.modeIcon, mode === item && styles.modeTextActive]}>{item.slice(0, 1)}</Text><Text style={[styles.modeText, mode === item && styles.modeTextActive]}>{item}</Text></Pressable>)}</ScrollView></View>
 
-          <View style={styles.section}><SectionHeader title="Saved Places" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{DESTINATIONS.slice(0, 4).map((place) => <SavedPlaceCard key={place.id} place={place} mode={mode} selected={selectedDestination.id === place.id} onPress={() => selectDestination(place)} />)}</ScrollView></View>
+          <View style={styles.section}><SectionHeader title="Saved Places" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{roadDestinations.slice(0, 4).map((place) => <SavedPlaceCard key={place.id} place={place} mode={mode} selected={selectedDestination.id === place.id} onPress={() => selectDestination(place)} />)}</ScrollView></View>
 
-          <View style={styles.section}><SectionHeader title="Traffic Incidents" /><View style={styles.listCard}>{INCIDENTS.map((incident, index) => <View key={incident.id}><IncidentRow incident={incident} />{index < INCIDENTS.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
+          <View style={styles.section}><SectionHeader title="Traffic Incidents" /><View style={styles.listCard}>{roadIncidents.map((incident, index) => <View key={incident.id}><IncidentRow incident={incident} />{index < roadIncidents.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
 
-          <View style={styles.section}><SectionHeader title="Nearby Transit" action="See schedule" /><View style={styles.listCard}>{TRANSIT.map((transit, index) => <View key={`${transit.line}-${transit.station}`}><TransitRow transit={transit} />{index < TRANSIT.length - 1 && <View style={styles.transitDivider} />}</View>)}</View><Text style={styles.simulatedLabel}>SIMULATED TRANSIT INFORMATION</Text></View>
+          <View style={styles.section}><SectionHeader title="Nearby Transit" action="See schedule" /><View style={styles.listCard}>{nearbyTransit.map((transit, index) => <View key={`${transit.line}-${transit.station}`}><TransitRow transit={transit} />{index < nearbyTransit.length - 1 && <View style={styles.transitDivider} />}</View>)}</View><Text style={styles.simulatedLabel}>SIMULATED TRANSIT INFORMATION</Text></View>
 
           <View style={styles.section}><SectionHeader title="Commute History" /><View style={styles.listCard}>{HISTORY.map((trip, index) => <View key={`${trip.destination.id}-${trip.day}`}><Pressable onPress={() => { selectDestination(trip.destination); selectMode(trip.mode); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyIcon}><Text style={styles.historyIconText}>{trip.destination.icon}</Text></View><View style={styles.historyCopy}><Text style={styles.historyDestination}>{trip.destination.name}</Text><Text style={styles.historyMeta}>{trip.day} · {trip.mode} · {trip.level} traffic</Text></View><Text style={styles.historyTime}>{trip.time}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < HISTORY.length - 1 && <View style={styles.historyDivider} />}</View>)}</View></View>
 
@@ -333,7 +296,7 @@ function FlightCard({ flight, favorite, isDesktop, onPress, onToggleSaved, selec
       <Pressable onPress={onPress} style={({ pressed }) => [styles.flightCardMain, pressed && styles.cardPressed]}>
         <View style={styles.flightCardHeader}><View><Text style={styles.flightAirline}>{flight.airline}</Text><Text style={styles.flightNumber}>{flight.number} · SIMULATED</Text></View><StatusBadge status={flight.status} /></View>
         <View style={styles.flightRoute}><AirportPoint code={flight.origin.code} city={flight.origin.city} time={flight.departure} /><View style={styles.flightPath}><View style={styles.flightPathLine} /><Text style={styles.flightPathIcon}>✈</Text><Text style={styles.flightDuration}>{flight.duration}</Text></View><AirportPoint code={flight.destination.code} city={flight.destination.city} time={flight.arrival} right /></View>
-        <View style={styles.flightMeta}><FlightMeta label="TERMINAL" value={flight.terminal} /><FlightMeta label="GATE" value={flight.gate} /><FlightMeta label="DEPARTS" value={flight.departure} /><FlightMeta label="ARRIVES" value={flight.arrival} /></View>
+        <View style={styles.flightMeta}><FlightMeta label="TERMINAL" value={flight.terminal ?? 'TBD'} /><FlightMeta label="GATE" value={flight.gate ?? 'TBD'} /><FlightMeta label="DEPARTS" value={flight.departure} /><FlightMeta label="ARRIVES" value={flight.arrival} /></View>
         <View style={[styles.airportWeatherRow, !isDesktop && styles.airportWeatherRowMobile]}><AirportWeatherCard label="Departure" airport={flight.origin.code} weather={flight.origin.weather} /><AirportWeatherCard label="Destination" airport={flight.destination.code} weather={flight.destination.weather} /></View>
       </Pressable>
       <Pressable accessibilityLabel={`${favorite ? 'Remove' : 'Save'} ${flight.number}`} onPress={onToggleSaved} style={({ pressed }) => [styles.flightBookmark, favorite && styles.flightBookmarkActive, pressed && styles.pressed]}><Text style={[styles.flightBookmarkText, favorite && styles.flightBookmarkTextActive]}>{favorite ? '★' : '☆'}</Text></Pressable>
