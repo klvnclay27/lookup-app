@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -82,6 +83,10 @@ export default function MusicScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
+  const compactTabs = width < 430;
+  const tabBarHeight = Platform.OS === 'web' ? (compactTabs ? 54 : 57) : (compactTabs ? 52 : 55);
+  const tabBarBottomOffset = Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8);
+  const playerBottom = tabBarBottomOffset + tabBarHeight + 6;
   const recentSize = isDesktop ? 156 : 136;
   const playlistWidth = isDesktop ? 232 : 212;
 
@@ -250,7 +255,7 @@ export default function MusicScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.playerDock} pointerEvents="box-none">
+      <View style={[styles.playerDock, { bottom: playerBottom }]} pointerEvents="box-none">
         <View style={styles.playerShell}>
           <View style={styles.playerRow}>
             <Pressable
