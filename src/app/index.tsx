@@ -98,7 +98,20 @@ export default function HomeScreen() {
 
   const updateIntelligencePreference = (enabled: boolean) => {
     setIntelligenceEnabled(enabled);
+    if (enabled) {
+      applyIntelligenceSnapshot({ ...generateDailyIntelligence(dailyIntelligenceBase), sources: dailyIntelligenceBase });
+    } else {
+      setTestScenario('normal');
+      applyFactualSources(dailyIntelligenceBase);
+    }
     void AsyncStorage.setItem(INTELLIGENCE_PREFERENCE_KEY, String(enabled));
+  };
+
+  const applyFactualSources = (sources: DailyIntelligenceInput) => {
+    if (sources.weather) { setTemperature(sources.weather.temperature ?? 72); setCondition(sources.weather.condition ?? 'Unknown'); }
+    else setCondition('Weather unavailable');
+    setCommute(sources.traffic?.commute ?? 'Traffic unavailable');
+    setGames(sources.sports?.games ?? ['Sports unavailable']);
   };
 
   const applyIntelligenceSnapshot = (data: DailyIntelligenceSnapshot) => {
@@ -130,13 +143,17 @@ export default function HomeScreen() {
     { category: 'ENTERTAINMENT', title: movie, time: '38 min ago', route: '/entertainment' as Href, colors: ['#F4D8ED', '#C878B6'], icon: ACTIONS[6].icon },
   ];
 
-  const intelligenceDetails = [
+  const intelligenceDetails = intelligenceEnabled ? [
     { key: 'sports', label: 'SPORTS', icon: ACTIONS[3].icon, fallbackTitle: 'Game on today', fallbackDetail: games[0] ?? 'Sports schedule unavailable', insight: dailyIntelligence.insights.find((insight) => insight.category === 'sports') },
     { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: 'Comfortable conditions', fallbackDetail: `${condition} and ${temperature}° are expected right now.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'weather') },
     { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: 'Commute check', fallbackDetail: `Current travel time is approximately ${commute}.`, insight: dailyIntelligence.insights.find((insight) => insight.category === 'transit') ?? dailyIntelligence.insights.find((insight) => insight.category === 'traffic') },
+  ] : [
+    { key: 'sports', label: 'SPORTS', icon: ACTIONS[3].icon, fallbackTitle: 'Sports update', fallbackDetail: games[0] ?? 'Sports schedule unavailable', insight: undefined },
+    { key: 'weather', label: 'WEATHER', icon: ACTIONS[0].icon, fallbackTitle: 'Current conditions', fallbackDetail: `${condition} and ${temperature}° right now.`, insight: undefined },
+    { key: 'commute', label: 'COMMUTE', icon: ACTIONS[1].icon, fallbackTitle: 'Current commute', fallbackDetail: `Travel time is ${commute}.`, insight: undefined },
   ];
   const calendarInsight = dailyIntelligence.insights.find((insight) => insight.category === 'calendar');
-  if (calendarInsight && calendarInsight.score >= 30) {
+  if (intelligenceEnabled && calendarInsight && calendarInsight.score >= 30) {
     const replacementIndex = intelligenceDetails.reduce((lowest, item, index, items) => (item.insight?.score ?? 0) < (items[lowest].insight?.score ?? 0) ? index : lowest, 0);
     intelligenceDetails[replacementIndex] = { key: 'schedule', label: 'SCHEDULE', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } as IconName, fallbackTitle: calendarInsight.title, fallbackDetail: calendarInsight.detail, insight: calendarInsight };
   }
@@ -160,10 +177,10 @@ export default function HomeScreen() {
     <View style={styles.intelligenceCard}>
       <View style={styles.intelligenceHeader}>
         <View style={styles.intelligenceIcon}><Icon color={COLORS.green} name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }} size={21} /></View>
-        <View style={styles.intelligenceHeading}><Text style={styles.intelligenceLabel}>LOOKUP DAILY INTELLIGENCE</Text>{intelligenceEnabled ? <><Text style={styles.intelligenceHeadline}>{dailyIntelligence.headline}</Text><Text style={styles.intelligenceSummary}>{dailyIntelligence.summary}</Text></> : null}</View>
+        <View style={styles.intelligenceHeading}><Text style={styles.intelligenceLabel}>LOOKUP DAILY INTELLIGENCE</Text>{intelligenceEnabled ? <><Text style={styles.intelligenceHeadline}>{dailyIntelligence.headline}</Text><Text style={styles.intelligenceSummary}>{dailyIntelligence.summary}</Text></> : <><Text style={styles.intelligenceHeadline}>Smart Mode is off</Text><Text style={styles.intelligenceSummary}>Your information is still available below.</Text></>}</View>
         <View style={styles.intelligenceToggle}><Text style={styles.intelligenceToggleLabel}>Smart Mode</Text><Switch accessibilityLabel="Toggle LookUP Intelligence" ios_backgroundColor="#C8D0D9" onValueChange={updateIntelligencePreference} thumbColor="#FFFFFF" trackColor={{ false: '#C8D0D9', true: COLORS.green }} value={intelligenceEnabled} style={styles.intelligenceSwitch} /></View>
       </View>
-      {__DEV__ ? <View style={styles.testModeRow}><Text style={styles.testModeLabel}>TEST MODE</Text><ScrollView contentContainerStyle={styles.testModeOptions} horizontal showsHorizontalScrollIndicator={false} style={styles.testModeScroller}>{DAILY_INTELLIGENCE_TEST_SCENARIOS.map((scenario) => <Pressable accessibilityRole="button" key={scenario.value} onPress={() => selectTestScenario(scenario.value)} style={({ pressed }) => [styles.testModePill, testScenario === scenario.value && styles.testModePillActive, pressed && styles.pressed]}><Text style={[styles.testModePillText, testScenario === scenario.value && styles.testModePillTextActive]}>{scenario.label}</Text></Pressable>)}</ScrollView></View> : null}
+      {__DEV__ && intelligenceEnabled ? <View style={styles.testModeRow}><Text style={styles.testModeLabel}>TEST MODE</Text><ScrollView contentContainerStyle={styles.testModeOptions} horizontal showsHorizontalScrollIndicator={false} style={styles.testModeScroller}>{DAILY_INTELLIGENCE_TEST_SCENARIOS.map((scenario) => <Pressable accessibilityRole="button" key={scenario.value} onPress={() => selectTestScenario(scenario.value)} style={({ pressed }) => [styles.testModePill, testScenario === scenario.value && styles.testModePillActive, pressed && styles.pressed]}><Text style={[styles.testModePillText, testScenario === scenario.value && styles.testModePillTextActive]}>{scenario.label}</Text></Pressable>)}</ScrollView></View> : null}
     </View>
 
     <View style={[styles.intelligenceDetails, !desktop && styles.intelligenceDetailsMobile]}>
