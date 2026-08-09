@@ -63,6 +63,7 @@ export default function GameDetails() {
   const insets = useSafeAreaInsets();
   const isDesktop = width >= 760;
   const [game, setGame] = useState<SportsGameDetails>();
+  const [loadError, setLoadError] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [section, setSection] = useState<Section>('GAMECAST');
   const [selectedPlayer, setSelectedPlayer] = useState<GameCenterPlayer>();
@@ -72,7 +73,8 @@ export default function GameDetails() {
     setLoading(true);
     getGameDetails(gameId ?? '').then((result) => {
       if (!active) return;
-      setGame(result);
+      setGame(result.data ?? undefined);
+      setLoadError(result.provenance === 'unavailable' ? result.error : undefined);
       setSelectedPlayer(undefined);
       setSection('GAMECAST');
       setLoading(false);
@@ -96,7 +98,7 @@ export default function GameDetails() {
       <View style={styles.statePage}>
         <Text style={styles.stateIcon}>!</Text>
         <Text style={styles.stateTitle}>Game unavailable</Text>
-        <Text style={styles.stateText}>We could not find details for this game.</Text>
+        <Text style={styles.stateText}>{loadError ?? 'We could not find details for this game.'}</Text>
         <Pressable onPress={backToSports} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
           <Text style={styles.primaryButtonText}>Back to Sports</Text>
         </Pressable>

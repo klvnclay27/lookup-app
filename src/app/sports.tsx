@@ -13,183 +13,42 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-type League = 'All' | 'NBA' | 'NFL' | 'MLB' | 'NHL' | 'Soccer';
-type GameStatus = 'LIVE' | 'FINAL' | 'UPCOMING';
-type OddsFormat = 'Spread' | 'Moneyline' | 'Total';
-type OddsMovement = 'up' | 'down' | 'none';
+import {
+  getGames,
+  MOCK_SPORTS_GAMES,
+  MOCK_SPORTS_FAVORITE_TEAMS,
+  MOCK_SPORTS_ODDS,
+  MOCK_SPORTS_ODDS_TEAM_META,
+  MOCK_SPORTS_STANDINGS,
+  MOCK_SPORTS_STORIES,
+  MOCK_SPORTS_TEAM_RECORDS,
+  type SportsDataProvenance,
+  type SportsGame,
+  type SportsGameId,
+  type SportsLeague,
+  type SportsOddsFormat,
+  type SportsOddsGame,
+  type SportsOddsMovement,
+  type SportsStanding,
+  type SportsStory,
+  type SportsTeam,
+} from '@/services/sports';
 
-type Team = {
-  name: string;
-  short: string;
-  colors: [string, string];
-};
-
-type Game = {
-  id: string;
-  league: Exclude<League, 'All'>;
-  status: GameStatus;
-  detail: string;
-  home: Team;
-  away: Team;
-  homeScore?: number;
-  awayScore?: number;
-  network: string;
-  venue: string;
-};
-
-type Story = {
-  id: string;
-  league: Exclude<League, 'All'>;
-  headline: string;
-  source: string;
-  time: string;
-  colors: [string, string];
-};
-
-type Standing = { team: string; short: string; wins: number; losses: number; pct: string };
-type OddsTeamMeta = { record: string; streak: string; rank: string };
-
-type OddsGame = {
-  id: string;
-  league: Exclude<League, 'All'>;
-  status: string;
-  away: Team;
-  home: Team;
-  updated: string;
-  odds: Record<OddsFormat, {
-    away: string;
-    home: string;
-    awayMovement: OddsMovement;
-    homeMovement: OddsMovement;
-  }>;
-};
+type League = 'All' | SportsLeague;
+type OddsFormat = SportsOddsFormat;
+type OddsMovement = SportsOddsMovement;
+type Story = SportsStory;
+type Standing = SportsStanding;
+type OddsGame = SportsOddsGame;
 
 const LEAGUES: League[] = ['All', 'NBA', 'NFL', 'MLB', 'NHL', 'Soccer'];
 
-const TEAMS = {
-  knicks: { name: 'New York Knicks', short: 'NYK', colors: ['#F58426', '#1D428A'] } satisfies Team,
-  celtics: { name: 'Boston Celtics', short: 'BOS', colors: ['#007A33', '#BA9653'] } satisfies Team,
-  nets: { name: 'Brooklyn Nets', short: 'BKN', colors: ['#111111', '#777777'] } satisfies Team,
-  heat: { name: 'Miami Heat', short: 'MIA', colors: ['#98002E', '#F9A01B'] } satisfies Team,
-  giants: { name: 'New York Giants', short: 'NYG', colors: ['#0B2265', '#A71930'] } satisfies Team,
-  cowboys: { name: 'Dallas Cowboys', short: 'DAL', colors: ['#041E42', '#869397'] } satisfies Team,
-  yankees: { name: 'New York Yankees', short: 'NYY', colors: ['#132448', '#C4CED4'] } satisfies Team,
-  redSox: { name: 'Boston Red Sox', short: 'BOS', colors: ['#BD3039', '#0C2340'] } satisfies Team,
-  rangers: { name: 'New York Rangers', short: 'NYR', colors: ['#0038A8', '#CE1126'] } satisfies Team,
-  bruins: { name: 'Boston Bruins', short: 'BOS', colors: ['#111111', '#FFB81C'] } satisfies Team,
-};
-
-const GAMES: Game[] = [
-  { id: 'nyk-bos', league: 'NBA', status: 'LIVE', detail: 'Q4 · 6:42', away: TEAMS.knicks, home: TEAMS.celtics, awayScore: 98, homeScore: 102, network: 'ESPN', venue: 'TD Garden' },
-  { id: 'bkn-mia', league: 'NBA', status: 'UPCOMING', detail: '8:00 PM', away: TEAMS.nets, home: TEAMS.heat, network: 'YES', venue: 'Kaseya Center' },
-  { id: 'nyg-dal', league: 'NFL', status: 'FINAL', detail: 'Final', away: TEAMS.giants, home: TEAMS.cowboys, awayScore: 24, homeScore: 21, network: 'FOX', venue: 'MetLife Stadium' },
-  { id: 'nyy-bos', league: 'MLB', status: 'LIVE', detail: 'Bot 7th', away: TEAMS.yankees, home: TEAMS.redSox, awayScore: 4, homeScore: 3, network: 'MLB TV', venue: 'Fenway Park' },
-  { id: 'nyr-bos', league: 'NHL', status: 'UPCOMING', detail: '7:30 PM', away: TEAMS.rangers, home: TEAMS.bruins, network: 'TNT', venue: 'Madison Square Garden' },
-];
-
-const FAVORITE_TEAMS = [
-  { ...TEAMS.knicks, record: '34–18', next: 'vs. Nets · Tomorrow' },
-  { ...TEAMS.nets, record: '22–31', next: '@ Heat · 8:00 PM' },
-  { ...TEAMS.giants, record: '9–8', next: 'vs. Cowboys · Sun' },
-  { ...TEAMS.yankees, record: '68–49', next: '@ Red Sox · Tonight' },
-];
-
-const TEAM_RECORDS: Record<string, string> = {
-  'New York Knicks': '34–18',
-  'Boston Celtics': '42–12',
-  'Brooklyn Nets': '22–31',
-  'Miami Heat': '29–25',
-  'New York Giants': '9–8',
-  'Dallas Cowboys': '9–8',
-  'New York Yankees': '68–49',
-  'Boston Red Sox': '62–55',
-  'New York Rangers': '36–18',
-  'Boston Bruins': '34–19',
-};
-
-const STANDINGS: Record<Exclude<League, 'All' | 'Soccer'>, Standing[]> = {
-  NBA: [
-    { team: 'Boston Celtics', short: 'BOS', wins: 42, losses: 12, pct: '.778' },
-    { team: 'New York Knicks', short: 'NYK', wins: 34, losses: 18, pct: '.654' },
-    { team: 'Milwaukee Bucks', short: 'MIL', wins: 33, losses: 21, pct: '.611' },
-    { team: 'Cleveland Cavaliers', short: 'CLE', wins: 32, losses: 22, pct: '.593' },
-    { team: 'Miami Heat', short: 'MIA', wins: 29, losses: 25, pct: '.537' },
-  ],
-  NFL: [
-    { team: 'Philadelphia Eagles', short: 'PHI', wins: 14, losses: 3, pct: '.824' },
-    { team: 'Washington Commanders', short: 'WAS', wins: 12, losses: 5, pct: '.706' },
-    { team: 'Dallas Cowboys', short: 'DAL', wins: 9, losses: 8, pct: '.529' },
-    { team: 'New York Giants', short: 'NYG', wins: 9, losses: 8, pct: '.529' },
-    { team: 'Chicago Bears', short: 'CHI', wins: 8, losses: 9, pct: '.471' },
-  ],
-  MLB: [
-    { team: 'New York Yankees', short: 'NYY', wins: 68, losses: 49, pct: '.581' },
-    { team: 'Baltimore Orioles', short: 'BAL', wins: 66, losses: 51, pct: '.564' },
-    { team: 'Boston Red Sox', short: 'BOS', wins: 62, losses: 55, pct: '.530' },
-    { team: 'Tampa Bay Rays', short: 'TB', wins: 58, losses: 59, pct: '.496' },
-    { team: 'Toronto Blue Jays', short: 'TOR', wins: 55, losses: 62, pct: '.470' },
-  ],
-  NHL: [
-    { team: 'New York Rangers', short: 'NYR', wins: 36, losses: 18, pct: '.667' },
-    { team: 'Boston Bruins', short: 'BOS', wins: 34, losses: 19, pct: '.642' },
-    { team: 'Florida Panthers', short: 'FLA', wins: 33, losses: 20, pct: '.623' },
-    { team: 'Toronto Maple Leafs', short: 'TOR', wins: 31, losses: 22, pct: '.585' },
-    { team: 'New Jersey Devils', short: 'NJD', wins: 29, losses: 24, pct: '.547' },
-  ],
-};
-
-const STORIES: Story[] = [
-  { id: 'knicks-run', league: 'NBA', headline: 'Knicks find another gear during late fourth-quarter run', source: 'LookUP Sports', time: '18m ago', colors: ['#D86720', '#203E75'] },
-  { id: 'yankees-rivalry', league: 'MLB', headline: 'Yankees–Red Sox rivalry delivers another instant classic', source: 'Diamond Daily', time: '42m ago', colors: ['#182C54', '#A72D36'] },
-  { id: 'giants-camp', league: 'NFL', headline: 'Five standouts emerging from Giants training camp', source: 'Sunday Report', time: '1h ago', colors: ['#14377A', '#A91E32'] },
-  { id: 'rangers-line', league: 'NHL', headline: 'Rangers reshape top line ahead of Boston matchup', source: 'Ice Level', time: '2h ago', colors: ['#0748A1', '#D22C36'] },
-];
-
-const ODDS_GAMES: OddsGame[] = [
-  {
-    id: 'odds-nyk-bkn', league: 'NBA', status: 'Tonight · 7:30 PM', away: TEAMS.knicks, home: TEAMS.nets, updated: 'Updated 4m ago',
-    odds: {
-      Spread: { away: 'Knicks -4.5', home: 'Nets +4.5', awayMovement: 'up', homeMovement: 'down' },
-      Moneyline: { away: 'Knicks -180', home: 'Nets +155', awayMovement: 'down', homeMovement: 'up' },
-      Total: { away: 'Over 221.5', home: 'Under 221.5', awayMovement: 'up', homeMovement: 'none' },
-    },
-  },
-  {
-    id: 'odds-bos-mia', league: 'NBA', status: 'Tomorrow · 8:00 PM', away: TEAMS.celtics, home: TEAMS.heat, updated: 'Updated 7m ago',
-    odds: {
-      Spread: { away: 'Celtics -6.0', home: 'Heat +6.0', awayMovement: 'none', homeMovement: 'up' },
-      Moneyline: { away: 'Celtics -225', home: 'Heat +190', awayMovement: 'up', homeMovement: 'down' },
-      Total: { away: 'Over 216.5', home: 'Under 216.5', awayMovement: 'down', homeMovement: 'up' },
-    },
-  },
-  {
-    id: 'odds-nyg-dal', league: 'NFL', status: 'Sunday · 4:25 PM', away: TEAMS.giants, home: TEAMS.cowboys, updated: 'Updated 11m ago',
-    odds: {
-      Spread: { away: 'Giants +3.5', home: 'Cowboys -3.5', awayMovement: 'up', homeMovement: 'down' },
-      Moneyline: { away: 'Giants +160', home: 'Cowboys -190', awayMovement: 'none', homeMovement: 'up' },
-      Total: { away: 'Over 44.5', home: 'Under 44.5', awayMovement: 'up', homeMovement: 'none' },
-    },
-  },
-  {
-    id: 'odds-nyy-bos', league: 'MLB', status: 'Tonight · 7:10 PM', away: TEAMS.yankees, home: TEAMS.redSox, updated: 'Updated 14m ago',
-    odds: {
-      Spread: { away: 'Yankees -1.5', home: 'Red Sox +1.5', awayMovement: 'down', homeMovement: 'up' },
-      Moneyline: { away: 'Yankees -135', home: 'Red Sox +120', awayMovement: 'up', homeMovement: 'none' },
-      Total: { away: 'Over 8.5', home: 'Under 8.5', awayMovement: 'none', homeMovement: 'down' },
-    },
-  },
-];
-
-const ODDS_TEAM_META: Record<string, OddsTeamMeta> = {
-  'New York Knicks': { record: '42–18', streak: 'W3', rank: '#2 East' },
-  'Brooklyn Nets': { record: '28–32', streak: 'L1', rank: '#10 East' },
-  'Boston Celtics': { record: '46–14', streak: 'W5', rank: '#1 East' },
-  'Miami Heat': { record: '34–27', streak: 'W2', rank: '#6 East' },
-  'New York Giants': { record: '9–8', streak: 'W1', rank: '#3 NFC East' },
-  'Dallas Cowboys': { record: '12–5', streak: 'W2', rank: '#1 NFC East' },
-  'New York Yankees': { record: '68–49', streak: 'W4', rank: '#1 AL East' },
-  'Boston Red Sox': { record: '62–55', streak: 'L2', rank: '#3 AL East' },
-};
+const FAVORITE_TEAMS = MOCK_SPORTS_FAVORITE_TEAMS;
+const TEAM_RECORDS = MOCK_SPORTS_TEAM_RECORDS;
+const STANDINGS = MOCK_SPORTS_STANDINGS;
+const STORIES = MOCK_SPORTS_STORIES;
+const ODDS_GAMES = MOCK_SPORTS_ODDS;
+const ODDS_TEAM_META = MOCK_SPORTS_ODDS_TEAM_META;
 
 export default function SportsScreen() {
   const insets = useSafeAreaInsets();
@@ -200,36 +59,61 @@ export default function SportsScreen() {
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>('Spread');
   const [selectedOddsGame, setSelectedOddsGame] = useState<string | null>(null);
   const [favoriteOddsGames, setFavoriteOddsGames] = useState<string[]>([]);
+  const [games, setGames] = useState<SportsGame[]>(MOCK_SPORTS_GAMES);
+  const [favoriteTeams, setFavoriteTeams] = useState(FAVORITE_TEAMS);
+  const [teamRecords, setTeamRecords] = useState(TEAM_RECORDS);
+  const [standingsByLeague, setStandingsByLeague] = useState(STANDINGS);
+  const [sportsStories, setSportsStories] = useState(STORIES);
+  const [oddsGames, setOddsGames] = useState(ODDS_GAMES);
+  const [oddsTeamMeta, setOddsTeamMeta] = useState(ODDS_TEAM_META);
+  const [sportsProvenance, setSportsProvenance] = useState<SportsDataProvenance>('unavailable');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadSports = async () => {
+    setIsLoading(true);
+    setError(null);
+    const result = await getGames();
+    setSportsProvenance(result.provenance);
+    if (result.provenance === 'unavailable') setError(result.error);
+    else {
+      setGames(result.data.games);
+      setFavoriteTeams(result.data.favoriteTeams);
+      setTeamRecords(result.data.teamRecords);
+      setStandingsByLeague(result.data.standings);
+      setSportsStories(result.data.stories);
+      setOddsGames(result.data.odds);
+      setOddsTeamMeta(result.data.oddsTeamMeta);
+    }
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timer);
+    void loadSports();
   }, []);
 
   const filteredGames = useMemo(
-    () => selectedLeague === 'All' ? GAMES : GAMES.filter((game) => game.league === selectedLeague),
-    [selectedLeague],
+    () => selectedLeague === 'All' ? games : games.filter((game) => game.league === selectedLeague),
+    [games, selectedLeague],
   );
   const filteredStories = useMemo(
-    () => selectedLeague === 'All' ? STORIES : STORIES.filter((story) => story.league === selectedLeague),
-    [selectedLeague],
+    () => selectedLeague === 'All' ? sportsStories : sportsStories.filter((story) => story.league === selectedLeague),
+    [selectedLeague, sportsStories],
   );
   const standingsLeague = selectedLeague === 'All' || selectedLeague === 'Soccer' ? 'NBA' : selectedLeague;
-  const standings = STANDINGS[standingsLeague];
-  const featuredGame = filteredGames.find((game) => game.status === 'LIVE') ?? filteredGames[0] ?? GAMES[0];
+  const standings = standingsByLeague[standingsLeague] ?? [];
+  const featuredGame = filteredGames.find((game) => game.status === 'LIVE') ?? filteredGames[0] ?? games[0];
   const sortedOddsGames = useMemo(
-    () => [...ODDS_GAMES].sort((a, b) => Number(favoriteOddsGames.includes(b.id)) - Number(favoriteOddsGames.includes(a.id))),
-    [favoriteOddsGames],
+    () => [...oddsGames].sort((a, b) => Number(favoriteOddsGames.includes(b.id)) - Number(favoriteOddsGames.includes(a.id))),
+    [favoriteOddsGames, oddsGames],
   );
 
-  const openGameById = (gameId: string) => router.push({
+  const openGameById = (gameId: SportsGameId) => router.push({
     pathname: '/game-details',
     params: { gameId },
   });
 
-  const openGame = (game: Game) => openGameById(game.id);
+  const openGame = (game: SportsGame) => openGameById(game.id);
   const toggleFavorite = (short: string) => {
     setFavorites((current) => current.includes(short) ? current.filter((team) => team !== short) : [...current, short]);
   };
@@ -239,7 +123,7 @@ export default function SportsScreen() {
   }
 
   if (error) {
-    return <ScreenState title="Sports are unavailable" copy={error} actionLabel="Try again" onAction={() => { setError(null); setIsLoading(true); setTimeout(() => setIsLoading(false), 450); }} />;
+    return <ScreenState title="Sports are unavailable" copy={error} actionLabel="Try again" onAction={() => { void loadSports(); }} />;
   }
 
   return (
@@ -266,7 +150,8 @@ export default function SportsScreen() {
         </View>
       </View>
 
-      <ScoreTicker games={GAMES} />
+      <ScoreTicker games={games} />
+      {sportsProvenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED SPORTS DATA</Text> : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.leagueRow}>
         {LEAGUES.map((league) => {
@@ -279,7 +164,7 @@ export default function SportsScreen() {
         })}
       </ScrollView>
 
-      <FeaturedGame game={featuredGame} isDesktop={isDesktop} onOpen={() => openGame(featuredGame)} />
+      <FeaturedGame game={featuredGame} isDesktop={isDesktop} onOpen={() => openGame(featuredGame)} teamRecords={teamRecords} />
 
       <View style={styles.section}>
         <SectionHeader title="Today’s Games" />
@@ -295,7 +180,7 @@ export default function SportsScreen() {
       <View style={styles.section}>
         <SectionHeader title="Favorite Teams" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
-          {FAVORITE_TEAMS.map((team) => (
+          {favoriteTeams.map((team) => (
             <FavoriteTeamCard key={team.name} team={team} favorite={favorites.includes(team.short)} onToggle={() => toggleFavorite(team.short)} />
           ))}
         </ScrollView>
@@ -329,6 +214,7 @@ export default function SportsScreen() {
                 setTimeout(() => openGameById(game.id), 160);
               }}
               onToggleFavorite={() => setFavoriteOddsGames((current) => current.includes(game.id) ? current.filter((id) => id !== game.id) : [...current, game.id])}
+              teamMeta={oddsTeamMeta}
             />
           ))}
         </ScrollView>
@@ -362,7 +248,7 @@ export default function SportsScreen() {
   );
 }
 
-function TeamLogo({ team, size = 44 }: { team: Team; size?: number }) {
+function TeamLogo({ team, size = 44 }: { team: SportsTeam; size?: number }) {
   return (
     <View style={[styles.teamLogo, { width: size, height: size, borderRadius: size / 2, backgroundColor: team.colors[0], borderColor: team.colors[1] }]}>
       <Text style={[styles.teamLogoText, { fontSize: size * 0.25 }]}>{team.short}</Text>
@@ -370,7 +256,7 @@ function TeamLogo({ team, size = 44 }: { team: Team; size?: number }) {
   );
 }
 
-function ScoreTicker({ games }: { games: Game[] }) {
+function ScoreTicker({ games }: { games: SportsGame[] }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ticker} contentContainerStyle={styles.tickerContent}>
       {games.map((game) => (
@@ -386,7 +272,7 @@ function ScoreTicker({ games }: { games: Game[] }) {
   );
 }
 
-function FeaturedGame({ game, isDesktop, onOpen }: { game: Game; isDesktop: boolean; onOpen: () => void }) {
+function FeaturedGame({ game, isDesktop, onOpen, teamRecords }: { game: SportsGame; isDesktop: boolean; onOpen: () => void; teamRecords: Record<string, string> }) {
   const logoSize = isDesktop ? 76 : 64;
   return (
     <View style={styles.featuredCard}>
@@ -399,7 +285,7 @@ function FeaturedGame({ game, isDesktop, onOpen }: { game: Game; isDesktop: bool
         <View style={[styles.featuredTeam, { width: isDesktop ? 180 : 88 }]}>
           <TeamLogo team={game.away} size={logoSize} />
           <Text numberOfLines={1} style={styles.featuredTeamName}>{game.away.name}</Text>
-          <Text style={styles.teamRecord}>{TEAM_RECORDS[game.away.name] ?? '—'}</Text>
+          <Text style={styles.teamRecord}>{teamRecords[game.away.name] ?? '—'}</Text>
         </View>
         <View style={styles.scoreBlock}>
           <Text style={[styles.featuredScore, !isDesktop && styles.featuredScoreMobile]}>{game.awayScore ?? '–'} <Text style={styles.scoreDash}>—</Text> {game.homeScore ?? '–'}</Text>
@@ -408,7 +294,7 @@ function FeaturedGame({ game, isDesktop, onOpen }: { game: Game; isDesktop: bool
         <View style={[styles.featuredTeam, { width: isDesktop ? 180 : 88 }]}>
           <TeamLogo team={game.home} size={logoSize} />
           <Text numberOfLines={1} style={styles.featuredTeamName}>{game.home.name}</Text>
-          <Text style={styles.teamRecord}>{TEAM_RECORDS[game.home.name] ?? '—'}</Text>
+          <Text style={styles.teamRecord}>{teamRecords[game.home.name] ?? '—'}</Text>
         </View>
       </View>
       <View style={styles.featuredFooter}>
@@ -423,7 +309,7 @@ function SectionHeader({ title }: { title: string }) {
   return <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{title}</Text><Pressable onPress={() => Alert.alert(title, 'The full view is coming soon.')} hitSlop={8}><Text style={styles.seeAll}>See all</Text></Pressable></View>;
 }
 
-function GameCard({ game, onPress }: { game: Game; onPress: () => void }) {
+function GameCard({ game, onPress }: { game: SportsGame; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.gameCard, pressed && styles.cardPressed]}>
       <View style={styles.gameCardTop}><Text style={styles.gameLeague}>{game.league}</Text><Text style={[styles.gameStatus, game.status === 'LIVE' && styles.liveText]}>{game.status === 'UPCOMING' ? game.detail : game.status}</Text></View>
@@ -460,7 +346,7 @@ function OddsFormatPill({ active, format, onPress }: { active: boolean; format: 
   );
 }
 
-function OddsCard({ game, format, selected, favorite, onPress, onToggleFavorite }: { game: OddsGame; format: OddsFormat; selected: boolean; favorite: boolean; onPress: () => void; onToggleFavorite: () => void }) {
+function OddsCard({ game, format, selected, favorite, onPress, onToggleFavorite, teamMeta }: { game: OddsGame; format: OddsFormat; selected: boolean; favorite: boolean; onPress: () => void; onToggleFavorite: () => void; teamMeta: typeof ODDS_TEAM_META }) {
   const values = game.odds[format];
   const statusLabel = game.status.replace('Tonight ·', 'TODAY').replace('Tomorrow ·', 'TOMORROW').replace('Sunday ·', 'SUNDAY');
   const scale = useSharedValue(1);
@@ -478,9 +364,9 @@ function OddsCard({ game, format, selected, favorite, onPress, onToggleFavorite 
         <Text style={styles.gameLeague}>{game.league}</Text>
         <View style={styles.oddsStatusBadge}><Text style={styles.oddsStatusIcon}>⏰</Text><Text style={styles.oddsStatus}>{statusLabel}</Text></View>
       </View>
-      <OddsTeamRow team={game.away} value={values.away} movement={values.awayMovement} />
+      <OddsTeamRow meta={teamMeta[game.away.name]} team={game.away} value={values.away} movement={values.awayMovement} />
       <View style={styles.oddsTeamDivider} />
-      <OddsTeamRow team={game.home} value={values.home} movement={values.homeMovement} />
+      <OddsTeamRow meta={teamMeta[game.home.name]} team={game.home} value={values.home} movement={values.homeMovement} />
       <View style={styles.oddsFooter}>
         <Text style={styles.oddsFormatLabel}>{format} · SIMULATED</Text>
         <Text style={styles.oddsUpdated}>Last Updated · {game.updated.replace('Updated ', '')}</Text>
@@ -496,8 +382,7 @@ function OddsCard({ game, format, selected, favorite, onPress, onToggleFavorite 
   );
 }
 
-function OddsTeamRow({ team, value, movement }: { team: Team; value: string; movement: OddsMovement }) {
-  const meta = ODDS_TEAM_META[team.name] ?? { record: '—', streak: '—', rank: '—' };
+function OddsTeamRow({ team, value, movement, meta = { record: '—', streak: '—', rank: '—' } }: { team: SportsTeam; value: string; movement: OddsMovement; meta?: typeof ODDS_TEAM_META[string] }) {
   return (
     <View style={styles.oddsTeamRow}>
       <TeamLogo team={team} size={40} />
@@ -567,6 +452,7 @@ const styles = StyleSheet.create({
   tickerScore: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   tickerDetail: { color: '#737E8A', fontSize: 9, fontWeight: '700' },
   liveText: { color: '#69E08C' },
+  simulatedDataLabel: { color: '#697582', fontSize: 8, fontWeight: '900', letterSpacing: 0.9, marginTop: -16, marginBottom: 22, textAlign: 'right' },
   leagueRow: { gap: 9, paddingBottom: 30, paddingRight: 20 },
   leaguePill: { height: 38, minWidth: 67, borderRadius: 19, backgroundColor: '#171C23', borderWidth: 1, borderColor: '#29313B', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 17 },
   leaguePillActive: { backgroundColor: '#69E08C', borderColor: '#69E08C' },
