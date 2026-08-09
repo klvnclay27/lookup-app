@@ -1,9 +1,11 @@
+import type { SportsDataProvenance, SportsGameId, SportsPlayerId, SportsTeamId } from '@/services/sports';
+
 export type SportKind = 'basketball' | 'football' | 'baseball' | 'hockey';
 export type GameCenterStatus = 'SCHEDULED' | 'LIVE' | 'HALFTIME' | 'INTERMISSION' | 'FINAL';
 export type GameCastEventType = 'made-shot' | 'missed-shot' | 'three-pointer' | 'free-throw' | 'foul' | 'turnover' | 'steal' | 'block' | 'rebound' | 'substitution' | 'timeout' | 'period-end' | 'update';
 
 export type GameCenterTeam = {
-  id: string;
+  id: SportsTeamId;
   name: string;
   abbreviation: string;
   color: string;
@@ -27,9 +29,9 @@ export type PlayerGameStats = {
 };
 
 export type GameCenterPlayer = {
-  id: string;
+  id: SportsPlayerId;
   name: string;
-  teamId: string;
+  teamId: SportsTeamId;
   position: string;
   jerseyNumber: string;
   starter: boolean;
@@ -42,8 +44,8 @@ export type GameCastEvent = {
   type: GameCastEventType;
   period: string;
   clock: string;
-  teamId?: string;
-  playerId?: string;
+  teamId?: SportsTeamId;
+  playerId?: SportsPlayerId;
   description: string;
   awayScore?: number;
   homeScore?: number;
@@ -53,7 +55,7 @@ export type BoxScoreColumn = { key: string; label: string; emphasis?: boolean };
 export type MatchupComparison = { label: string; away: string; home: string };
 
 export type SportsGameDetails = {
-  id: string;
+  id: SportsGameId;
   sport: SportKind;
   league: string;
   status: GameCenterStatus;
@@ -77,6 +79,15 @@ export type SportsGameDetails = {
   };
 };
 
+export type SportsGameDetailsResult =
+  | { data: SportsGameDetails; error: null; provenance: 'live' | 'mock' }
+  | { data: null; error: string; provenance: 'unavailable' };
+
+export interface SportsGameCenterProvider {
+  readonly provenance: Exclude<SportsDataProvenance, 'unavailable'>;
+  getGameDetails(gameId: SportsGameId): Promise<SportsGameDetails | undefined>;
+}
+
 const TEAMS = {
   knicks: { id: 'team-nyk', name: 'New York Knicks', abbreviation: 'NYK', color: '#F58426', record: '42–18', recentForm: 'W3' },
   celtics: { id: 'team-bos-nba', name: 'Boston Celtics', abbreviation: 'BOS', color: '#007A33', record: '46–14', recentForm: 'W5' },
@@ -97,7 +108,7 @@ const basketballColumns: BoxScoreColumn[] = [
   { key: 'blk', label: 'BLK' }, { key: 'turnovers', label: 'TO' },
 ];
 
-const player = (id: string, name: string, teamId: string, position: string, jerseyNumber: string, stats: PlayerGameStats, starter = true): GameCenterPlayer => ({
+const player = (id: SportsPlayerId, name: string, teamId: SportsTeamId, position: string, jerseyNumber: string, stats: PlayerGameStats, starter = true): GameCenterPlayer => ({
   id, name, teamId, position, jerseyNumber, starter, gameStats: stats,
   seasonStats: stats.pts === undefined ? undefined : { PPG: Math.max(8, stats.pts - 2), RPG: stats.reb ?? 0, APG: stats.ast ?? 0 },
 });
@@ -125,7 +136,7 @@ const basketballGame = (overrides: Partial<SportsGameDetails> & Pick<SportsGameD
   ...overrides,
 });
 
-const GAME_DETAILS: Record<string, SportsGameDetails> = {
+const GAME_DETAILS: Record<SportsGameId, SportsGameDetails> = {
   'nyk-bos': basketballGame({
     id: 'nyk-bos', awayTeam: TEAMS.knicks, homeTeam: TEAMS.celtics, status: 'LIVE', statusLabel: 'Live', period: '4TH', clock: '6:42', venue: 'TD Garden', broadcast: 'ESPN', awayScore: 98, homeScore: 102,
     players: [...knicksPlayers, ...celticsPlayers],
@@ -166,9 +177,25 @@ const GAME_DETAILS: Record<string, SportsGameDetails> = {
   },
 };
 
-const ALIASES: Record<string, string> = { 'odds-nyg-dal': 'nyg-dal', 'odds-nyy-bos': 'nyy-bos' };
+const ALIASES: Record<SportsGameId, SportsGameId> = { 'odds-nyg-dal': 'nyg-dal', 'odds-nyy-bos': 'nyy-bos' };
 
-export async function getGameDetails(gameId: string): Promise<SportsGameDetails | undefined> {
-  const resolvedId = ALIASES[gameId] ?? gameId;
-  return GAME_DETAILS[resolvedId];
+export const mockSportsGameCenterProvider: SportsGameCenterProvider = {
+  provenance: 'mock',
+  async getGameDetails(gameId) {
+    const resolvedId = ALIASES[gameId] ?? gameId;
+    return GAME_DETAILS[resolvedId];
+  },
+};
+
+export async function getGameDetails(
+  gameId: SportsGameId,
+  provider: SportsGameCenterProvider = mockSportsGameCenterProvider,
+): Promise<SportsGameDetailsResult> {
+  try {
+    const data = await provider.getGameDetails(gameId);
+    if (!data) return { data: null, error: 'We could not find details for this game.', provenance: 'unavailable' };
+    return { data, error: null, provenance: provider.provenance };
+  } catch {
+    return { data: null, error: 'Game details are currently unavailable.', provenance: 'unavailable' };
+  }
 }
