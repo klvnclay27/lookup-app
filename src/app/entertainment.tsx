@@ -13,91 +13,27 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type Category = 'For You' | 'Movies' | 'TV' | 'Music News' | 'Celebrity' | 'Gaming';
-
-type Story = {
-  id: string;
-  category: Exclude<Category, 'For You'>;
-  headline: string;
-  summary: string;
-  source: string;
-  time: string;
-  colors: [string, string];
-};
-
-type MediaTitle = {
-  id: string;
-  category: 'Movies' | 'TV';
-  title: string;
-  year: string;
-  genre: string;
-  rating: string;
-  colors: [string, string];
-};
-
-type Upcoming = {
-  id: string;
-  category: Exclude<Category, 'For You'>;
-  title: string;
-  date: string;
-  genre: string;
-  description: string;
-  colors: [string, string];
-};
-
-type StreamingPick = {
-  platform: 'Netflix' | 'Disney+' | 'Max' | 'Hulu' | 'Apple TV+';
-  titles: [string, string];
-  colors: [string, string];
-};
-
-const CATEGORIES: Category[] = ['For You', 'Movies', 'TV', 'Music News', 'Celebrity', 'Gaming'];
-
-const STORIES: Story[] = [
-  { id: 'summer-screen', category: 'Movies', headline: 'The films everyone will be talking about this summer', summary: 'From sweeping adventures to intimate dramas, these are the releases shaping the season.', source: 'LookUP Culture', time: '12m ago', colors: ['#39245F', '#C65C7B'] },
-  { id: 'prestige-tv', category: 'TV', headline: 'Prestige television enters a bold new era', summary: 'Creators are taking bigger swings as the year’s most anticipated series arrive.', source: 'Screen Daily', time: '28m ago', colors: ['#174A68', '#50A6A2'] },
-  { id: 'album-surprise', category: 'Music News', headline: 'A surprise album is already changing the sound of summer', summary: 'The unannounced release became an overnight favorite with listeners and critics.', source: 'Soundcheck', time: '41m ago', colors: ['#673437', '#E09A4C'] },
-  { id: 'red-carpet', category: 'Celebrity', headline: 'Inside the week’s most memorable red-carpet moments', summary: 'Designers and stars delivered a sharp new take on modern event style.', source: 'The Edit', time: '1h ago', colors: ['#653348', '#E17682'] },
-  { id: 'director-profile', category: 'Celebrity', headline: 'The director behind this year’s breakout hit opens up', summary: 'A candid conversation about creative risks, collaboration, and what comes next.', source: 'The Close-Up', time: '1h ago', colors: ['#4C355E', '#B878B7'] },
-  { id: 'studio-return', category: 'Celebrity', headline: 'A beloved screen duo is heading back to the studio', summary: 'The pair confirmed their next project after weeks of speculation.', source: 'Scene & Heard', time: '2h ago', colors: ['#684233', '#D88A62'] },
-  { id: 'festival-moment', category: 'Celebrity', headline: 'The candid festival moment fans cannot stop sharing', summary: 'A quiet exchange away from the cameras became the night’s defining image.', source: 'Spotlight', time: '3h ago', colors: ['#394C67', '#7EA0CB'] },
-  { id: 'indie-games', category: 'Gaming', headline: 'Five inventive indie games worth adding to your list', summary: 'Small studios are building some of the year’s most ambitious worlds.', source: 'Next Level', time: '2h ago', colors: ['#244C3B', '#71B263'] },
-  { id: 'box-office', category: 'Movies', headline: 'The weekend box office delivered a genuine surprise', summary: 'An unexpected breakout reshuffled forecasts across the industry.', source: 'Reel Report', time: '3h ago', colors: ['#6B482B', '#D3A24D'] },
-  { id: 'finale', category: 'TV', headline: 'Why that season finale has viewers comparing theories', summary: 'The closing moments left just enough clues for a dozen interpretations.', source: 'Episode Guide', time: '4h ago', colors: ['#2F386A', '#737AD0'] },
-  { id: 'tour', category: 'Music News', headline: 'The year’s biggest arena tour adds ten new dates', summary: 'Demand continues to grow after a record-setting opening run.', source: 'Soundcheck', time: '5h ago', colors: ['#5F275B', '#B955A4'] },
-];
-
-const MEDIA: MediaTitle[] = [
-  { id: 'north-star', category: 'Movies', title: 'North Star', year: '2026', genre: 'Adventure', rating: '8.7', colors: ['#173E62', '#E0A74A'] },
-  { id: 'after-hours', category: 'TV', title: 'After Hours', year: '2026', genre: 'Drama', rating: '9.1', colors: ['#542D5D', '#D26078'] },
-  { id: 'wild-coast', category: 'Movies', title: 'The Wild Coast', year: '2025', genre: 'Thriller', rating: '8.4', colors: ['#174E4C', '#67B899'] },
-  { id: 'signal', category: 'TV', title: 'Signal Lost', year: '2026', genre: 'Sci-Fi', rating: '8.9', colors: ['#303D75', '#7793DB'] },
-  { id: 'sunday-table', category: 'Movies', title: 'Sunday Table', year: '2025', genre: 'Comedy', rating: '8.2', colors: ['#74402D', '#D89355'] },
-  { id: 'undertow', category: 'TV', title: 'Undertow', year: '2026', genre: 'Mystery', rating: '8.6', colors: ['#1C3C56', '#4C8CA1'] },
-];
-
-const UPCOMING: Upcoming[] = [
-  { id: 'atlas', category: 'Movies', title: 'Atlas Rising', date: 'August 21', genre: 'Sci-Fi', description: 'A new science-fiction epic arrives in theaters.', colors: ['#263B70', '#6D87D4'] },
-  { id: 'room-seven', category: 'TV', title: 'Room Seven', date: 'September 4', genre: 'Mystery', description: 'The mystery series returns for season two.', colors: ['#593452', '#BD6A7D'] },
-  { id: 'echoes', category: 'Music News', title: 'Echoes / Vol. II', date: 'September 12', genre: 'Alternative', description: 'Ari Bloom’s anticipated new album.', colors: ['#245C47', '#6DB67B'] },
-  { id: 'awards', category: 'Celebrity', title: 'The Horizon Awards', date: 'October 2', genre: 'Live Event', description: 'Film, television, and music share one stage.', colors: ['#6C4525', '#D4A34F'] },
-  { id: 'realm', category: 'Gaming', title: 'Realm / Reborn', date: 'October 18', genre: 'Adventure', description: 'Explore a rebuilt open world with friends.', colors: ['#49306D', '#9C6AC8'] },
-];
-
-const STREAMING_PICKS: StreamingPick[] = [
-  { platform: 'Netflix', titles: ['After Hours', 'The Wild Coast'], colors: ['#641E2A', '#E50914'] },
-  { platform: 'Disney+', titles: ['North Star', 'Beyond the Blue'], colors: ['#172B67', '#4A79DE'] },
-  { platform: 'Max', titles: ['Signal Lost', 'City of Glass'], colors: ['#3C246B', '#7356D9'] },
-  { platform: 'Hulu', titles: ['Undertow', 'Sunday Table'], colors: ['#164B3A', '#3ED29A'] },
-  { platform: 'Apple TV+', titles: ['Still Light', 'The Long Way'], colors: ['#33363B', '#8D98A5'] },
-];
+import {
+  getEntertainment,
+  MOCK_ENTERTAINMENT_SNAPSHOT,
+  searchEntertainment,
+  type EntertainmentCategory as Category,
+  type EntertainmentDataProvenance,
+  type EntertainmentMediaTitle as MediaTitle,
+  type EntertainmentSnapshot,
+  type EntertainmentStory as Story,
+  type EntertainmentStreamingPick as StreamingPick,
+  type EntertainmentUpcoming as Upcoming,
+} from '@/services/entertainment';
 
 export default function EntertainmentScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
+  const [entertainment, setEntertainment] = useState<EntertainmentSnapshot>(MOCK_ENTERTAINMENT_SNAPSHOT);
+  const [provenance, setProvenance] = useState<EntertainmentDataProvenance>('unavailable');
   const [selectedCategory, setSelectedCategory] = useState<Category>('For You');
-  const [selectedStory, setSelectedStory] = useState<Story>(STORIES[0]);
+  const [selectedStory, setSelectedStory] = useState<Story>(MOCK_ENTERTAINMENT_SNAPSHOT.stories[0]);
   const [query, setQuery] = useState('');
   const [watchlist, setWatchlist] = useState<string[]>(['north-star']);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
@@ -105,24 +41,38 @@ export default function EntertainmentScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadEntertainment = async () => {
+    setIsLoading(true);
+    setError(null);
+    const result = await getEntertainment();
+    setProvenance(result.provenance);
+    if (result.provenance === 'unavailable') setError(result.error);
+    else {
+      setEntertainment(result.data);
+      setSelectedStory((current) => result.data.stories.find((story) => story.id === current.id) ?? result.data.stories[0] ?? current);
+    }
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 520);
-    return () => clearTimeout(timer);
+    void loadEntertainment();
   }, []);
 
+  const { categories, media, stories, streamingPicks, upcoming } = entertainment;
+
   const visibleStories = useMemo(
-    () => selectedCategory === 'For You' ? STORIES : STORIES.filter((story) => story.category === selectedCategory),
-    [selectedCategory],
+    () => selectedCategory === 'For You' ? stories : stories.filter((story) => story.category === selectedCategory),
+    [selectedCategory, stories],
   );
   const visibleMedia = useMemo(
-    () => selectedCategory === 'For You' ? MEDIA : MEDIA.filter((item) => item.category === selectedCategory),
-    [selectedCategory],
+    () => selectedCategory === 'For You' ? media : media.filter((item) => item.category === selectedCategory),
+    [media, selectedCategory],
   );
   const visibleUpcoming = useMemo(
-    () => selectedCategory === 'For You' ? UPCOMING : UPCOMING.filter((item) => item.category === selectedCategory),
-    [selectedCategory],
+    () => selectedCategory === 'For You' ? upcoming : upcoming.filter((item) => item.category === selectedCategory),
+    [selectedCategory, upcoming],
   );
-  const featuredStory = visibleStories.some((story) => story.id === selectedStory.id) ? selectedStory : visibleStories[0] ?? STORIES[0];
+  const featuredStory = visibleStories.some((story) => story.id === selectedStory.id) ? selectedStory : visibleStories[0] ?? stories[0];
 
   const toggle = (id: string, setter: Dispatch<SetStateAction<string[]>>) => {
     setter((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -133,8 +83,9 @@ export default function EntertainmentScreen() {
   }
 
   if (error) {
-    return <ScreenState title="Entertainment is unavailable" copy={error} action="Try again" onAction={() => { setError(null); setIsLoading(true); setTimeout(() => setIsLoading(false), 450); }} />;
+    return <ScreenState title="Entertainment is unavailable" copy={error} action="Try again" onAction={() => { void loadEntertainment(); }} />;
   }
+  if (!featuredStory) return <ScreenState title="Entertainment is unavailable" copy="No entertainment content is available right now." action="Try again" onAction={() => { void loadEntertainment(); }} />;
 
   return (
     <ScrollView
@@ -174,14 +125,15 @@ export default function EntertainmentScreen() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-        {CATEGORIES.map((category) => {
+        {categories.map((category) => {
           const active = selectedCategory === category;
           return <Pressable key={category} onPress={() => setSelectedCategory(category)} style={({ pressed }) => [styles.categoryPill, active && styles.categoryPillActive, pressed && styles.pressed]}><Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category}</Text></Pressable>;
         })}
       </ScrollView>
+      {provenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED ENTERTAINMENT DATA</Text> : null}
 
       {query.trim() ? (
-        <SearchResults query={query.trim()} onStory={setSelectedStory} />
+        <SearchResults entertainment={entertainment} query={query.trim()} onStory={setSelectedStory} />
       ) : (
         <>
           <FeaturedStory story={featuredStory} onRead={() => Alert.alert(featuredStory.headline, featuredStory.summary)} />
@@ -205,7 +157,7 @@ export default function EntertainmentScreen() {
           <View style={styles.section}>
             <SectionHeader title="Celebrity Buzz" />
             <View style={styles.storiesCard}>
-              {STORIES.filter((story) => story.category === 'Celebrity').slice(0, 4).map((story, index) => (
+              {stories.filter((story) => story.category === 'Celebrity').slice(0, 4).map((story, index) => (
                 <View key={story.id}>
                   <StoryRow story={story} saved={bookmarks.includes(story.id)} onSelect={() => setSelectedStory(story)} onBookmark={() => toggle(story.id, setBookmarks)} />
                   {index < 3 && <View style={styles.divider} />}
@@ -226,7 +178,7 @@ export default function EntertainmentScreen() {
           <View style={styles.sectionLast}>
             <SectionHeader title="Streaming Picks" />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
-              {STREAMING_PICKS.map((pick) => <StreamingCard key={pick.platform} pick={pick} />)}
+              {streamingPicks.map((pick) => <StreamingCard key={pick.platform} pick={pick} />)}
             </ScrollView>
           </View>
         </>
@@ -323,11 +275,8 @@ function StreamingCard({ pick }: { pick: StreamingPick }) {
   );
 }
 
-function SearchResults({ query, onStory }: { query: string; onStory: (story: Story) => void }) {
-  const normalized = query.toLowerCase();
-  const stories = STORIES.filter((story) => `${story.headline} ${story.source} ${story.category}`.toLowerCase().includes(normalized));
-  const media = MEDIA.filter((item) => `${item.title} ${item.category} ${item.genre}`.toLowerCase().includes(normalized));
-  const upcoming = UPCOMING.filter((item) => `${item.title} ${item.category} ${item.genre} ${item.description}`.toLowerCase().includes(normalized));
+function SearchResults({ entertainment, query, onStory }: { entertainment: EntertainmentSnapshot; query: string; onStory: (story: Story) => void }) {
+  const { media, stories, upcoming } = searchEntertainment(entertainment, query);
   const hasResults = stories.length + media.length + upcoming.length > 0;
   return (
     <View style={styles.searchResults}>
@@ -370,6 +319,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 0 },
   clearIcon: { color: '#AAB3BE', fontSize: 25, paddingLeft: 10 },
   categoryRow: { gap: 9, paddingBottom: 30, paddingRight: 24 },
+  simulatedDataLabel: { color: '#697582', fontSize: 8, fontWeight: '900', letterSpacing: 0.9, marginTop: -20, marginBottom: 24, textAlign: 'right' },
   categoryPill: { height: 38, borderRadius: 19, backgroundColor: '#171C23', borderWidth: 1, borderColor: '#29313B', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 17 },
   categoryPillActive: { backgroundColor: '#69E08C', borderColor: '#69E08C' },
   categoryText: { color: '#98A2AE', fontSize: 13, fontWeight: '800' },

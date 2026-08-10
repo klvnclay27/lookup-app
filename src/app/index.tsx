@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getEntertainment } from '@/services/entertainment';
+import { getEntertainment, getEntertainmentSummary } from '@/services/entertainment';
 import { DAILY_INTELLIGENCE_TEST_SCENARIOS, generateDailyIntelligence, generateDailyIntelligenceTestSnapshot, getDailyIntelligence, type DailyIntelligenceInput, type DailyIntelligenceSnapshot, type DailyIntelligenceTestScenario } from '@/services/daily-intelligence';
 import { getFinance, getFinanceSummary } from '@/services/finance';
 import { getMusic } from '@/services/music';
@@ -55,7 +55,7 @@ export default function HomeScreen() {
   const [commute, setCommute] = useState('Live traffic data not connected');
   const [market, setMarket] = useState('Market data not connected');
   const [playlist, setPlaylist] = useState('Daily Mix');
-  const [movie, setMovie] = useState('Top entertainment story');
+  const [movie, setMovie] = useState('Live entertainment data not connected');
   const [tracks, setTracks] = useState<string[]>([]);
   const [musicIsMock, setMusicIsMock] = useState(false);
   const [games, setGames] = useState<string[]>([]);
@@ -92,7 +92,10 @@ export default function HomeScreen() {
             const summary = getFinanceSummary(result);
             setMarket(summary?.market ?? (result.provenance === 'mock' ? 'Simulated market preview' : 'Market unavailable'));
           }).catch(() => setMarket('Market unavailable')),
-          getEntertainment().then((data) => setMovie(data.movie)).catch(() => setMovie('Entertainment unavailable')),
+          getEntertainment().then((result) => {
+            const summary = getEntertainmentSummary(result);
+            setMovie(summary?.headline ?? 'Live entertainment data not connected');
+          }).catch(() => setMovie('Entertainment unavailable')),
           getMusic().then((result) => {
             if (result.provenance === 'unavailable') {
               setPlaylist('Music unavailable');
