@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+import { inMemoryUserRepository } from './data/in-memory-user-repository.ts';
 import { API_STATUS_RESPONSE } from './routes/status.ts';
+import { handleUserProfileRoute } from './routes/users.ts';
 
 export type HealthResponse = {
   service: 'lookup-backend';
@@ -24,7 +26,7 @@ function getLocalDevelopmentCorsHeaders(request: IncomingMessage): Record<string
     if (isHttp && isLoopback) {
       return {
         'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
         'Access-Control-Allow-Origin': origin,
         Vary: 'Origin',
       };
@@ -45,7 +47,7 @@ function sendJson(request: IncomingMessage, response: ServerResponse, statusCode
   response.end(JSON.stringify(body));
 }
 
-export function handleRequest(request: IncomingMessage, response: ServerResponse) {
+export async function handleRequest(request: IncomingMessage, response: ServerResponse) {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
 
   if (request.method === 'OPTIONS' && requestUrl.pathname.startsWith('/api/v1/')) {
@@ -61,6 +63,20 @@ export function handleRequest(request: IncomingMessage, response: ServerResponse
 
   if (request.method === 'GET' && requestUrl.pathname === '/api/v1/status') {
     sendJson(request, response, 200, API_STATUS_RESPONSE);
+    return;
+  }
+
+  try {
+    const userProfileResult = await handleUserProfileRoute(request, requestUrl.pathname, inMemoryUserRepository);
+    if (userProfileResult) {
+      sendJson(request, response, userProfileResult.statusCode, userProfileResult.body);
+      return;
+    }
+  } catch {
+    sendJson(request, response, 500, {
+      status: 'error',
+      message: 'The backend could not complete the request.',
+    });
     return;
   }
 

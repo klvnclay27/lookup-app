@@ -5,6 +5,8 @@ This folder contains the TypeScript backend foundation for LookUP. It currently 
 ```text
 GET /health
 GET /api/v1/status
+GET /api/v1/users/:userId/profile
+PATCH /api/v1/users/:userId/profile
 ```
 
 The response confirms that the local backend process is available:
@@ -25,6 +27,17 @@ The response confirms that the local backend process is available:
   "apiVersion": "v1"
 }
 ```
+
+## Development user data
+
+The backend includes a development-only in-memory user repository seeded with the non-sensitive user ID `demo-user`. It supports reading a profile and updating only `displayName` and `smartModeEnabled`:
+
+```sh
+curl http://localhost:4000/api/v1/users/demo-user/profile
+curl -X PATCH http://localhost:4000/api/v1/users/demo-user/profile -H "Content-Type: application/json" -d "{\"smartModeEnabled\":false}"
+```
+
+Data is keyed by user ID and disappears whenever the backend restarts. The `UserRepository` interface is the boundary a future database implementation will replace. No account, authentication, or persistent database exists yet.
 
 ## Run locally
 

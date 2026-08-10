@@ -6,6 +6,16 @@ export type BackendStatus = {
   status: 'ok';
 };
 
+export type BackendUserProfile = {
+  userId: string;
+  displayName: string;
+  smartModeEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BackendUserProfileChanges = Partial<Pick<BackendUserProfile, 'displayName' | 'smartModeEnabled'>>;
+
 export type BackendClientError = {
   code: 'network' | 'http' | 'invalid-response';
   message: string;
@@ -20,6 +30,9 @@ export type BackendRequestOptions = {
   baseUrl?: string;
   fetchImplementation?: typeof fetch;
 };
+
+type BackendDataResponse<T> = { data: T };
+type BackendRequestMethod = 'GET' | 'PATCH';
 
 const DEFAULT_BACKEND_BASE_URL = 'http://localhost:4000';
 
@@ -37,6 +50,20 @@ function isBackendStatus(value: unknown): value is BackendStatus {
   return status.status === 'ok' && status.service === 'lookup-backend' && status.apiVersion === 'v1';
 }
 
+function isBackendUserProfile(value: unknown): value is BackendUserProfile {
+  if (typeof value !== 'object' || value === null) return false;
+  const profile = value as Partial<BackendUserProfile>;
+  return typeof profile.userId === 'string'
+    && typeof profile.displayName === 'string'
+    && typeof profile.smartModeEnabled === 'boolean'
+    && typeof profile.createdAt === 'string'
+    && typeof profile.updatedAt === 'string';
+}
+
+function isUserProfileResponse(value: unknown): value is BackendDataResponse<BackendUserProfile> {
+  return typeof value === 'object' && value !== null && isBackendUserProfile((value as { data?: unknown }).data);
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().includes('application/json')) {
@@ -50,6 +77,8 @@ async function requestJson<T>(
   path: string,
   validate: (value: unknown) => value is T,
   options: BackendRequestOptions = {},
+  method: BackendRequestMethod = 'GET',
+  body?: unknown,
 ): Promise<BackendResult<T>> {
   const baseUrl = normalizeBaseUrl(options.baseUrl ?? BACKEND_BASE_URL);
   const fetchImplementation = options.fetchImplementation ?? fetch;
@@ -57,8 +86,12 @@ async function requestJson<T>(
 
   try {
     response = await fetchImplementation(`${baseUrl}${path}`, {
-      headers: { Accept: 'application/json' },
-      method: 'GET',
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      method,
     });
   } catch {
     return {
@@ -98,4 +131,37 @@ async function requestJson<T>(
 
 export function getBackendStatus(options: BackendRequestOptions = {}): Promise<BackendResult<BackendStatus>> {
   return requestJson('/api/v1/status', isBackendStatus, options);
+}
+
+function unwrapDataResult<T>(result: BackendResult<BackendDataResponse<T>>): BackendResult<T> {
+  return result.state === 'available'
+    ? { data: result.data.data, error: null, state: 'available' }
+    : result;
+}
+
+export async function getUserProfile(
+  userId: string,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserProfile>> {
+  const result = await requestJson(
+    `/api/v1/users/${encodeURIComponent(userId)}/profile`,
+    isUserProfileResponse,
+    options,
+  );
+  return unwrapDataResult(result);
+}
+
+export async function updateUserProfile(
+  userId: string,
+  changes: BackendUserProfileChanges,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserProfile>> {
+  const result = await requestJson(
+    `/api/v1/users/${encodeURIComponent(userId)}/profile`,
+    isUserProfileResponse,
+    options,
+    'PATCH',
+    changes,
+  );
+  return unwrapDataResult(result);
 }
