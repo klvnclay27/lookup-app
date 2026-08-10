@@ -14,17 +14,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   getTraffic,
-  MOCK_FLIGHTS,
-  MOCK_ROAD_DESTINATIONS,
-  MOCK_ROAD_INCIDENTS,
-  MOCK_SUBWAY_COMMUTES,
   searchFlights as filterFlights,
   type AirportWeather,
+  type CommuteHistoryEntry,
   type FlightData as Flight,
   type FlightStatus,
   type RoadDestination as Destination,
   type RoadIncident as Incident,
   type TrafficDataProvenance,
+  type TrafficOverview as TrafficOverviewData,
+  type TransitArrival,
   type TravelMode,
 } from '@/services/traffic';
 
@@ -32,41 +31,24 @@ type HubMode = 'Road' | 'Flights';
 
 const MODES: TravelMode[] = ['Drive', 'Transit', 'Walk', 'Bike'];
 
-const DESTINATIONS = MOCK_ROAD_DESTINATIONS;
-const INCIDENTS = MOCK_ROAD_INCIDENTS;
-
-const TRANSIT = MOCK_SUBWAY_COMMUTES.map((train) => ({
-  line: train.line,
-  station: `${train.station} · ${train.direction}`,
-  arrival: `${train.nextArrivalMinutes} min`,
-  status: train.status,
-  color: train.status === 'Good Service' ? '#2A9D55' : '#C98B38',
-}));
-
-const HISTORY = [
-  { destination: DESTINATIONS[1], day: 'Yesterday', time: '31 min', level: 'Heavy', mode: 'Drive' as TravelMode },
-  { destination: DESTINATIONS[2], day: 'Monday', time: '28 min', level: 'Light', mode: 'Bike' as TravelMode },
-  { destination: DESTINATIONS[0], day: 'Sunday', time: '35 min', level: 'Moderate', mode: 'Transit' as TravelMode },
-];
-
-const FLIGHTS = MOCK_FLIGHTS;
-
 export default function TrafficScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const [hubMode, setHubMode] = useState<HubMode>('Road');
-  const [selectedDestination, setSelectedDestination] = useState<Destination>(DESTINATIONS[1]);
+  const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [mode, setMode] = useState<TravelMode>('Drive');
   const [query, setQuery] = useState('');
   const [routeStarted, setRouteStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trafficProvenance, setTrafficProvenance] = useState<TrafficDataProvenance>('unavailable');
-  const [roadDestinations, setRoadDestinations] = useState<Destination[]>(DESTINATIONS);
-  const [roadIncidents, setRoadIncidents] = useState<Incident[]>(INCIDENTS);
-  const [nearbyTransit, setNearbyTransit] = useState(TRANSIT);
-  const [flights, setFlights] = useState<Flight[]>(FLIGHTS);
+  const [roadDestinations, setRoadDestinations] = useState<Destination[]>([]);
+  const [roadIncidents, setRoadIncidents] = useState<Incident[]>([]);
+  const [nearbyTransit, setNearbyTransit] = useState<TransitArrival[]>([]);
+  const [flights, setFlights] = useState<Flight[]>([]);
+  const [commuteHistory, setCommuteHistory] = useState<CommuteHistoryEntry[]>([]);
+  const [trafficOverview, setTrafficOverview] = useState<TrafficOverviewData | null>(null);
   const [flightQuery, setFlightQuery] = useState('');
   const [submittedFlightQuery, setSubmittedFlightQuery] = useState('');
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
@@ -86,15 +68,11 @@ export default function TrafficScreen() {
     } else {
       setRoadDestinations(result.data.roadDestinations);
       setRoadIncidents(result.data.roadIncidents);
-      setNearbyTransit(result.data.subwayCommutes.map((train) => ({
-        line: train.line,
-        station: `${train.station} · ${train.direction}`,
-        arrival: train.estimatedArrival,
-        status: train.status,
-        color: train.status === 'Good Service' ? '#2A9D55' : '#C98B38',
-      })));
+      setNearbyTransit(result.data.subwayCommutes);
       setFlights(result.data.flights);
-      setSelectedDestination((current) => result.data.roadDestinations.find((place) => place.id === current.id) ?? result.data.roadDestinations[0] ?? current);
+      setCommuteHistory(result.data.commuteHistory);
+      setTrafficOverview(result.data.overview);
+      setSelectedDestination((current) => result.data.roadDestinations.find((place) => place.id === current?.id) ?? result.data.roadDestinations[0] ?? current);
     }
     setIsLoading(false);
   };
@@ -146,6 +124,7 @@ export default function TrafficScreen() {
 
   if (isLoading) return <ScreenState loading title="Loading your commute" copy="Preparing simulated route information…" />;
   if (error) return <ScreenState title="Traffic is unavailable" copy={error} action="Try again" onAction={() => { void loadTraffic(); }} />;
+  if (!selectedDestination || !trafficOverview) return <ScreenState title="Traffic is unavailable" copy="No transportation provider data is available." action="Try again" onAction={() => { void loadTraffic(); }} />;
 
   const route = selectedDestination.modes[mode];
 
@@ -184,11 +163,11 @@ export default function TrafficScreen() {
 
           <View style={styles.section}><SectionHeader title="Traffic Incidents" /><View style={styles.listCard}>{roadIncidents.map((incident, index) => <View key={incident.id}><IncidentRow incident={incident} />{index < roadIncidents.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
 
-          <View style={styles.section}><SectionHeader title="Nearby Transit" action="See schedule" /><View style={styles.listCard}>{nearbyTransit.map((transit, index) => <View key={`${transit.line}-${transit.station}`}><TransitRow transit={transit} />{index < nearbyTransit.length - 1 && <View style={styles.transitDivider} />}</View>)}</View><Text style={styles.simulatedLabel}>SIMULATED TRANSIT INFORMATION</Text></View>
+          <View style={styles.section}><SectionHeader title="Nearby Transit" action="See schedule" /><View style={styles.listCard}>{nearbyTransit.map((transit, index) => <View key={`${transit.line}-${transit.station}`}><TransitRow transit={transit} />{index < nearbyTransit.length - 1 && <View style={styles.transitDivider} />}</View>)}</View><Text style={styles.simulatedLabel}>{trafficProvenance === 'live' ? 'LIVE TRANSIT INFORMATION' : 'SIMULATED TRANSIT INFORMATION'}</Text></View>
 
-          <View style={styles.section}><SectionHeader title="Commute History" /><View style={styles.listCard}>{HISTORY.map((trip, index) => <View key={`${trip.destination.id}-${trip.day}`}><Pressable onPress={() => { selectDestination(trip.destination); selectMode(trip.mode); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyIcon}><Text style={styles.historyIconText}>{trip.destination.icon}</Text></View><View style={styles.historyCopy}><Text style={styles.historyDestination}>{trip.destination.name}</Text><Text style={styles.historyMeta}>{trip.day} · {trip.mode} · {trip.level} traffic</Text></View><Text style={styles.historyTime}>{trip.time}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < HISTORY.length - 1 && <View style={styles.historyDivider} />}</View>)}</View></View>
+          <View style={styles.section}><SectionHeader title="Commute History" /><View style={styles.listCard}>{commuteHistory.map((trip, index) => { const destination = roadDestinations.find((place) => place.id === trip.destinationId); return destination ? <View key={trip.id}><Pressable onPress={() => { selectDestination(destination); selectMode(trip.mode); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyIcon}><Text style={styles.historyIconText}>{destination.icon}</Text></View><View style={styles.historyCopy}><Text style={styles.historyDestination}>{destination.name}</Text><Text style={styles.historyMeta}>{trip.day} · {trip.mode} · {trip.level} traffic</Text></View><Text style={styles.historyTime}>{trip.time}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < commuteHistory.length - 1 && <View style={styles.historyDivider} />}</View> : null; })}</View></View>
 
-          <View style={styles.sectionLast}><SectionHeader title="Traffic Overview" /><TrafficOverview /></View>
+          <View style={styles.sectionLast}><SectionHeader title="Traffic Overview" /><TrafficOverview overview={trafficOverview} /></View>
           <Text style={styles.disclaimer}>{trafficProvenance === 'live' ? 'Commute information is live. Transit and route previews may still be simulated.' : 'Traffic, transit, and route information shown in this MVP is simulated.'}</Text>
         </>
       )}
@@ -208,6 +187,7 @@ export default function TrafficScreen() {
           savedFlights={savedFlights}
           selectedFlight={selectedFlight}
           setQuery={setFlightQuery}
+          provenance={trafficProvenance}
         />
       )}
     </ScrollView>
@@ -229,6 +209,7 @@ function FlightsExperience({
   savedFlights,
   selectedFlight,
   setQuery,
+  provenance,
 }: {
   error: string | null;
   isDesktop: boolean;
@@ -244,13 +225,14 @@ function FlightsExperience({
   savedFlights: Flight[];
   selectedFlight: Flight | null;
   setQuery: (value: string) => void;
+  provenance: TrafficDataProvenance;
 }) {
   if (loading) return <FlightState loading title="Loading simulated flights" copy="Preparing local schedule and airport weather data…" />;
   if (error) return <FlightState title="Flights are unavailable" copy={error} action="Retry" onAction={onRetry} />;
 
   return (
     <View>
-      <View style={styles.flightIntro}><Text style={styles.flightEyebrow}>SIMULATED FLIGHT INFORMATION</Text><Text style={styles.flightTitle}>Flights</Text><Text style={styles.flightSubtitle}>Track a route and preview the journey ahead.</Text></View>
+      <View style={styles.flightIntro}><Text style={styles.flightEyebrow}>{provenance === 'live' ? 'LIVE FLIGHT INFORMATION' : 'SIMULATED FLIGHT INFORMATION'}</Text><Text style={styles.flightTitle}>Flights</Text><Text style={styles.flightSubtitle}>Track a route and preview the journey ahead.</Text></View>
       <View style={styles.flightSearchRow}>
         <View style={[styles.searchBar, styles.flightSearchBar]}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Search flight number" autoCapitalize="characters" autoCorrect={false} onChangeText={setQuery} onSubmitEditing={() => onSearch()} placeholder="Search flight number" placeholderTextColor="#7E8793" returnKeyType="search" style={styles.searchInput} value={query} /></View>
         <Pressable onPress={() => onSearch()} style={({ pressed }) => [styles.flightSearchButton, pressed && styles.pressed]}><Text style={styles.flightSearchButtonText}>Search</Text></Pressable>
@@ -294,7 +276,7 @@ function FlightCard({ flight, favorite, isDesktop, onPress, onToggleSaved, selec
   return (
     <View style={[styles.flightCard, selected && styles.flightCardSelected]}>
       <Pressable onPress={onPress} style={({ pressed }) => [styles.flightCardMain, pressed && styles.cardPressed]}>
-        <View style={styles.flightCardHeader}><View><Text style={styles.flightAirline}>{flight.airline}</Text><Text style={styles.flightNumber}>{flight.number} · SIMULATED</Text></View><StatusBadge status={flight.status} /></View>
+        <View style={styles.flightCardHeader}><View><Text style={styles.flightAirline}>{flight.airline}</Text><Text style={styles.flightNumber}>{flight.number} · {flight.provenance === 'mock' ? 'SIMULATED' : 'LIVE'}</Text></View><StatusBadge status={flight.status} /></View>
         <View style={styles.flightRoute}><AirportPoint code={flight.origin.code} city={flight.origin.city} time={flight.departure} /><View style={styles.flightPath}><View style={styles.flightPathLine} /><Text style={styles.flightPathIcon}>✈</Text><Text style={styles.flightDuration}>{flight.duration}</Text></View><AirportPoint code={flight.destination.code} city={flight.destination.city} time={flight.arrival} right /></View>
         <View style={styles.flightMeta}><FlightMeta label="TERMINAL" value={flight.terminal ?? 'TBD'} /><FlightMeta label="GATE" value={flight.gate ?? 'TBD'} /><FlightMeta label="DEPARTS" value={flight.departure} /><FlightMeta label="ARRIVES" value={flight.arrival} /></View>
         <View style={[styles.airportWeatherRow, !isDesktop && styles.airportWeatherRowMobile]}><AirportWeatherCard label="Departure" airport={flight.origin.code} weather={flight.origin.weather} /><AirportWeatherCard label="Destination" airport={flight.destination.code} weather={flight.destination.weather} /></View>
@@ -404,12 +386,13 @@ function IncidentRow({ incident }: { incident: Incident }) {
   return <View style={styles.incidentRow}><View style={[styles.incidentIcon, severe && styles.severeBackground, high && styles.highBackground]}><Text style={[styles.incidentIconText, (severe || high) && styles.severeText]}>{incident.icon}</Text></View><View style={styles.incidentCopy}><Text style={styles.incidentRoad}>{incident.road}</Text><Text numberOfLines={2} style={styles.incidentDescription}>{incident.description}</Text><Text style={styles.incidentDistance}>{incident.distance}</Text></View><View style={styles.incidentRight}><Text style={[styles.severityBadge, severe && styles.severitySevere, high && styles.severityHigh]}>{incident.severity}</Text><Text style={styles.delayText}>{incident.delay}</Text></View></View>;
 }
 
-function TransitRow({ transit }: { transit: typeof TRANSIT[number] }) {
-  return <View style={styles.transitRow}><View style={[styles.transitLine, { backgroundColor: transit.color }]}><Text style={styles.transitLineText}>{transit.line}</Text></View><View style={styles.transitCopy}><Text style={styles.transitStation}>{transit.station}</Text><Text style={styles.transitStatus}>{transit.status}</Text></View><Text style={styles.transitArrival}>{transit.arrival}</Text></View>;
+function TransitRow({ transit }: { transit: TransitArrival }) {
+  const color = transit.status === 'Good Service' ? '#2A9D55' : '#C98B38';
+  return <View style={styles.transitRow}><View style={[styles.transitLine, { backgroundColor: color }]}><Text style={styles.transitLineText}>{transit.line}</Text></View><View style={styles.transitCopy}><Text style={styles.transitStation}>{transit.station} · {transit.direction}</Text><Text style={styles.transitStatus}>{transit.status}</Text></View><Text style={styles.transitArrival}>{transit.estimatedArrival}</Text></View>;
 }
 
-function TrafficOverview() {
-  return <View style={styles.overviewCard}><View style={styles.overviewHeader}><View><Text style={styles.overline}>NEW YORK CITY · SIMULATED</Text><Text style={styles.overviewLevel}>Moderate traffic</Text></View><View style={styles.overviewIndicator}><View style={styles.overviewIndicatorFill} /></View></View><View style={styles.overviewStats}><OverviewStat label="AVG SPEED" value="18 mph" /><OverviewStat label="INCIDENTS" value="4 major" /><OverviewStat label="AVG DELAY" value="+11 min" /></View></View>;
+function TrafficOverview({ overview }: { overview: TrafficOverviewData }) {
+  return <View style={styles.overviewCard}><View style={styles.overviewHeader}><View><Text style={styles.overline}>{overview.location.toUpperCase()} · {overview.provenance === 'mock' ? 'SIMULATED' : 'LIVE'}</Text><Text style={styles.overviewLevel}>{overview.level} traffic</Text></View><View style={styles.overviewIndicator}><View style={[styles.overviewIndicatorFill, { width: `${overview.congestionPercent}%` as `${number}%` }]} /></View></View><View style={styles.overviewStats}><OverviewStat label="AVG SPEED" value={overview.averageSpeed} /><OverviewStat label="INCIDENTS" value={overview.majorIncidents} /><OverviewStat label="AVG DELAY" value={overview.averageDelay} /></View></View>;
 }
 
 function OverviewStat({ label, value }: { label: string; value: string }) {

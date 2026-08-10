@@ -108,6 +108,28 @@ export type FlightData = {
 
 export type TrafficSummary = { commute: string; status: string; usualMinutes: number };
 
+export type CommuteHistoryEntry = {
+  id: string;
+  destinationId: string;
+  day: string;
+  time: string;
+  level: TrafficLevel;
+  mode: TravelMode;
+  dataProvider: string;
+  provenance: 'live' | 'mock';
+};
+
+export type TrafficOverview = {
+  location: string;
+  level: TrafficLevel;
+  averageSpeed: string;
+  majorIncidents: string;
+  averageDelay: string;
+  congestionPercent: number;
+  dataProvider: string;
+  provenance: 'live' | 'mock';
+};
+
 export type TrafficSnapshot = {
   commuteData: CommuteData;
   summary: TrafficSummary;
@@ -115,6 +137,10 @@ export type TrafficSnapshot = {
   roadIncidents: RoadIncident[];
   subwayCommutes: TransitArrival[];
   flights: FlightData[];
+  commuteHistory: CommuteHistoryEntry[];
+  overview: TrafficOverview;
+  dataProvider: string;
+  provenance: 'live' | 'mock';
   updatedAt: string;
 };
 
@@ -123,6 +149,7 @@ export type TrafficDataResult =
   | { data: null; error: string; provenance: 'unavailable' };
 
 export interface TrafficDataProvider {
+  readonly name: string;
   readonly provenance: 'live' | 'mock';
   getTraffic(): Promise<TrafficSnapshot>;
 }
@@ -160,7 +187,25 @@ export const MOCK_FLIGHTS: FlightData[] = [
   { id: 'b61204', airline: 'JetBlue', number: 'B61204', origin: { code: 'JFK', city: 'New York', weather: weather('72°', 'Partly cloudy', '20%', 'SW 9 mph') }, destination: { code: 'BOS', city: 'Boston', weather: weather('66°', 'Clear', '5%', 'NW 8 mph') }, scheduledDeparture: '7:05 AM', estimatedDeparture: '7:05 AM', scheduledArrival: '8:19 AM', estimatedArrival: '8:19 AM', departure: '7:05 AM', arrival: '8:19 AM', terminal: '5', gate: '22', duration: '1h 14m', status: 'Landed', delayMinutes: 0, cancelled: false, timezoneDifference: 'Same time zone', delayLevel: 'Low', destinationDrive: '18 min to downtown', packingSuggestion: 'Comfortable layers and walking shoes', clothing: ['Tops', 'Bottoms', 'Shoes'], dataProvider: MOCK_PROVIDER, provenance: 'mock' },
 ];
 
+export const MOCK_COMMUTE_HISTORY: CommuteHistoryEntry[] = [
+  { id: 'work-yesterday', destinationId: 'work', day: 'Yesterday', time: '31 min', level: 'Heavy', mode: 'Drive', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'gym-monday', destinationId: 'gym', day: 'Monday', time: '28 min', level: 'Light', mode: 'Bike', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'home-sunday', destinationId: 'home', day: 'Sunday', time: '35 min', level: 'Moderate', mode: 'Transit', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+];
+
+export const MOCK_TRAFFIC_OVERVIEW: TrafficOverview = {
+  location: 'New York City',
+  level: 'Moderate',
+  averageSpeed: '18 mph',
+  majorIncidents: '4 major',
+  averageDelay: '+11 min',
+  congestionPercent: 62,
+  dataProvider: MOCK_PROVIDER,
+  provenance: 'mock',
+};
+
 export const mockTrafficProvider: TrafficDataProvider = {
+  name: MOCK_PROVIDER,
   provenance: 'mock',
   async getTraffic() {
     const commuteData: DrivingCommute = { mode: 'driving', durationMinutes: 28, usualMinutes: 28, status: 'Normal' };
@@ -171,6 +216,10 @@ export const mockTrafficProvider: TrafficDataProvider = {
       roadIncidents: MOCK_ROAD_INCIDENTS,
       subwayCommutes: MOCK_SUBWAY_COMMUTES,
       flights: MOCK_FLIGHTS,
+      commuteHistory: MOCK_COMMUTE_HISTORY,
+      overview: MOCK_TRAFFIC_OVERVIEW,
+      dataProvider: MOCK_PROVIDER,
+      provenance: 'mock',
       updatedAt: new Date().toISOString(),
     };
   },
@@ -178,7 +227,12 @@ export const mockTrafficProvider: TrafficDataProvider = {
 
 export async function getTraffic(provider: TrafficDataProvider = mockTrafficProvider): Promise<TrafficDataResult> {
   try {
-    return { data: await provider.getTraffic(), error: null, provenance: provider.provenance };
+    const data = await provider.getTraffic();
+    return {
+      data: { ...data, dataProvider: provider.name, provenance: provider.provenance },
+      error: null,
+      provenance: provider.provenance,
+    };
   } catch {
     return { data: null, error: 'Traffic information is currently unavailable.', provenance: 'unavailable' };
   }
