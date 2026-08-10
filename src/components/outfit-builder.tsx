@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -15,19 +14,21 @@ import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "
 import { PremiumMannequinPreview, type MannequinType } from "@/components/premium-mannequin-preview";
 import {
   type ClosetCategory,
-  type ClothingItem,
-  DEVELOPMENT_STARTER_WARDROBE,
 } from "@/constants/starter-wardrobe";
-
-type OutfitSlotKey = "top" | "jacket" | "bottom" | "shoes" | "accessory";
-type OutfitSelection = Record<OutfitSlotKey, ClothingItem | null>;
-
-type SavedOutfit = {
-  createdAt?: string;
-  id: string;
-  name: string;
-  items: OutfitSelection;
-};
+import {
+  DEFAULT_CLOSET_ID,
+  DEFAULT_LOCKER_SCOPE,
+  getOutfits,
+  getWardrobeItems,
+  LOCAL_STARTER_WARDROBE,
+  removeOutfit as removeStoredOutfit,
+  saveOutfit as saveStoredOutfit,
+  updateWardrobeItem,
+  type Outfit as SavedOutfit,
+  type OutfitSelection,
+  type OutfitSlotKey,
+  type WardrobeItem,
+} from "@/services/my-locker";
 
 type SlotDefinition = {
   key: OutfitSlotKey;
@@ -41,8 +42,6 @@ type OutfitBuilderProps = {
   onWardrobeCountChange?: (count: number) => void;
 };
 
-const WARDROBE_STORAGE_KEY = "lookup.myLocker.wardrobe.v1";
-const SAVED_OUTFITS_STORAGE_KEY = "lookup.myLocker.savedOutfits";
 const slots: SlotDefinition[] = [
   { key: "top", label: "Top", category: "Shirts", placeholder: "👕" },
   { key: "jacket", label: "Jacket", category: "Jackets", placeholder: "🧥" },
@@ -76,7 +75,7 @@ function ClothingCarouselCard({
   onSelect,
   onToggleFavorite,
 }: {
-  item: ClothingItem;
+  item: WardrobeItem;
   selected: boolean;
   onSelect: () => void;
   onToggleFavorite: () => void;
@@ -115,11 +114,11 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   const [mannequinType, setMannequinType] = useState<MannequinType>("male");
   const [selection, setSelection] = useState<OutfitSelection>(() => ({
     ...emptySelection(),
-    top: DEVELOPMENT_STARTER_WARDROBE.find((item) => item.id === "sample-shirt-black-polo") ?? null,
-    bottom: DEVELOPMENT_STARTER_WARDROBE.find((item) => item.id === "sample-pants-blue-jeans") ?? null,
+    top: LOCAL_STARTER_WARDROBE.find((item) => item.id === "sample-shirt-black-polo") ?? null,
+    bottom: LOCAL_STARTER_WARDROBE.find((item) => item.id === "sample-pants-blue-jeans") ?? null,
   }));
   const [resetSelection, setResetSelection] = useState<OutfitSelection>(emptySelection);
-  const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
+  const [wardrobe, setWardrobe] = useState<WardrobeItem[]>([]);
   const [wardrobeReady, setWardrobeReady] = useState(false);
 
   useEffect(() => {
@@ -127,24 +126,13 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
 
     async function restoreLockerData() {
       try {
-        const [storedWardrobe, storedOutfits] = await Promise.all([
-          AsyncStorage.getItem(WARDROBE_STORAGE_KEY),
-          AsyncStorage.getItem(SAVED_OUTFITS_STORAGE_KEY),
+        const [wardrobeResult, outfitsResult] = await Promise.all([
+          getWardrobeItems(),
+          getOutfits(),
         ]);
-
-        let nextWardrobe: ClothingItem[];
-        if (storedWardrobe === null) {
-          nextWardrobe = DEVELOPMENT_STARTER_WARDROBE;
-          await AsyncStorage.setItem(WARDROBE_STORAGE_KEY, JSON.stringify(nextWardrobe));
-        } else {
-          const parsedWardrobe: unknown = JSON.parse(storedWardrobe);
-          nextWardrobe = Array.isArray(parsedWardrobe) ? (parsedWardrobe as ClothingItem[]) : [];
-        }
-
-        const parsedOutfits: unknown = storedOutfits ? JSON.parse(storedOutfits) : [];
         if (!isMounted) return;
-        setWardrobe(nextWardrobe);
-        setSavedOutfits(Array.isArray(parsedOutfits) ? (parsedOutfits as SavedOutfit[]) : []);
+        setWardrobe(wardrobeResult.data ?? []);
+        setSavedOutfits(outfitsResult.data ?? []);
       } catch (error) {
         console.warn("Unable to restore outfit builder data", error);
       } finally {
@@ -188,16 +176,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   }, [wardrobe]);
   const favoriteBrand = wardrobe.find((item) => item.favorite)?.brand ?? wardrobe[0]?.brand ?? "—";
 
-  const persistWardrobe = async (nextWardrobe: ClothingItem[]) => {
-    setWardrobe(nextWardrobe);
-    try {
-      await AsyncStorage.setItem(WARDROBE_STORAGE_KEY, JSON.stringify(nextWardrobe));
-    } catch (error) {
-      console.warn("Unable to save wardrobe", error);
-    }
-  };
-
-  const selectItem = (item: ClothingItem) => {
+  const selectItem = (item: WardrobeItem) => {
     if (!activeSlot) return;
     setSelection((current) => ({ ...current, [activeSlot.key]: item }));
     setActiveSlot(null);
@@ -234,10 +213,13 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   };
 
   const toggleFavorite = (itemId: string) => {
-    const nextWardrobe = wardrobe.map((item) =>
-      item.id === itemId ? { ...item, favorite: !item.favorite } : item,
-    );
-    void persistWardrobe(nextWardrobe);
+    const item = wardrobe.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const updated = { ...item, favorite: !item.favorite };
+    setWardrobe((current) => current.map((candidate) => candidate.id === itemId ? updated : candidate));
+    void updateWardrobeItem(updated).then((result) => {
+      if (result.data) setWardrobe(result.data);
+    });
   };
 
   const saveOutfit = async () => {
@@ -247,26 +229,24 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
       id: `${Date.now()}`,
       name: outfitName.trim() || "Untitled Outfit",
       items: { ...selection },
+      userId: DEFAULT_LOCKER_SCOPE.userId,
+      closetId: DEFAULT_CLOSET_ID,
+      mannequinType,
+      updatedAt: new Date().toISOString(),
     };
     const nextOutfits = [savedOutfit, ...savedOutfits];
     setSavedOutfits(nextOutfits);
     setOutfitName("");
     setSaveMessage(`“${savedOutfit.name}” saved successfully.`);
-    try {
-      await AsyncStorage.setItem(SAVED_OUTFITS_STORAGE_KEY, JSON.stringify(nextOutfits));
-    } catch (error) {
-      console.warn("Unable to save outfit", error);
-    }
+    const result = await saveStoredOutfit(savedOutfit);
+    if (result.data) setSavedOutfits(result.data);
   };
 
   const deleteOutfit = async (outfitId: string) => {
     const nextOutfits = savedOutfits.filter((outfit) => outfit.id !== outfitId);
     setSavedOutfits(nextOutfits);
-    try {
-      await AsyncStorage.setItem(SAVED_OUTFITS_STORAGE_KEY, JSON.stringify(nextOutfits));
-    } catch (error) {
-      console.warn("Unable to delete outfit", error);
-    }
+    const result = await removeStoredOutfit(outfitId);
+    if (result.data) setSavedOutfits(result.data);
   };
 
   const loadOutfit = (outfit: SavedOutfit) => {
@@ -276,7 +256,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
     setSaveMessage(`“${outfit.name}” loaded.`);
   };
 
-  const selectClosetItem = (item: ClothingItem) => {
+  const selectClosetItem = (item: WardrobeItem) => {
     const slotKey: OutfitSlotKey =
       item.category === "Shirts"
         ? "top"

@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -15,8 +14,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OutfitBuilder } from "@/components/outfit-builder";
+import { DEFAULT_CLOSET_ID, getLockerProfile, updateClosetName } from "@/services/my-locker";
 
-const LOCKER_NAME_STORAGE_KEY = "lookup.myLocker.name";
 const aiFeatures = [
   { icon: "🤖", title: "AI Clothing Recognition", description: "Automatically identifies clothing." },
   { icon: "🎨", title: "Color Detection", description: "Detects dominant colors." },
@@ -48,11 +47,11 @@ export default function MyLockerScreen() {
   useEffect(() => {
     let isMounted = true;
 
-    AsyncStorage.getItem(LOCKER_NAME_STORAGE_KEY)
-      .then((savedName) => {
-        if (isMounted && savedName) {
-          setLockerName(savedName);
-          setLockerNameDraft(savedName);
+    getLockerProfile()
+      .then((result) => {
+        if (isMounted && result.data) {
+          setLockerName(result.data.displayName);
+          setLockerNameDraft(result.data.displayName);
         }
       })
       .catch((error) => console.warn("Unable to load locker name", error));
@@ -131,7 +130,8 @@ export default function MyLockerScreen() {
     closeRenameModal();
 
     try {
-      await AsyncStorage.setItem(LOCKER_NAME_STORAGE_KEY, nextName);
+      const result = await updateClosetName(DEFAULT_CLOSET_ID, nextName);
+      if (result.provenance === "unavailable") console.warn("Unable to save locker name", result.error);
     } catch (error) {
       console.warn("Unable to save locker name", error);
     }
@@ -164,7 +164,7 @@ export default function MyLockerScreen() {
           accessibilityRole="button"
           onPress={() => setIsAddModalVisible(true)}
           style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}>
-          <Text style={styles.addButtonText}>+ Add Clothing</Text>
+          <Text style={styles.addButtonText}>+ Add Item</Text>
         </Pressable>
 
         <OutfitBuilder

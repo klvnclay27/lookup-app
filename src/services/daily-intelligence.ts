@@ -1,15 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import { createMockCalendarEvent, type CalendarEvent } from '@/services/calendar';
-import type { ClothingItem } from '@/constants/starter-wardrobe';
 import type { FinanceIntelligenceSummary } from '@/services/finance';
+import { getWardrobeItems, type WardrobeItem } from '@/services/my-locker';
 import type { MusicIntelligenceSummary } from '@/services/music';
 import type { SportsIntelligenceSummary } from '@/services/sports';
 import { type CommuteData, type SubwayCommute, type TrafficSummary } from '@/services/traffic';
 import { getWeather, getWeatherForIntelligence } from '@/services/weather';
 
 export type IntelligencePriority = 'routine' | 'useful' | 'important';
-export type DailyWardrobeItem = Pick<ClothingItem, 'brand' | 'category' | 'favorite' | 'id' | 'name' | 'primaryColor'>;
+export type DailyWardrobeItem = Pick<WardrobeItem, 'brand' | 'category' | 'favorite' | 'id' | 'name' | 'primaryColor'>;
 export type DailyLockerContext = { favoriteCount?: number; itemCount?: number; items?: DailyWardrobeItem[] };
 export type WardrobeRecommendation = { detail: string; itemNames: string[]; score: number; title: string };
 export type DailyIntelligenceInput = {
@@ -67,8 +65,6 @@ export type DailyHeadlineContext = {
   secondInsight?: DailyInsight;
   wetWeather?: boolean;
 };
-
-const WARDROBE_STORAGE_KEY = 'lookup.myLocker.wardrobe.v1';
 
 export function calculatePriorityScore({ base, compoundBoost = 0, timeBoost = 0 }: PriorityScoreInput) {
   return Math.max(0, Math.min(100, Math.round(base + compoundBoost + timeBoost)));
@@ -436,20 +432,10 @@ export function generateDailyIntelligenceTestSnapshot(baseInput: DailyIntelligen
 }
 
 export async function readDailyLockerContext(): Promise<DailyLockerContext | undefined> {
-  try {
-    const stored = await AsyncStorage.getItem(WARDROBE_STORAGE_KEY);
-    if (!stored) return undefined;
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return undefined;
-    const items = parsed.filter((item): item is DailyWardrobeItem => {
-      if (typeof item !== 'object' || item === null) return false;
-      const candidate = item as Partial<DailyWardrobeItem>;
-      return typeof candidate.id === 'string' && typeof candidate.name === 'string' && typeof candidate.brand === 'string' && typeof candidate.primaryColor === 'string' && typeof candidate.favorite === 'boolean' && ['Shirts', 'Pants', 'Shoes', 'Jackets', 'Accessories'].includes(candidate.category ?? '');
-    });
-    return { itemCount: items.length, favoriteCount: items.filter((item) => item.favorite).length, items };
-  } catch {
-    return undefined;
-  }
+  const result = await getWardrobeItems();
+  if (!result.data) return undefined;
+  const items: DailyWardrobeItem[] = result.data.map(({ brand, category, favorite, id, name, primaryColor }) => ({ brand, category, favorite, id, name, primaryColor }));
+  return { itemCount: items.length, favoriteCount: items.filter((item) => item.favorite).length, items };
 }
 
 export async function getDailyIntelligence(now = new Date()): Promise<DailyIntelligenceSnapshot> {
