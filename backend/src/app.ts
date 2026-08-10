@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { inMemoryUserRepository } from './data/in-memory-user-repository.ts';
+import { fileUserRepository } from './data/file-user-repository.ts';
+import { handleUserPreferencesRoute } from './routes/preferences.ts';
 import { API_STATUS_RESPONSE } from './routes/status.ts';
 import { handleUserProfileRoute } from './routes/users.ts';
 
@@ -67,9 +68,15 @@ export async function handleRequest(request: IncomingMessage, response: ServerRe
   }
 
   try {
-    const userProfileResult = await handleUserProfileRoute(request, requestUrl.pathname, inMemoryUserRepository);
+    const userProfileResult = await handleUserProfileRoute(request, requestUrl.pathname, fileUserRepository);
     if (userProfileResult) {
       sendJson(request, response, userProfileResult.statusCode, userProfileResult.body);
+      return;
+    }
+
+    const userPreferencesResult = await handleUserPreferencesRoute(request, requestUrl.pathname, fileUserRepository);
+    if (userPreferencesResult) {
+      sendJson(request, response, userPreferencesResult.statusCode, userPreferencesResult.body);
       return;
     }
   } catch {

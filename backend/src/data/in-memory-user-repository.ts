@@ -11,7 +11,7 @@ export const DEMO_USER_ID = 'demo-user';
 
 const DEMO_CREATED_AT = '2026-01-01T00:00:00.000Z';
 
-const DEMO_USER: UserProfile = {
+export const DEMO_USER_PROFILE: UserProfile = {
   userId: DEMO_USER_ID,
   displayName: 'Demo User',
   smartModeEnabled: true,
@@ -26,7 +26,7 @@ function copyProfile(profile: UserProfile): UserProfile {
 export class InMemoryUserRepository implements UserRepository {
   private readonly profiles: Map<UserId, UserProfile>;
 
-  constructor(seedProfiles: UserProfile[] = [DEMO_USER]) {
+  constructor(seedProfiles: UserProfile[] = [DEMO_USER_PROFILE]) {
     this.profiles = new Map(seedProfiles.map((profile) => [profile.userId, copyProfile(profile)]));
   }
 

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getUserProfile, updateUserProfile } from '@/services/backend-client';
+import { getUserPreferences, getUserProfile, updateUserPreferences } from '@/services/backend-client';
 
 export const DEVELOPMENT_USER_ID = 'demo-user';
 
@@ -25,28 +25,26 @@ async function readLocalSmartModePreference(): Promise<boolean | undefined> {
 
 export async function loadDevelopmentUserProfile(): Promise<HomeUserProfile> {
   const localSmartMode = await readLocalSmartModePreference();
-  const backendResult = await getUserProfile(DEVELOPMENT_USER_ID);
-
-  if (backendResult.state === 'available') {
-    return {
-      displayName: backendResult.data.displayName,
-      smartModeEnabled: backendResult.data.smartModeEnabled,
-      source: 'backend',
-      userId: backendResult.data.userId,
-    };
-  }
+  const [profileResult, preferencesResult] = await Promise.all([
+    getUserProfile(DEVELOPMENT_USER_ID),
+    getUserPreferences(DEVELOPMENT_USER_ID),
+  ]);
 
   return {
-    displayName: FALLBACK_DISPLAY_NAME,
-    smartModeEnabled: localSmartMode ?? true,
-    source: 'local',
-    userId: DEVELOPMENT_USER_ID,
+    displayName: profileResult.state === 'available' ? profileResult.data.displayName : FALLBACK_DISPLAY_NAME,
+    smartModeEnabled: preferencesResult.state === 'available'
+      ? preferencesResult.data.smartModeEnabled
+      : profileResult.state === 'available'
+        ? profileResult.data.smartModeEnabled
+        : localSmartMode ?? true,
+    source: profileResult.state === 'available' || preferencesResult.state === 'available' ? 'backend' : 'local',
+    userId: profileResult.state === 'available' ? profileResult.data.userId : DEVELOPMENT_USER_ID,
   };
 }
 
 export async function saveSmartModePreference(enabled: boolean): Promise<void> {
   await Promise.allSettled([
     AsyncStorage.setItem(SMART_MODE_PREFERENCE_KEY, String(enabled)),
-    updateUserProfile(DEVELOPMENT_USER_ID, { smartModeEnabled: enabled }),
+    updateUserPreferences(DEVELOPMENT_USER_ID, { smartModeEnabled: enabled }),
   ]);
 }

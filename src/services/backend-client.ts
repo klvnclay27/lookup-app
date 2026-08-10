@@ -16,6 +16,12 @@ export type BackendUserProfile = {
 
 export type BackendUserProfileChanges = Partial<Pick<BackendUserProfile, 'displayName' | 'smartModeEnabled'>>;
 
+export type BackendUserPreferences = {
+  smartModeEnabled: boolean;
+};
+
+export type BackendUserPreferencesChanges = Partial<BackendUserPreferences>;
+
 export type BackendClientError = {
   code: 'network' | 'http' | 'invalid-response';
   message: string;
@@ -62,6 +68,16 @@ function isBackendUserProfile(value: unknown): value is BackendUserProfile {
 
 function isUserProfileResponse(value: unknown): value is BackendDataResponse<BackendUserProfile> {
   return typeof value === 'object' && value !== null && isBackendUserProfile((value as { data?: unknown }).data);
+}
+
+function isBackendUserPreferences(value: unknown): value is BackendUserPreferences {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as Partial<BackendUserPreferences>).smartModeEnabled === 'boolean';
+}
+
+function isUserPreferencesResponse(value: unknown): value is BackendDataResponse<BackendUserPreferences> {
+  return typeof value === 'object' && value !== null && isBackendUserPreferences((value as { data?: unknown }).data);
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -159,6 +175,33 @@ export async function updateUserProfile(
   const result = await requestJson(
     `/api/v1/users/${encodeURIComponent(userId)}/profile`,
     isUserProfileResponse,
+    options,
+    'PATCH',
+    changes,
+  );
+  return unwrapDataResult(result);
+}
+
+export async function getUserPreferences(
+  userId: string,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserPreferences>> {
+  const result = await requestJson(
+    `/api/v1/users/${encodeURIComponent(userId)}/preferences`,
+    isUserPreferencesResponse,
+    options,
+  );
+  return unwrapDataResult(result);
+}
+
+export async function updateUserPreferences(
+  userId: string,
+  changes: BackendUserPreferencesChanges,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserPreferences>> {
+  const result = await requestJson(
+    `/api/v1/users/${encodeURIComponent(userId)}/preferences`,
+    isUserPreferencesResponse,
     options,
     'PATCH',
     changes,
