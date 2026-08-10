@@ -2,6 +2,32 @@ export type FinanceDataProvenance = 'live' | 'mock' | 'unavailable';
 export type FinanceAssetId = string;
 export type FinanceAssetType = 'Stock' | 'ETF' | 'Index' | 'Crypto' | 'Bond';
 export type FinanceMarketStatus = 'Pre-Market' | 'Market Open' | 'After Hours' | 'Market Closed' | 'Holiday' | 'Early Close' | 'Simulated';
+export type FinanceChartPeriod = '1D' | '1W' | '1M' | '3M' | '1Y';
+export type FinanceMarketException = { type: 'holiday' | 'early-close'; label: string };
+
+export type FinanceNewsStory = {
+  id: string;
+  headline: string;
+  source: string;
+  time: string;
+  category: string;
+  colors: [string, string];
+};
+
+export type FinancePortfolio = {
+  balance: number;
+  displayBalance: string;
+  dailyChange: number;
+  dailyChangePercent: number;
+  chartData: Record<FinanceChartPeriod, number[]>;
+};
+
+export type FinanceSpendingSnapshot = {
+  spent: number;
+  budget: number;
+  remaining: number;
+  categories: { name: string; amount: number; displayAmount: string; color: string }[];
+};
 
 export type FinanceAsset = {
   id: FinanceAssetId;
@@ -41,6 +67,10 @@ export type FinanceMarketIndex = {
 export type FinanceSnapshot = {
   assets: FinanceAsset[];
   indexes: FinanceMarketIndex[];
+  marketExceptions: Record<string, FinanceMarketException>;
+  news: FinanceNewsStory[];
+  portfolio: FinancePortfolio;
+  spending: FinanceSpendingSnapshot;
   updatedAt: string;
 };
 
@@ -94,11 +124,63 @@ export const MOCK_FINANCE_INDEXES: FinanceMarketIndex[] = [
   { id: 'rut-index', symbol: 'RUT', name: 'Russell 2000', currentValue: 2327.05, displayValue: '2,327.05', dailyChange: -7.31, dailyChangeDisplay: '-7.31', dailyChangePercent: -0.31, trend: [12, 11, 9, 10, 8, 9, 7, 6], marketStatus: 'Simulated', lastUpdated: MOCK_UPDATED_AT, dataProvider: MOCK_PROVIDER, provenance: 'mock' },
 ];
 
+export const MOCK_FINANCE_MARKET_EXCEPTIONS: Record<string, FinanceMarketException> = {
+  '2026-01-01': { type: 'holiday', label: "New Year's Day" },
+  '2026-07-03': { type: 'holiday', label: 'Independence Day observed' },
+  '2026-11-27': { type: 'early-close', label: 'Locally configured early close' },
+  '2026-12-25': { type: 'holiday', label: 'Christmas Day' },
+  '2027-01-01': { type: 'holiday', label: "New Year's Day" },
+  '2027-11-26': { type: 'early-close', label: 'Locally configured early close' },
+  '2027-12-24': { type: 'holiday', label: 'Christmas Day observed' },
+};
+
+export const MOCK_FINANCE_PORTFOLIO: FinancePortfolio = {
+  balance: 48392.16,
+  displayBalance: '$48,392.16',
+  dailyChange: 612.84,
+  dailyChangePercent: 1.28,
+  chartData: {
+    '1D': [32, 34, 31, 38, 42, 40, 47, 45, 52, 57, 54, 61, 59, 66],
+    '1W': [46, 43, 48, 51, 49, 56, 60, 58, 64, 62, 68, 71, 69, 75],
+    '1M': [40, 44, 42, 47, 53, 50, 58, 63, 60, 67, 72, 70, 77, 82],
+    '3M': [58, 54, 49, 52, 57, 61, 65, 63, 68, 73, 76, 80, 78, 85],
+    '1Y': [28, 33, 30, 39, 43, 48, 45, 55, 59, 64, 70, 74, 81, 88],
+  },
+};
+
+export const MOCK_FINANCE_NEWS: FinanceNewsStory[] = [
+  { id: 'rates', headline: 'Markets weigh the latest signals on interest rates', source: 'Market Brief', time: '14m ago', category: 'Economy', colors: ['#234B58', '#64A7A2'] },
+  { id: 'chips', headline: 'Chipmakers lead as technology shares regain momentum', source: 'Closing Bell', time: '38m ago', category: 'Technology', colors: ['#344170', '#7588D0'] },
+  { id: 'retail', headline: 'Retail earnings offer a fresh look at consumer demand', source: 'Business Daily', time: '1h ago', category: 'Companies', colors: ['#68452C', '#D49A52'] },
+  { id: 'energy', headline: 'Energy markets settle after a volatile trading session', source: 'Global Markets', time: '2h ago', category: 'Commodities', colors: ['#31543D', '#73AE72'] },
+];
+
+export const MOCK_FINANCE_SPENDING: FinanceSpendingSnapshot = {
+  spent: 2840,
+  budget: 4200,
+  remaining: 1360,
+  categories: [
+    { name: 'Food', amount: 760, displayAmount: '$760', color: '#69E08C' },
+    { name: 'Transportation', amount: 480, displayAmount: '$480', color: '#6E90D8' },
+    { name: 'Entertainment', amount: 315, displayAmount: '$315', color: '#C477B2' },
+  ],
+};
+
+export const MOCK_FINANCE_SNAPSHOT: FinanceSnapshot = {
+  assets: MOCK_FINANCE_ASSETS,
+  indexes: MOCK_FINANCE_INDEXES,
+  marketExceptions: MOCK_FINANCE_MARKET_EXCEPTIONS,
+  news: MOCK_FINANCE_NEWS,
+  portfolio: MOCK_FINANCE_PORTFOLIO,
+  spending: MOCK_FINANCE_SPENDING,
+  updatedAt: MOCK_UPDATED_AT,
+};
+
 export const mockFinanceProvider: FinanceDataProvider = {
   name: MOCK_PROVIDER,
   provenance: 'mock',
   async getMarketData() {
-    return { assets: MOCK_FINANCE_ASSETS, indexes: MOCK_FINANCE_INDEXES, updatedAt: MOCK_UPDATED_AT };
+    return MOCK_FINANCE_SNAPSHOT;
   },
 };
 

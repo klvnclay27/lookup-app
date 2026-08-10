@@ -17,36 +17,22 @@ import {
   getMarketData,
   MOCK_FINANCE_ASSETS,
   MOCK_FINANCE_INDEXES,
+  MOCK_FINANCE_SNAPSHOT,
   searchFinanceAssets,
   type FinanceAsset,
+  type FinanceChartPeriod as Period,
   type FinanceDataProvenance,
   type FinanceMarketIndex,
+  type FinanceMarketException,
+  type FinanceNewsStory as NewsStory,
+  type FinancePortfolio,
+  type FinanceSnapshot,
+  type FinanceSpendingSnapshot,
 } from '@/services/finance';
 
-type Period = '1D' | '1W' | '1M' | '3M' | '1Y';
 type MarketStatus = 'Pre-Market' | 'Market Open' | 'After Hours' | 'Market Closed' | 'Holiday' | 'Early Close';
-type MarketException = { type: 'holiday' | 'early-close'; label: string };
-
-type NewsStory = {
-  id: string;
-  headline: string;
-  source: string;
-  time: string;
-  category: string;
-  colors: [string, string];
-};
 
 const PERIODS: Period[] = ['1D', '1W', '1M', '3M', '1Y'];
-
-const MARKET_EXCEPTIONS: Record<string, MarketException> = {
-  '2026-01-01': { type: 'holiday', label: "New Year's Day" },
-  '2026-07-03': { type: 'holiday', label: 'Independence Day observed' },
-  '2026-11-27': { type: 'early-close', label: 'Locally configured early close' },
-  '2026-12-25': { type: 'holiday', label: 'Christmas Day' },
-  '2027-01-01': { type: 'holiday', label: "New Year's Day" },
-  '2027-11-26': { type: 'early-close', label: 'Locally configured early close' },
-  '2027-12-24': { type: 'holiday', label: 'Christmas Day observed' },
-};
 
 const ET_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -74,15 +60,15 @@ function shiftDate(year: number, month: number, day: number, days: number) {
   return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate(), weekday: shifted.getUTCDay() };
 }
 
-function isTradingDay(year: number, month: number, day: number) {
+function isTradingDay(year: number, month: number, day: number, exceptions: Record<string, FinanceMarketException>) {
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return weekday !== 0 && weekday !== 6 && MARKET_EXCEPTIONS[dateKey(year, month, day)]?.type !== 'holiday';
+  return weekday !== 0 && weekday !== 6 && exceptions[dateKey(year, month, day)]?.type !== 'holiday';
 }
 
-function nextTradingDate(year: number, month: number, day: number, includeToday = false) {
+function nextTradingDate(year: number, month: number, day: number, exceptions: Record<string, FinanceMarketException>, includeToday = false) {
   for (let offset = includeToday ? 0 : 1; offset < 10; offset += 1) {
     const candidate = shiftDate(year, month, day, offset);
-    if (isTradingDay(candidate.year, candidate.month, candidate.day)) return candidate;
+    if (isTradingDay(candidate.year, candidate.month, candidate.day, exceptions)) return candidate;
   }
   return shiftDate(year, month, day, 1);
 }
@@ -103,21 +89,6 @@ function formatEventDate(date: Date) {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', hour: 'numeric', minute: '2-digit' }).format(date) + ' ET';
 }
 
-const CHART_DATA: Record<Period, number[]> = {
-  '1D': [32, 34, 31, 38, 42, 40, 47, 45, 52, 57, 54, 61, 59, 66],
-  '1W': [46, 43, 48, 51, 49, 56, 60, 58, 64, 62, 68, 71, 69, 75],
-  '1M': [40, 44, 42, 47, 53, 50, 58, 63, 60, 67, 72, 70, 77, 82],
-  '3M': [58, 54, 49, 52, 57, 61, 65, 63, 68, 73, 76, 80, 78, 85],
-  '1Y': [28, 33, 30, 39, 43, 48, 45, 55, 59, 64, 70, 74, 81, 88],
-};
-
-const NEWS: NewsStory[] = [
-  { id: 'rates', headline: 'Markets weigh the latest signals on interest rates', source: 'Market Brief', time: '14m ago', category: 'Economy', colors: ['#234B58', '#64A7A2'] },
-  { id: 'chips', headline: 'Chipmakers lead as technology shares regain momentum', source: 'Closing Bell', time: '38m ago', category: 'Technology', colors: ['#344170', '#7588D0'] },
-  { id: 'retail', headline: 'Retail earnings offer a fresh look at consumer demand', source: 'Business Daily', time: '1h ago', category: 'Companies', colors: ['#68452C', '#D49A52'] },
-  { id: 'energy', headline: 'Energy markets settle after a volatile trading session', source: 'Global Markets', time: '2h ago', category: 'Commodities', colors: ['#31543D', '#73AE72'] },
-];
-
 export default function FinanceScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -128,6 +99,7 @@ export default function FinanceScreen() {
   const [assetPeriod, setAssetPeriod] = useState<Period>('1D');
   const [assets, setAssets] = useState<FinanceAsset[]>(MOCK_FINANCE_ASSETS);
   const [indexes, setIndexes] = useState<FinanceMarketIndex[]>(MOCK_FINANCE_INDEXES);
+  const [financeData, setFinanceData] = useState<FinanceSnapshot>(MOCK_FINANCE_SNAPSHOT);
   const [financeProvenance, setFinanceProvenance] = useState<FinanceDataProvenance>('unavailable');
   const [selectedAsset, setSelectedAsset] = useState<FinanceAsset>(MOCK_FINANCE_ASSETS[0]);
   const [favorites, setFavorites] = useState<string[]>(['aapl', 'nvda']);
@@ -144,6 +116,7 @@ export default function FinanceScreen() {
     else {
       setAssets(result.data.assets);
       setIndexes(result.data.indexes);
+      setFinanceData(result.data);
       setSelectedAsset((current) => result.data.assets.find((asset) => asset.id === current.id) ?? result.data.assets[0] ?? current);
     }
     setIsLoading(false);
@@ -178,7 +151,7 @@ export default function FinanceScreen() {
         <View style={styles.headerActions}><Pressable accessibilityLabel="Open profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable><Pressable accessibilityLabel="Finance notifications" onPress={() => Alert.alert('Notifications', 'Finance alerts are coming soon.')} style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}><Text style={styles.settingsIcon}>●</Text></Pressable></View>
       </View>
 
-      <MarketHoursCard isDesktop={isDesktop} />
+      <MarketHoursCard exceptions={financeData.marketExceptions} isDesktop={isDesktop} />
 
       {financeProvenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED MARKET DATA</Text> : null}
 
@@ -188,19 +161,19 @@ export default function FinanceScreen() {
         <SearchResults results={searchResults} query={query.trim()} onSelect={(asset) => { setSelectedAsset(asset); setQuery(''); }} />
       ) : (
         <>
-          <PortfolioCard period={portfolioPeriod} onPeriod={setPortfolioPeriod} chartWidth={chartWidth} />
+          <PortfolioCard period={portfolioPeriod} onPeriod={setPortfolioPeriod} chartWidth={chartWidth} portfolio={financeData.portfolio} />
 
           <View style={styles.section}><SectionHeader title="Market Indexes" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{indexes.map((index) => <IndexCard key={index.id} index={index} />)}</ScrollView></View>
 
           <View style={styles.section}><SectionHeader title="Watchlist" /><View style={styles.listCard}>{watchlist.map((asset, index) => <View key={asset.id}><WatchlistRow asset={asset} favorite={favorites.includes(asset.id)} onSelect={() => setSelectedAsset(asset)} onFavorite={() => toggle(asset.id, setFavorites)} />{index < watchlist.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
 
-          <View style={styles.section}><SectionHeader title="Asset Snapshot" /><AssetDetail asset={selectedAsset} period={assetPeriod} onPeriod={setAssetPeriod} chartWidth={chartWidth} /></View>
+          <View style={styles.section}><SectionHeader title="Asset Snapshot" /><AssetDetail asset={selectedAsset} period={assetPeriod} onPeriod={setAssetPeriod} chartWidth={chartWidth} chartData={financeData.portfolio.chartData} /></View>
 
           <View style={styles.section}><SectionHeader title="Crypto" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{crypto.map((asset) => <CryptoCard key={asset.id} asset={asset} onPress={() => setSelectedAsset(asset)} />)}</ScrollView></View>
 
-          <View style={styles.section}><SectionHeader title="Market News" /><View style={styles.newsCard}>{NEWS.map((story, index) => <View key={story.id}><NewsRow story={story} saved={bookmarks.includes(story.id)} onBookmark={() => toggle(story.id, setBookmarks)} />{index < NEWS.length - 1 && <View style={styles.newsDivider} />}</View>)}</View></View>
+          <View style={styles.section}><SectionHeader title="Market News" /><View style={styles.newsCard}>{financeData.news.map((story, index) => <View key={story.id}><NewsRow story={story} saved={bookmarks.includes(story.id)} onBookmark={() => toggle(story.id, setBookmarks)} />{index < financeData.news.length - 1 && <View style={styles.newsDivider} />}</View>)}</View></View>
 
-          <View style={styles.sectionLast}><SectionHeader title="Spending Snapshot" /><SpendingCard /></View>
+          <View style={styles.sectionLast}><SectionHeader title="Spending Snapshot" /><SpendingCard spending={financeData.spending} /></View>
 
           <Text style={styles.disclaimer}>Market and portfolio information shown in this MVP is simulated and is not financial advice.</Text>
         </>
@@ -209,7 +182,7 @@ export default function FinanceScreen() {
   );
 }
 
-function MarketHoursCard({ isDesktop }: { isDesktop: boolean }) {
+function MarketHoursCard({ exceptions, isDesktop }: { exceptions: Record<string, FinanceMarketException>; isDesktop: boolean }) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -220,7 +193,7 @@ function MarketHoursCard({ isDesktop }: { isDesktop: boolean }) {
   const market = useMemo(() => {
     const eastern = getEasternParts(now);
     const key = dateKey(eastern.year, eastern.month, eastern.day);
-    const exception = MARKET_EXCEPTIONS[key];
+    const exception = exceptions[key];
     const minutes = eastern.hour * 60 + eastern.minute;
     const weekend = eastern.weekday === 'Sat' || eastern.weekday === 'Sun';
     const earlyClose = exception?.type === 'early-close';
@@ -232,11 +205,11 @@ function MarketHoursCard({ isDesktop }: { isDesktop: boolean }) {
 
     if (exception?.type === 'holiday') {
       status = 'Holiday';
-      const next = nextTradingDate(eastern.year, eastern.month, eastern.day);
+      const next = nextTradingDate(eastern.year, eastern.month, eastern.day, exceptions);
       countdownTarget = easternDateToUtc(next.year, next.month, next.day, 9, 30);
       countdownLabel = `Next session opens ${formatEventDate(countdownTarget)}`;
     } else if (weekend) {
-      const next = nextTradingDate(eastern.year, eastern.month, eastern.day);
+      const next = nextTradingDate(eastern.year, eastern.month, eastern.day, exceptions);
       countdownTarget = easternDateToUtc(next.year, next.month, next.day, 9, 30);
       countdownLabel = `Next session opens ${formatEventDate(countdownTarget)}`;
     } else if (minutes < 4 * 60) {
@@ -255,19 +228,19 @@ function MarketHoursCard({ isDesktop }: { isDesktop: boolean }) {
       countdownTarget = easternDateToUtc(eastern.year, eastern.month, eastern.day, 20, 0);
       countdownLabel = `After hours ends in ${formatCountdown(countdownTarget, now)}`;
     } else {
-      const next = nextTradingDate(eastern.year, eastern.month, eastern.day);
+      const next = nextTradingDate(eastern.year, eastern.month, eastern.day, exceptions);
       countdownTarget = easternDateToUtc(next.year, next.month, next.day, 9, 30);
       countdownLabel = `Next session opens ${formatEventDate(countdownTarget)}`;
     }
 
-    const todayTradingDay = isTradingDay(eastern.year, eastern.month, eastern.day);
+    const todayTradingDay = isTradingDay(eastern.year, eastern.month, eastern.day, exceptions);
     const nextOpenDate = todayTradingDay && minutes < 9 * 60 + 30
       ? { year: eastern.year, month: eastern.month, day: eastern.day }
-      : nextTradingDate(eastern.year, eastern.month, eastern.day);
+      : nextTradingDate(eastern.year, eastern.month, eastern.day, exceptions);
     const nextCloseDate = todayTradingDay && minutes < closeMinutes
       ? { year: eastern.year, month: eastern.month, day: eastern.day }
-      : nextTradingDate(eastern.year, eastern.month, eastern.day);
-    const nextCloseException = MARKET_EXCEPTIONS[dateKey(nextCloseDate.year, nextCloseDate.month, nextCloseDate.day)];
+      : nextTradingDate(eastern.year, eastern.month, eastern.day, exceptions);
+    const nextCloseException = exceptions[dateKey(nextCloseDate.year, nextCloseDate.month, nextCloseDate.day)];
     const nextCloseHour = nextCloseException?.type === 'early-close' ? 13 : 16;
 
     return {
@@ -278,7 +251,7 @@ function MarketHoursCard({ isDesktop }: { isDesktop: boolean }) {
       nextClose: formatEventDate(easternDateToUtc(nextCloseDate.year, nextCloseDate.month, nextCloseDate.day, nextCloseHour, 0)),
       calendarType: exception?.type === 'holiday' ? 'Holiday' : earlyClose ? 'Early Close' : 'Full Trading Day',
     };
-  }, [now]);
+  }, [exceptions, now]);
 
   const statusStyle = market.status === 'Market Open' ? styles.statusOpen
     : market.status === 'Pre-Market' ? styles.statusPre
@@ -338,8 +311,10 @@ function ViewLineChart({ data, width, height = 126, positive = true }: { data: n
   );
 }
 
-function PortfolioCard({ period, onPeriod, chartWidth }: { period: Period; onPeriod: (period: Period) => void; chartWidth: number }) {
-  return <View style={styles.portfolioCard}><View style={styles.portfolioTop}><View><Text style={styles.overline}>TOTAL BALANCE · SIMULATED</Text><Text style={styles.balance}>$48,392.16</Text><Text style={styles.gainText}>+$612.84  (+1.28%) today</Text></View><Text style={styles.portfolioMark}>LU</Text></View><ScrollView horizontal showsHorizontalScrollIndicator={false}><ViewLineChart data={CHART_DATA[period]} width={chartWidth} /></ScrollView><PeriodSelector value={period} onChange={onPeriod} /></View>;
+function PortfolioCard({ period, onPeriod, chartWidth, portfolio }: { period: Period; onPeriod: (period: Period) => void; chartWidth: number; portfolio: FinancePortfolio }) {
+  const changePrefix = portfolio.dailyChange >= 0 ? '+' : '-';
+  const percentPrefix = portfolio.dailyChangePercent >= 0 ? '+' : '-';
+  return <View style={styles.portfolioCard}><View style={styles.portfolioTop}><View><Text style={styles.overline}>TOTAL BALANCE · SIMULATED</Text><Text style={styles.balance}>{portfolio.displayBalance}</Text><Text style={styles.gainText}>{changePrefix}${Math.abs(portfolio.dailyChange).toFixed(2)}  ({percentPrefix}{Math.abs(portfolio.dailyChangePercent).toFixed(2)}%) today</Text></View><Text style={styles.portfolioMark}>LU</Text></View><ScrollView horizontal showsHorizontalScrollIndicator={false}><ViewLineChart data={portfolio.chartData[period]} width={chartWidth} /></ScrollView><PeriodSelector value={period} onChange={onPeriod} /></View>;
 }
 
 function SectionHeader({ title }: { title: string }) {
@@ -365,9 +340,9 @@ function WatchlistRow({ asset, favorite, onSelect, onFavorite }: { asset: Financ
   return <View style={styles.watchRow}><Pressable onPress={onSelect} style={({ pressed }) => [styles.watchMain, pressed && styles.cardPressed]}><AssetLogo asset={asset} /><View style={styles.watchName}><Text style={styles.assetName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.symbol} · {asset.assetType}</Text></View><MiniTrend values={positive ? [4, 6, 5, 8, 7, 10] : [10, 8, 9, 6, 7, 4]} positive={positive} /><View style={styles.watchPrice}><Text style={styles.priceText}>{asset.displayValue}</Text><Text style={[styles.changeText, !positive && styles.negative]}>{positive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%</Text></View></Pressable><Pressable accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${asset.name} favorite`} onPress={onFavorite} style={({ pressed }) => [styles.starButton, favorite && styles.starActive, pressed && styles.pressed]}><Text style={[styles.starText, favorite && styles.starTextActive]}>★</Text></Pressable></View>;
 }
 
-function AssetDetail({ asset, period, onPeriod, chartWidth }: { asset: FinanceAsset; period: Period; onPeriod: (period: Period) => void; chartWidth: number }) {
+function AssetDetail({ asset, period, onPeriod, chartWidth, chartData }: { asset: FinanceAsset; period: Period; onPeriod: (period: Period) => void; chartWidth: number; chartData: FinancePortfolio['chartData'] }) {
   const positive = asset.dailyChangePercent >= 0;
-  const data = positive ? CHART_DATA[period] : [...CHART_DATA[period]].reverse();
+  const data = positive ? chartData[period] : [...chartData[period]].reverse();
   return <View style={styles.assetCard}><View style={styles.assetHeader}><View style={styles.assetIdentity}><AssetLogo asset={asset} size={50} /><View><Text style={styles.assetDetailName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.symbol} · {asset.assetType}</Text></View></View><View><Text style={styles.assetDetailPrice}>{asset.displayValue}</Text><Text style={[styles.assetDetailChange, !positive && styles.negative]}>{positive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}% today</Text></View></View><ScrollView horizontal showsHorizontalScrollIndicator={false}><ViewLineChart data={data} width={chartWidth} positive={positive} height={112} /></ScrollView><PeriodSelector value={period} onChange={onPeriod} /><View style={styles.assetStats}><View><Text style={styles.statLabel}>MARKET CAP</Text><Text style={styles.statValue}>{asset.marketCap}</Text></View><View><Text style={styles.statLabel}>52-WEEK RANGE</Text><Text style={styles.statValue}>{asset.range}</Text></View></View><Text style={styles.assetDescription}>{asset.description}</Text><Pressable onPress={() => Alert.alert(asset.name, 'A full asset details experience is coming soon.')} style={({ pressed }) => [styles.detailsButton, pressed && styles.pressed]}><Text style={styles.detailsText}>View details</Text></Pressable></View>;
 }
 
@@ -380,8 +355,9 @@ function NewsRow({ story, saved, onBookmark }: { story: NewsStory; saved: boolea
   return <View style={styles.newsRow}><View style={[styles.newsThumb, { backgroundColor: story.colors[0] }]}><View style={[styles.newsOrb, { backgroundColor: story.colors[1] }]} /><Text style={styles.newsThumbText}>{story.category}</Text></View><View style={styles.newsCopy}><Text style={styles.newsBadge}>{story.category}</Text><Text numberOfLines={2} style={styles.newsHeadline}>{story.headline}</Text><Text style={styles.newsMeta}>{story.source} · {story.time}</Text></View><Pressable accessibilityLabel={`${saved ? 'Remove' : 'Add'} news bookmark`} onPress={onBookmark} style={({ pressed }) => [styles.bookmarkButton, saved && styles.bookmarkActive, pressed && styles.pressed]}><Text style={[styles.bookmarkIcon, saved && styles.bookmarkIconActive]}>◆</Text></Pressable></View>;
 }
 
-function SpendingCard() {
-  return <View style={styles.spendingCard}><View style={styles.spendingTop}><View><Text style={styles.overline}>MONTHLY BUDGET · SAMPLE DATA</Text><Text style={styles.spendingAmount}>$2,840 <Text style={styles.spendingOf}>of $4,200 spent</Text></Text></View><View style={styles.remainingBadge}><Text style={styles.remainingLabel}>REMAINING</Text><Text style={styles.remainingValue}>$1,360</Text></View></View><View style={styles.budgetTrack}><View style={styles.budgetFill} /></View><View style={styles.categories}><SpendingCategory name="Food" amount="$760" color="#69E08C" /><SpendingCategory name="Transportation" amount="$480" color="#6E90D8" /><SpendingCategory name="Entertainment" amount="$315" color="#C477B2" /></View></View>;
+function SpendingCard({ spending }: { spending: FinanceSpendingSnapshot }) {
+  const budgetUsed = `${Math.min(100, (spending.spent / spending.budget) * 100)}%` as `${number}%`;
+  return <View style={styles.spendingCard}><View style={styles.spendingTop}><View><Text style={styles.overline}>MONTHLY BUDGET · SAMPLE DATA</Text><Text style={styles.spendingAmount}>${spending.spent.toLocaleString()} <Text style={styles.spendingOf}>of ${spending.budget.toLocaleString()} spent</Text></Text></View><View style={styles.remainingBadge}><Text style={styles.remainingLabel}>REMAINING</Text><Text style={styles.remainingValue}>${spending.remaining.toLocaleString()}</Text></View></View><View style={styles.budgetTrack}><View style={[styles.budgetFill, { width: budgetUsed }]} /></View><View style={styles.categories}>{spending.categories.map((category) => <SpendingCategory key={category.name} name={category.name} amount={category.displayAmount} color={category.color} />)}</View></View>;
 }
 
 function SpendingCategory({ name, amount, color }: { name: string; amount: string; color: string }) {
