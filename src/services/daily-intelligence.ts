@@ -1,10 +1,11 @@
-import { createMockCalendarEvent, type CalendarEvent } from '@/services/calendar';
-import type { FinanceIntelligenceSummary } from '@/services/finance';
+import { createMockCalendarEvent, getCalendarEvents, getCalendarForIntelligence, type CalendarDataProvenance, type CalendarEvent } from '@/services/calendar';
+import { getEntertainment, getEntertainmentSummary, type EntertainmentDataProvenance, type EntertainmentIntelligenceSummary } from '@/services/entertainment';
+import { getFinance, getFinanceSummary, type FinanceDataProvenance, type FinanceIntelligenceSummary } from '@/services/finance';
 import { getWardrobeItems, type WardrobeItem } from '@/services/my-locker';
-import type { MusicIntelligenceSummary } from '@/services/music';
-import type { SportsIntelligenceSummary } from '@/services/sports';
-import { type CommuteData, type SubwayCommute, type TrafficSummary } from '@/services/traffic';
-import { getWeather, getWeatherForIntelligence } from '@/services/weather';
+import { getMusic, getMusicSummary, type MusicDataProvenance, type MusicIntelligenceSummary } from '@/services/music';
+import { getSports, getSportsSummary, type SportsDataProvenance, type SportsIntelligenceSummary } from '@/services/sports';
+import { getTraffic, getTrafficSummaryForIntelligence, getTransitSummary, type CommuteData, type SubwayCommute, type TrafficDataProvenance, type TrafficSummary } from '@/services/traffic';
+import { getWeather, getWeatherForIntelligence, type WeatherDataProvenance } from '@/services/weather';
 
 export type IntelligencePriority = 'routine' | 'useful' | 'important';
 export type DailyWardrobeItem = Pick<WardrobeItem, 'brand' | 'category' | 'favorite' | 'id' | 'name' | 'primaryColor'>;
@@ -18,6 +19,7 @@ export type DailyIntelligenceInput = {
   weather?: { condition?: string; temperature?: number };
   traffic?: Partial<TrafficSummary>;
   finance?: FinanceIntelligenceSummary;
+  entertainment?: EntertainmentIntelligenceSummary;
   music?: MusicIntelligenceSummary;
   sports?: SportsIntelligenceSummary;
   locker?: DailyLockerContext;
@@ -32,7 +34,23 @@ export type DailyInsight = {
 };
 export type DailyIntelligenceResult = { greeting: string; headline: string; insights: DailyInsight[]; priority: IntelligencePriority; summary: string };
 export type DailyIntelligenceSnapshot = DailyIntelligenceResult & {
-  sources: Pick<DailyIntelligenceInput, 'calendar' | 'commute' | 'finance' | 'locker' | 'music' | 'sports' | 'traffic' | 'weather'>;
+  sources: Pick<DailyIntelligenceInput, 'calendar' | 'commute' | 'entertainment' | 'finance' | 'locker' | 'music' | 'sports' | 'traffic' | 'weather'>;
+  sourceProvenance?: {
+    calendar: CalendarDataProvenance;
+    entertainment: EntertainmentDataProvenance;
+    finance: FinanceDataProvenance;
+    locker: 'live' | 'local' | 'mock' | 'unavailable';
+    music: MusicDataProvenance;
+    sports: SportsDataProvenance;
+    traffic: TrafficDataProvenance;
+    weather: WeatherDataProvenance;
+  };
+  previews?: {
+    entertainment?: EntertainmentIntelligenceSummary;
+    finance?: FinanceIntelligenceSummary & { moverDetails?: { symbol: string; company: string; value: string; up: boolean }[] };
+    music?: MusicIntelligenceSummary;
+    weather?: { feelsLike?: number; humidity?: number; windSpeed?: number };
+  };
 };
 export const DAILY_INTELLIGENCE_TEST_SCENARIOS = [
   { label: 'Normal', value: 'normal' },
@@ -439,18 +457,53 @@ export async function readDailyLockerContext(): Promise<DailyLockerContext | und
 }
 
 export async function getDailyIntelligence(now = new Date()): Promise<DailyIntelligenceSnapshot> {
-  // Calendar, sports, traffic, and transit currently expose MVP fixtures only.
-  // Normal mode intentionally omits them; the same fixtures remain available through TEST MODE.
-  const [weatherResult, lockerResult] = await Promise.allSettled([
+  const [calendarResult, entertainmentResult, financeResult, musicResult, sportsResult, trafficResult, weatherResult, lockerResult] = await Promise.all([
+    getCalendarEvents(now),
+    getEntertainment(),
+    getFinance(),
+    getMusic(),
+    getSports(),
+    getTraffic(),
     getWeather(),
-    readDailyLockerContext(),
+    getWardrobeItems(),
   ]);
 
-  const weather = weatherResult.status === 'fulfilled'
-    ? getWeatherForIntelligence(weatherResult.value)
-    : undefined;
-  const locker = lockerResult.status === 'fulfilled' ? lockerResult.value : undefined;
-  const briefing = generateDailyIntelligence({ now, weather, locker });
+  const calendar = getCalendarForIntelligence(calendarResult);
+  const entertainment = getEntertainmentSummary(entertainmentResult);
+  const finance = getFinanceSummary(financeResult);
+  const music = getMusicSummary(musicResult);
+  const sports = getSportsSummary(sportsResult);
+  const traffic = getTrafficSummaryForIntelligence(trafficResult);
+  const commute = getTransitSummary(trafficResult);
+  const weather = getWeatherForIntelligence(weatherResult);
+  const lockerItems = lockerResult.data;
+  const locker = lockerItems ? { itemCount: lockerItems.length, favoriteCount: lockerItems.filter((item) => item.favorite).length, items: lockerItems } : undefined;
+  const input: DailyIntelligenceInput = { now, calendar, commute, entertainment, finance, locker, music, sports, traffic, weather };
+  const briefing = generateDailyIntelligence(input);
 
-  return { ...briefing, sources: { locker, weather } };
+  const financePreview = getFinanceSummary(financeResult, { allowMock: true });
+  const moverDetails = financeResult.data
+    ? [...financeResult.data.assets].sort((a, b) => Math.abs(b.dailyChangePercent) - Math.abs(a.dailyChangePercent)).slice(0, 3).map((asset) => ({ symbol: asset.symbol, company: asset.name, value: `${asset.dailyChangePercent >= 0 ? '+' : ''}${asset.dailyChangePercent.toFixed(1)}%`, up: asset.dailyChangePercent >= 0 }))
+    : undefined;
+
+  return {
+    ...briefing,
+    sources: { calendar, commute, entertainment, finance, locker, music, sports, traffic, weather },
+    sourceProvenance: {
+      calendar: calendarResult.provenance,
+      entertainment: entertainmentResult.provenance,
+      finance: financeResult.provenance,
+      locker: lockerResult.provenance,
+      music: musicResult.provenance,
+      sports: sportsResult.provenance,
+      traffic: trafficResult.provenance,
+      weather: weatherResult.provenance,
+    },
+    previews: {
+      entertainment: getEntertainmentSummary(entertainmentResult, { allowMock: true }),
+      finance: financePreview ? { ...financePreview, moverDetails } : undefined,
+      music: getMusicSummary(musicResult, { allowMock: true }),
+      weather: weatherResult.data ? { feelsLike: weatherResult.data.current.feelsLike, humidity: weatherResult.data.current.humidity, windSpeed: weatherResult.data.current.windSpeed } : undefined,
+    },
+  };
 }

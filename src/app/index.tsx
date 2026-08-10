@@ -5,10 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getEntertainment, getEntertainmentSummary } from '@/services/entertainment';
 import { DAILY_INTELLIGENCE_TEST_SCENARIOS, generateDailyIntelligence, generateDailyIntelligenceTestSnapshot, getDailyIntelligence, type DailyIntelligenceInput, type DailyIntelligenceSnapshot, type DailyIntelligenceTestScenario } from '@/services/daily-intelligence';
-import { getFinance, getFinanceSummary } from '@/services/finance';
-import { getMusic } from '@/services/music';
 
 type IconName = SymbolViewProps['name'];
 type Action = { label: string; route: Href; icon: IconName; color: string; tint: string };
@@ -28,12 +25,6 @@ const ACTIONS: Action[] = [
   { label: 'My Locker', route: '/my-locker', icon: { ios: 'tshirt.fill', android: 'checkroom', web: 'checkroom' }, color: '#5077C8', tint: '#EAF0FC' },
 ];
 
-const MARKET_MOVERS = [
-  { symbol: 'NVDA', company: 'NVIDIA', value: '+2.8%', up: true },
-  { symbol: 'AAPL', company: 'Apple', value: '+1.4%', up: true },
-  { symbol: 'TSLA', company: 'Tesla', value: '-0.9%', up: false },
-];
-
 const INTELLIGENCE_PREFERENCE_KEY = 'lookup.dailyIntelligence.enabled.v1';
 
 function Icon({ name, color = COLORS.ink, size = 20 }: { name: IconName; color?: string; size?: number }) {
@@ -51,6 +42,7 @@ export default function HomeScreen() {
   const tablet = width >= 600 && width < 900;
   const [temperature, setTemperature] = useState(72);
   const [condition, setCondition] = useState('Weather loading');
+  const [feelsLike, setFeelsLike] = useState<number | undefined>();
   const [loading, setLoading] = useState(true);
   const [commute, setCommute] = useState('Live traffic data not connected');
   const [market, setMarket] = useState('Market data not connected');
@@ -58,6 +50,8 @@ export default function HomeScreen() {
   const [movie, setMovie] = useState('Live entertainment data not connected');
   const [tracks, setTracks] = useState<string[]>([]);
   const [musicIsMock, setMusicIsMock] = useState(false);
+  const [marketMovers, setMarketMovers] = useState<{ symbol: string; company: string; value: string; up: boolean }[]>([]);
+  const [financeIsMock, setFinanceIsMock] = useState(false);
   const [games, setGames] = useState<string[]>([]);
   const [dailyIntelligence, setDailyIntelligence] = useState<DailyIntelligenceSnapshot>(() => ({ ...generateDailyIntelligence({}), sources: {} }));
   const [dailyIntelligenceBase, setDailyIntelligenceBase] = useState<DailyIntelligenceInput>({});
@@ -79,37 +73,21 @@ export default function HomeScreen() {
   useEffect(() => {
     async function loadDashboard() {
       try {
-        await Promise.all([
-          getDailyIntelligence().then((data) => {
-            setDailyIntelligenceBase(data.sources);
-            setDailyIntelligence(data);
-            if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
-            else setCondition('Weather unavailable');
-            setCommute(data.sources.traffic?.commute ?? 'Live traffic data not connected');
-            setGames(data.sources.sports?.games ?? []);
-          }),
-          getFinance().then((result) => {
-            const summary = getFinanceSummary(result);
-            setMarket(summary?.market ?? (result.provenance === 'mock' ? 'Simulated market preview' : 'Market unavailable'));
-          }).catch(() => setMarket('Market unavailable')),
-          getEntertainment().then((result) => {
-            const summary = getEntertainmentSummary(result);
-            setMovie(summary?.headline ?? 'Live entertainment data not connected');
-          }).catch(() => setMovie('Entertainment unavailable')),
-          getMusic().then((result) => {
-            if (result.provenance === 'unavailable') {
-              setPlaylist('Music unavailable');
-              setTracks([]);
-              setMusicIsMock(false);
-              return;
-            }
-            const previewPlaylist = result.data.playlists[0];
-            const songsById = new Map(result.data.songs.map((song) => [song.id, song]));
-            setPlaylist(previewPlaylist?.title ?? 'Music preview');
-            setTracks(previewPlaylist?.trackIds.map((id) => songsById.get(id)?.title).filter((title): title is string => Boolean(title)) ?? []);
-            setMusicIsMock(result.provenance === 'mock');
-          }).catch(() => { setPlaylist('Music unavailable'); setTracks([]); setMusicIsMock(false); }),
-        ]);
+        const data = await getDailyIntelligence();
+        setDailyIntelligenceBase(data.sources);
+        setDailyIntelligence(data);
+        if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
+        else setCondition('Weather unavailable');
+        setCommute(data.sources.traffic?.commute ?? 'Live traffic data not connected');
+        setGames(data.sources.sports?.games ?? []);
+        setMarket(data.sources.finance?.market ?? (data.sourceProvenance?.finance === 'mock' ? 'Simulated market preview' : 'Market unavailable'));
+        setMarketMovers(data.previews?.finance?.moverDetails ?? []);
+        setFinanceIsMock(data.sourceProvenance?.finance === 'mock');
+        setMovie(data.sources.entertainment?.headline ?? 'Live entertainment data not connected');
+        setPlaylist(data.previews?.music?.playlist ?? 'Music unavailable');
+        setTracks(data.previews?.music?.tracks ?? []);
+        setMusicIsMock(data.sourceProvenance?.music === 'mock');
+        setFeelsLike(data.previews?.weather?.feelsLike);
       } finally { setLoading(false); }
     }
     void loadDashboard();
@@ -151,20 +129,19 @@ export default function HomeScreen() {
   const hasLiveTraffic = Boolean(displayedSources.traffic);
   const hasLiveSports = Boolean(displayedSources.sports?.games?.length);
   const displayedCalendarEvent = displayedSources.calendar?.events?.[0];
-  const feelsLike = temperature - 1;
   const briefing = [
     { title: 'Traffic', copy: hasLiveTraffic ? `Current commute: ${commute}` : 'Live traffic data not connected', value: hasLiveTraffic ? commute : 'Not connected', route: '/traffic' as Href, action: undefined, icon: ACTIONS[1] },
     { title: games[0] ?? 'Sports', copy: games[0] ?? 'Live sports data not connected', value: hasLiveSports ? 'View' : 'Not connected', route: '/sports' as Href, action: undefined, icon: ACTIONS[3] },
     { title: 'Weather', copy: hasLiveWeather ? `${condition} right now` : 'Live weather data unavailable', value: hasLiveWeather ? `${temperature}°` : 'Unavailable', route: '/weather' as Href, action: undefined, icon: ACTIONS[0] },
     { title: 'Calendar', copy: displayedCalendarEvent?.title ?? 'No live calendar data connected', value: displayedCalendarEvent ? 'Test data' : 'Not connected', route: undefined, action: () => Alert.alert('Calendar', 'Calendar integration is coming soon.'), icon: { ...ACTIONS[2], color: '#5077C8', tint: '#EAF0FC', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } as IconName } },
-    { title: 'Top Story', copy: movie, value: '5 min', route: '/entertainment' as Href, action: undefined, icon: ACTIONS[6] },
+    { title: 'Top Story', copy: movie, value: displayedSources.entertainment ? 'View' : 'Not connected', route: '/entertainment' as Href, action: undefined, icon: ACTIONS[6] },
     { title: 'Your Playlist', copy: musicIsMock ? `Simulated preview: ${tracks[0] ?? playlist}` : tracks[0] ?? playlist, value: 'Play', route: '/music' as Href, action: undefined, icon: ACTIONS[5] },
   ];
 
   const trends = [
-    { category: 'NEWS', title: 'The stories shaping business and technology today', time: '12 min ago', route: '/finance' as Href, colors: ['#CBE7FA', '#7CB5DE'], icon: { ios: 'newspaper.fill', android: 'newspaper', web: 'newspaper' } as IconName },
+    { category: 'FINANCE', title: market, time: financeIsMock ? 'Simulated preview' : 'Market update', route: '/finance' as Href, colors: ['#CBE7FA', '#7CB5DE'], icon: { ios: 'newspaper.fill', android: 'newspaper', web: 'newspaper' } as IconName },
     { category: 'SPORTS', title: games[0] ?? 'Live sports data not connected', time: hasLiveSports ? 'Sports schedule' : 'Not connected', route: '/sports' as Href, colors: ['#FFE2C0', '#E59A4F'], icon: ACTIONS[3].icon },
-    { category: 'ENTERTAINMENT', title: movie, time: '38 min ago', route: '/entertainment' as Href, colors: ['#F4D8ED', '#C878B6'], icon: ACTIONS[6].icon },
+    { category: 'ENTERTAINMENT', title: movie, time: displayedSources.entertainment?.source ?? 'Not connected', route: '/entertainment' as Href, colors: ['#F4D8ED', '#C878B6'], icon: ACTIONS[6].icon },
   ];
 
   const intelligenceDetails = intelligenceEnabled ? [
@@ -214,12 +191,12 @@ export default function HomeScreen() {
     <View style={[styles.heroGrid, !desktop && styles.stack]}>
       <Pressable onPress={() => router.push('/weather')} style={({ pressed }) => [styles.weatherCard, pressed && styles.cardPressed]}>
         <View style={styles.skyGlow} /><View style={styles.weatherTop}><View><Text style={styles.weatherLabel}>CURRENT WEATHER</Text><Text style={styles.location}>New York, NY</Text></View><View style={styles.weatherIcon}><Icon color="#2587C6" name={ACTIONS[0].icon} size={34} /></View></View>
-        <View style={styles.weatherPrimary}>{loading ? <ActivityIndicator color={COLORS.green} size="large" /> : <Text style={styles.temperature}>{hasLiveWeather ? `${temperature}°` : '—'}</Text>}<View><Text style={styles.condition}>{hasLiveWeather ? condition : 'Weather unavailable'}</Text>{hasLiveWeather ? <Text style={styles.feels}>Feels like {feelsLike}°</Text> : null}</View></View>
+        <View style={styles.weatherPrimary}>{loading ? <ActivityIndicator color={COLORS.green} size="large" /> : <Text style={styles.temperature}>{hasLiveWeather ? `${temperature}°` : '—'}</Text>}<View><Text style={styles.condition}>{hasLiveWeather ? condition : 'Weather unavailable'}</Text>{hasLiveWeather && feelsLike !== undefined ? <Text style={styles.feels}>Feels like {Math.round(feelsLike)}°</Text> : null}</View></View>
         <View style={styles.weatherMetrics}>{[['Humidity', '—'], ['Wind', '—'], ['Visibility', '—'], ['UV Index', '—']].map(([label, value]) => <View key={label} style={styles.metric}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>)}</View>
       </Pressable>
       <View style={styles.heroSide}>
         <Pressable onPress={() => router.push('/traffic')} style={({ pressed }) => [styles.miniHero, styles.trafficHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[1].tint }]}><Icon color={ACTIONS[1].color} name={ACTIONS[1].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>TRAFFIC TO WORK</Text><Text style={styles.miniValue}>{commute}</Text><Text style={styles.miniMeta}>{hasLiveTraffic ? 'Current commute information' : 'Connect a live traffic source for updates'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
-        <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>Open Finance for the simulated MVP preview</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+        <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>{financeIsMock ? 'Open Finance for the simulated MVP preview' : 'Open Finance for market details'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
       </View>
     </View>
 
@@ -237,7 +214,7 @@ export default function HomeScreen() {
     <View style={[styles.bottomGrid, !desktop && styles.stack]}>
       <View style={styles.bottomPanel}><SectionHeader action="See all" label="SPORTS" title="Upcoming Games" />{(games.length ? games.slice(0, 2) : ['Live sports data not connected']).map((game, index) => <Pressable key={`${game}-${index}`} onPress={() => router.push('/sports')} style={({ pressed }) => [styles.gameRow, pressed && styles.rowPressed]}><View style={styles.teamBadge}><Text style={styles.teamBadgeText}>{hasLiveSports ? 'GAME' : '—'}</Text></View><View style={styles.gameCopy}><Text numberOfLines={1} style={styles.gameTitle}>{game}</Text><Text style={styles.gameTime}>{hasLiveSports ? 'Sports schedule' : 'Connect a live source to see upcoming games'}</Text></View><Text style={styles.chevron}>›</Text></Pressable>)}</View>
       <View style={styles.bottomPanel}><SectionHeader label="SCHEDULE" title="Your Day" />{[['Weather', hasLiveWeather ? `${temperature}° · ${condition}` : 'Live weather data unavailable'], ['Calendar', displayedCalendarEvent?.title ?? 'No live calendar data connected'], ['Traffic', hasLiveTraffic ? commute : 'Live traffic data not connected'], ['Sports', games[0] ?? 'Live sports data not connected'], ['Music', 'Open Music for your local listening preview']].map(([title, value], index) => <View key={title} style={styles.timelineRow}><View style={styles.timelineRail}><View style={[styles.timelineDot, index === 0 && styles.timelineDotActive]} />{index < 4 ? <View style={styles.timelineLine} /> : null}</View><Text style={styles.timelineTitle}>{title}</Text><Text style={styles.timelineValue}>{value}</Text></View>)}</View>
-      <View style={styles.bottomPanel}><SectionHeader label="SIMULATED PREVIEW" title="Market Movers" />{MARKET_MOVERS.map((stock) => <Pressable key={stock.symbol} onPress={() => router.push('/finance')} style={({ pressed }) => [styles.stockRow, pressed && styles.rowPressed]}><View><Text style={styles.stockSymbol}>{stock.symbol}</Text><Text style={styles.stockCompany}>{stock.company}</Text></View><Text style={[styles.stockMove, !stock.up && styles.stockDown]}>{stock.value}</Text></Pressable>)}</View>
+      <View style={styles.bottomPanel}><SectionHeader label={financeIsMock ? "SIMULATED PREVIEW" : "MARKET DATA"} title="Market Movers" />{marketMovers.map((stock) => <Pressable key={stock.symbol} onPress={() => router.push('/finance')} style={({ pressed }) => [styles.stockRow, pressed && styles.rowPressed]}><View><Text style={styles.stockSymbol}>{stock.symbol}</Text><Text style={styles.stockCompany}>{stock.company}</Text></View><Text style={[styles.stockMove, !stock.up && styles.stockDown]}>{stock.value}</Text></Pressable>)}</View>
     </View>
     </ScrollView>
   </View>;
