@@ -1,9 +1,10 @@
 # LookUP backend
 
-This folder contains the initial TypeScript backend foundation for LookUP. It currently exposes one keyless endpoint:
+This folder contains the TypeScript backend foundation for LookUP. It currently exposes two keyless endpoints:
 
 ```text
 GET /health
+GET /api/v1/status
 ```
 
 The response confirms that the local backend process is available:
@@ -12,6 +13,16 @@ The response confirms that the local backend process is available:
 {
   "status": "ok",
   "service": "lookup-backend"
+}
+```
+
+`/api/v1` is the versioned namespace for app-facing endpoints. The status endpoint returns:
+
+```json
+{
+  "status": "ok",
+  "service": "lookup-backend",
+  "apiVersion": "v1"
 }
 ```
 
@@ -27,6 +38,7 @@ The server listens on `http://localhost:4000` by default. Set the standard `PORT
 
 ```sh
 curl http://localhost:4000/health
+curl http://localhost:4000/api/v1/status
 ```
 
 Validate its TypeScript separately with:
@@ -40,5 +52,24 @@ npm run backend:check
 Add HTTP route handlers under `backend/src/routes/` and backend-only business/provider integrations under `backend/src/services/` as features are connected. Planned feature areas include Weather, Sports, Entertainment, Finance, Music, Traffic/Transportation, My Locker, and Daily Intelligence.
 
 The existing `src/services/` directory remains the app-facing normalized data layer. Backend integrations should fulfill those contracts through API responses instead of duplicating screen logic here.
+
+The frontend bridge is `src/services/backend-client.ts`. It centralizes requests, validates responses, and reports available, unavailable, and error states without putting raw backend fetch logic in screens. It defaults to `http://localhost:4000` for local web development.
+
+To use a different backend host, set the public, non-secret Expo variable before starting the app:
+
+```text
+EXPO_PUBLIC_LOOKUP_BACKEND_URL=http://192.168.1.25:4000
+```
+
+Use the development computer's LAN address for a physical phone. A later staging or production deployment can set the same variable to its HTTPS backend URL. Never put credentials or secrets in an `EXPO_PUBLIC_` variable because it is included in the client bundle.
+
+Run the frontend and backend in separate terminals:
+
+```sh
+npm run backend:start
+npm run start
+```
+
+For local web development, the server returns CORS headers only to loopback origins (`localhost`, `127.0.0.1`, or `::1`). Native applications do not use browser CORS. Production CORS policy will be configured when a production host exists.
 
 No database, authentication, external API, API key, or secret is used at this stage.

@@ -1,5 +1,10 @@
 {
   "name": "lookup-backend",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.ts",
+    "start": "node src/server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
 }
