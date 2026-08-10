@@ -6,7 +6,7 @@ import type { FinanceIntelligenceSummary } from '@/services/finance';
 import type { MusicIntelligenceSummary } from '@/services/music';
 import type { SportsIntelligenceSummary } from '@/services/sports';
 import { type CommuteData, type SubwayCommute, type TrafficSummary } from '@/services/traffic';
-import { getWeather, getWeatherCondition } from '@/services/weather';
+import { getWeather, getWeatherForIntelligence } from '@/services/weather';
 
 export type IntelligencePriority = 'routine' | 'useful' | 'important';
 export type DailyWardrobeItem = Pick<ClothingItem, 'brand' | 'category' | 'favorite' | 'id' | 'name' | 'primaryColor'>;
@@ -461,7 +461,7 @@ export async function getDailyIntelligence(now = new Date()): Promise<DailyIntel
   ]);
 
   const weather = weatherResult.status === 'fulfilled'
-    ? { condition: getWeatherCondition(weatherResult.value.weatherCode), temperature: weatherResult.value.temperature }
+    ? getWeatherForIntelligence(weatherResult.value)
     : undefined;
   const locker = lockerResult.status === 'fulfilled' ? lockerResult.value : undefined;
   const briefing = generateDailyIntelligence({ now, weather, locker });

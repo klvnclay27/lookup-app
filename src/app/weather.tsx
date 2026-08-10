@@ -13,7 +13,7 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getWeather, getWeatherCondition } from '@/services/weather';
+import { getWeather, type WeatherDataProvenance, type WeatherSnapshot as WeatherDataSnapshot } from '@/services/weather';
 
 type WeatherSnapshot = {
   temperature: number;
@@ -21,6 +21,7 @@ type WeatherSnapshot = {
   feelsLike: number;
   high: number;
   low: number;
+  precipitationChance?: number;
 };
 
 type Location = {
@@ -59,6 +60,8 @@ export default function WeatherScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState('Just now');
+  const [weatherData, setWeatherData] = useState<WeatherDataSnapshot | null>(null);
+  const [weatherProvenance, setWeatherProvenance] = useState<WeatherDataProvenance>('unavailable');
 
   const loadCurrentWeather = async () => {
     if (weather) {
@@ -68,14 +71,23 @@ export default function WeatherScreen() {
     }
     setError(null);
     try {
-      const data = await getWeather();
-      const condition = getWeatherCondition(data.weatherCode);
+      const result = await getWeather();
+      setWeatherProvenance(result.provenance);
+      if (result.provenance === 'unavailable') {
+        setWeatherData(null);
+        setError(result.error);
+        return;
+      }
+      const data = result.data;
+      const current = data.current;
+      setWeatherData(data);
       setWeather({
-        temperature: data.temperature,
-        condition,
-        feelsLike: data.temperature + (condition === 'Sunny' ? 2 : 1),
-        high: data.temperature + 5,
-        low: data.temperature - 7,
+        temperature: current.temperature,
+        condition: current.condition,
+        feelsLike: Math.round(current.feelsLike ?? current.temperature),
+        high: Math.round(current.high ?? current.temperature),
+        low: Math.round(current.low ?? current.temperature),
+        precipitationChance: current.precipitationChance,
       });
       setLastUpdated('Just now');
     } catch {
@@ -103,6 +115,8 @@ export default function WeatherScreen() {
       loadCurrentWeather();
     } else {
       setError(null);
+      setWeatherData(null);
+      setWeatherProvenance('mock');
       setWeather(location.snapshot ?? null);
       setIsLoading(false);
     }
@@ -111,8 +125,8 @@ export default function WeatherScreen() {
   if (isLoading) return <ScreenState loading title="Loading weather" copy="Checking conditions for your day…" />;
   if (error || !weather) return <ScreenState title="Weather is unavailable" copy={error ?? 'No weather data was returned.'} action="Retry" onAction={loadCurrentWeather} />;
 
-  const hourly = buildHourly(weather);
-  const daily = buildDaily(weather);
+  const hourly = buildHourly(weather, weatherData);
+  const daily = buildDaily(weather, weatherData);
   const recommendation = getOutfitRecommendation(weather);
 
   return (
@@ -138,7 +152,7 @@ export default function WeatherScreen() {
 
       {query.trim() ? <LocationResults results={searchResults} query={query.trim()} onSelect={selectLocation} /> : (
         <>
-          <CurrentWeatherHero location={selectedLocation} weather={weather} lastUpdated={lastUpdated} isReal={selectedLocation.id === 'current'} />
+          <CurrentWeatherHero location={selectedLocation} weather={weather} lastUpdated={lastUpdated} provenance={selectedLocation.id === 'current' ? weatherProvenance : 'mock'} />
 
           <View style={styles.section}><SectionHeader title="What to Wear" /><OutfitCard recommendation={recommendation} /></View>
 
@@ -169,9 +183,9 @@ function weatherIcon(condition: string) {
   return '☀';
 }
 
-function CurrentWeatherHero({ location, weather, lastUpdated, isReal }: { location: Location; weather: WeatherSnapshot; lastUpdated: string; isReal: boolean }) {
+function CurrentWeatherHero({ location, weather, lastUpdated, provenance }: { location: Location; weather: WeatherSnapshot; lastUpdated: string; provenance: WeatherDataProvenance }) {
   const rainy = weather.condition.toLowerCase().includes('rain');
-  return <View style={[styles.heroCard, rainy && styles.heroRain]}><View style={styles.heroOrb} /><View style={styles.heroTop}><View><Text style={styles.heroLocation}>{location.name}</Text><Text style={styles.heroSubtitle}>{location.subtitle} · {isReal ? 'CURRENT SOURCE' : 'SIMULATED'}</Text></View><Text style={styles.heroUpdated}>Updated {lastUpdated}</Text></View><View style={styles.heroMain}><View><Text style={styles.temperature}>{weather.temperature}°</Text><Text style={styles.condition}>{weather.condition}</Text><Text style={styles.feelsLike}>Feels like {weather.feelsLike}°</Text></View><Text style={styles.heroIcon}>{weatherIcon(weather.condition)}</Text></View><View style={styles.heroFooter}><View><Text style={styles.heroStatLabel}>TODAY’S HIGH</Text><Text style={styles.heroStat}>{weather.high}°</Text></View><View><Text style={styles.heroStatLabel}>TODAY’S LOW</Text><Text style={styles.heroStat}>{weather.low}°</Text></View><View><Text style={styles.heroStatLabel}>PRECIPITATION</Text><Text style={styles.heroStat}>{rainy ? '78%' : '12%'}</Text></View></View></View>;
+  return <View style={[styles.heroCard, rainy && styles.heroRain]}><View style={styles.heroOrb} /><View style={styles.heroTop}><View><Text style={styles.heroLocation}>{location.name}</Text><Text style={styles.heroSubtitle}>{location.subtitle} · {provenance === 'live' ? 'LIVE SOURCE' : 'SIMULATED'}</Text></View><Text style={styles.heroUpdated}>Updated {lastUpdated}</Text></View><View style={styles.heroMain}><View><Text style={styles.temperature}>{weather.temperature}°</Text><Text style={styles.condition}>{weather.condition}</Text><Text style={styles.feelsLike}>Feels like {weather.feelsLike}°</Text></View><Text style={styles.heroIcon}>{weatherIcon(weather.condition)}</Text></View><View style={styles.heroFooter}><View><Text style={styles.heroStatLabel}>TODAY’S HIGH</Text><Text style={styles.heroStat}>{weather.high}°</Text></View><View><Text style={styles.heroStatLabel}>TODAY’S LOW</Text><Text style={styles.heroStat}>{weather.low}°</Text></View><View><Text style={styles.heroStatLabel}>PRECIPITATION</Text><Text style={styles.heroStat}>{weather.precipitationChance ?? (rainy ? 78 : 12)}%</Text></View></View></View>;
 }
 
 function getOutfitRecommendation(weather: WeatherSnapshot) {
@@ -190,7 +204,15 @@ function SectionHeader({ title }: { title: string }) {
   return <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{title}</Text><Pressable onPress={() => Alert.alert(title, 'The expanded forecast is coming soon.')} hitSlop={8}><Text style={styles.seeAll}>See all</Text></Pressable></View>;
 }
 
-function buildHourly(weather: WeatherSnapshot) {
+function buildHourly(weather: WeatherSnapshot, weatherData: WeatherDataSnapshot | null) {
+  if (weatherData?.hourly.length) {
+    return weatherData.hourly.slice(0, 12).map((hour, index) => ({
+      time: index === 0 ? 'Now' : new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }),
+      temperature: hour.temperature,
+      condition: hour.condition,
+      precipitation: hour.precipitationChance ?? 0,
+    }));
+  }
   return Array.from({ length: 12 }, (_, index) => ({ time: index === 0 ? 'Now' : `${((12 + index - 1) % 12) + 1} PM`, temperature: weather.temperature + Math.round(Math.sin(index / 2) * 4), condition: index > 5 && index < 9 ? 'Cloudy' : weather.condition, precipitation: weather.condition.toLowerCase().includes('rain') ? 65 + (index % 3) * 8 : 8 + (index % 4) * 5 }));
 }
 
@@ -198,7 +220,16 @@ function HourlyCard({ hour, current }: { hour: ReturnType<typeof buildHourly>[nu
   return <View style={[styles.hourCard, current && styles.hourCardCurrent]}><Text style={[styles.hourTime, current && styles.currentText]}>{hour.time}</Text><Text style={styles.hourIcon}>{weatherIcon(hour.condition)}</Text><Text style={styles.hourTemperature}>{hour.temperature}°</Text><Text style={styles.precipitation}>⌁ {hour.precipitation}%</Text></View>;
 }
 
-function buildDaily(weather: WeatherSnapshot) {
+function buildDaily(weather: WeatherSnapshot, weatherData: WeatherDataSnapshot | null) {
+  if (weatherData?.daily.length) {
+    return weatherData.daily.slice(0, 7).map((day, index) => ({
+      day: index === 0 ? 'Today' : new Date(`${day.date}T12:00:00`).toLocaleDateString([], { weekday: 'long' }),
+      condition: day.condition,
+      low: day.low,
+      high: day.high,
+      precipitation: day.precipitationChance ?? 0,
+    }));
+  }
   const days = ['Today', 'Tomorrow', 'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'];
   return days.map((day, index) => ({ day, condition: index === 2 || index === 5 ? 'Cloudy' : index === 3 ? 'Rainy' : weather.condition, low: weather.low + (index % 3) - 1, high: weather.high + (index % 4) - 1, precipitation: index === 3 ? 72 : 8 + index * 5 }));
 }
