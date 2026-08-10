@@ -1,11 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { router, type Href } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DAILY_INTELLIGENCE_TEST_SCENARIOS, generateDailyIntelligence, generateDailyIntelligenceTestSnapshot, getDailyIntelligence, type DailyIntelligenceInput, type DailyIntelligenceSnapshot, type DailyIntelligenceTestScenario } from '@/services/daily-intelligence';
+import { loadDevelopmentUserProfile, saveSmartModePreference } from '@/services/user-profile';
 
 type IconName = SymbolViewProps['name'];
 type Action = { label: string; route: Href; icon: IconName; color: string; tint: string };
@@ -24,8 +24,6 @@ const ACTIONS: Action[] = [
   { label: 'Entertainment', route: '/entertainment', icon: { ios: 'film.fill', android: 'movie', web: 'movie' }, color: '#DA4E69', tint: '#FDEAF0' },
   { label: 'My Locker', route: '/my-locker', icon: { ios: 'tshirt.fill', android: 'checkroom', web: 'checkroom' }, color: '#5077C8', tint: '#EAF0FC' },
 ];
-
-const INTELLIGENCE_PREFERENCE_KEY = 'lookup.dailyIntelligence.enabled.v1';
 
 function Icon({ name, color = COLORS.ink, size = 20 }: { name: IconName; color?: string; size?: number }) {
   return <SymbolView fallback={<Text style={{ color, fontSize: size * 0.65 }}>{'\u25CF'}</Text>} name={name} size={size} tintColor={color} />;
@@ -57,7 +55,9 @@ export default function HomeScreen() {
   const [dailyIntelligenceBase, setDailyIntelligenceBase] = useState<DailyIntelligenceInput>({});
   const [testScenario, setTestScenario] = useState<DailyIntelligenceTestScenario>('normal');
   const [intelligenceEnabled, setIntelligenceEnabled] = useState(true);
+  const [displayName, setDisplayName] = useState('Kelvin');
   const [search, setSearch] = useState('');
+  const smartModeChangedRef = useRef(false);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -65,9 +65,13 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem(INTELLIGENCE_PREFERENCE_KEY)
-      .then((stored) => { if (stored !== null) setIntelligenceEnabled(stored === 'true'); })
-      .catch(() => undefined);
+    let active = true;
+    void loadDevelopmentUserProfile().then((profile) => {
+      if (!active) return;
+      setDisplayName(profile.displayName);
+      if (!smartModeChangedRef.current) setIntelligenceEnabled(profile.smartModeEnabled);
+    });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -94,6 +98,7 @@ export default function HomeScreen() {
   }, []);
 
   const updateIntelligencePreference = (enabled: boolean) => {
+    smartModeChangedRef.current = true;
     setIntelligenceEnabled(enabled);
     if (enabled) {
       applyIntelligenceSnapshot({ ...generateDailyIntelligence(dailyIntelligenceBase), sources: dailyIntelligenceBase });
@@ -101,7 +106,7 @@ export default function HomeScreen() {
       setTestScenario('normal');
       applyFactualSources(dailyIntelligenceBase);
     }
-    void AsyncStorage.setItem(INTELLIGENCE_PREFERENCE_KEY, String(enabled));
+    void saveSmartModePreference(enabled);
   };
 
   const applyFactualSources = (sources: DailyIntelligenceInput) => {
@@ -173,7 +178,7 @@ export default function HomeScreen() {
       <View style={styles.headerActions}><Pressable accessibilityLabel="Notifications" onPress={() => Alert.alert('Notifications', 'You are all caught up.')} style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}><Icon color="#43546B" name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} /></Pressable><Pressable accessibilityLabel="Profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable></View>
     </View>
 
-    <View style={styles.greetingBlock}><Text style={styles.greeting}>{greeting}, Kelvin</Text><Text style={styles.greetingCopy}>Here’s what’s happening today.</Text></View>
+    <View style={styles.greetingBlock}><Text style={styles.greeting}>{greeting}, {displayName}</Text><Text style={styles.greetingCopy}>Here’s what’s happening today.</Text></View>
 
     <View style={styles.intelligenceCard}>
       <View style={styles.intelligenceHeader}>
