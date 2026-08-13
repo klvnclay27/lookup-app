@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { fileUserRepository } from './data/file-user-repository.ts';
+import { handleCurrentUserRoute } from './routes/me.ts';
 import { handleUserPreferencesRoute } from './routes/preferences.ts';
 import { API_STATUS_RESPONSE } from './routes/status.ts';
 import { handleUserProfileRoute } from './routes/users.ts';
@@ -26,7 +27,7 @@ function getLocalDevelopmentCorsHeaders(request: IncomingMessage): Record<string
 
     if (isHttp && isLoopback) {
       return {
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
         'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
         'Access-Control-Allow-Origin': origin,
         Vary: 'Origin',
@@ -68,6 +69,21 @@ export async function handleRequest(request: IncomingMessage, response: ServerRe
   }
 
   try {
+    const currentUserResult = await handleCurrentUserRoute(request, requestUrl.pathname, fileUserRepository);
+    if (currentUserResult) {
+      sendJson(request, response, currentUserResult.statusCode, currentUserResult.body);
+      return;
+    }
+
+    // Legacy demo-user routes remain available in local development only.
+    if (process.env.NODE_ENV === 'production') {
+      sendJson(request, response, 404, {
+        status: 'error',
+        message: 'Route not found',
+      });
+      return;
+    }
+
     const userProfileResult = await handleUserProfileRoute(request, requestUrl.pathname, fileUserRepository);
     if (userProfileResult) {
       sendJson(request, response, userProfileResult.statusCode, userProfileResult.body);

@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.ts",
-    "start": "node src/server.ts",
+    "dev": "node --env-file-if-exists=../.env.local --watch src/server.ts",
+    "start": "node --env-file-if-exists=../.env.local src/server.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

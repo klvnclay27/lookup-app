@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type {
+  NewUserProfile,
   UserId,
   UserPreferences,
   UserPreferencesChanges,
@@ -110,6 +111,20 @@ export class FileUserRepository implements UserRepository {
       await this.writeStore(seed);
       return seed;
     }
+  }
+
+  createUserProfile(profile: NewUserProfile): Promise<UserProfile> {
+    return this.runExclusive(async () => {
+      const store = await this.readStore();
+      const existing = store.profiles[profile.userId];
+      if (existing) return copyProfile(existing);
+
+      const now = new Date().toISOString();
+      const created: UserProfile = { ...profile, createdAt: now, updatedAt: now };
+      store.profiles[created.userId] = created;
+      await this.writeStore(store);
+      return copyProfile(created);
+    });
   }
 
   getUserProfile(userId: UserId): Promise<UserProfile | null> {

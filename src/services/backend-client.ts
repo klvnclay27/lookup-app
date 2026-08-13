@@ -23,7 +23,7 @@ export type BackendUserPreferences = {
 export type BackendUserPreferencesChanges = Partial<BackendUserPreferences>;
 
 export type BackendClientError = {
-  code: 'network' | 'http' | 'invalid-response';
+  code: 'network' | 'http' | 'invalid-response' | 'unauthorized';
   message: string;
   statusCode?: number;
 };
@@ -33,6 +33,7 @@ export type BackendResult<T> =
   | { data: null; error: BackendClientError; state: 'unavailable' | 'error' };
 
 export type BackendRequestOptions = {
+  accessToken?: string;
   baseUrl?: string;
   fetchImplementation?: typeof fetch;
 };
@@ -95,16 +96,41 @@ async function requestJson<T>(
   options: BackendRequestOptions = {},
   method: BackendRequestMethod = 'GET',
   body?: unknown,
+  requiresAuthentication = false,
 ): Promise<BackendResult<T>> {
   const baseUrl = normalizeBaseUrl(options.baseUrl ?? BACKEND_BASE_URL);
   const fetchImplementation = options.fetchImplementation ?? fetch;
   let response: Response;
+  let accessToken = options.accessToken;
+
+  if (requiresAuthentication && !accessToken) {
+    try {
+      const { supabase } = await import('@/services/supabase');
+      const { data } = await supabase.auth.getSession();
+      accessToken = data.session?.access_token;
+    } catch {
+      return {
+        data: null,
+        error: { code: 'unauthorized', message: 'LookUP could not restore the authentication session.', statusCode: 401 },
+        state: 'error',
+      };
+    }
+  }
+
+  if (requiresAuthentication && !accessToken) {
+    return {
+      data: null,
+      error: { code: 'unauthorized', message: 'Sign in to access your LookUP data.', statusCode: 401 },
+      state: 'error',
+    };
+  }
 
   try {
     response = await fetchImplementation(`${baseUrl}${path}`, {
       body: body === undefined ? undefined : JSON.stringify(body),
       headers: {
         Accept: 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       method,
@@ -206,5 +232,35 @@ export async function updateUserPreferences(
     'PATCH',
     changes,
   );
+  return unwrapDataResult(result);
+}
+
+export async function getCurrentUserProfile(
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserProfile>> {
+  const result = await requestJson('/api/v1/me/profile', isUserProfileResponse, options, 'GET', undefined, true);
+  return unwrapDataResult(result);
+}
+
+export async function updateCurrentUserProfile(
+  changes: BackendUserProfileChanges,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserProfile>> {
+  const result = await requestJson('/api/v1/me/profile', isUserProfileResponse, options, 'PATCH', changes, true);
+  return unwrapDataResult(result);
+}
+
+export async function getCurrentUserPreferences(
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserPreferences>> {
+  const result = await requestJson('/api/v1/me/preferences', isUserPreferencesResponse, options, 'GET', undefined, true);
+  return unwrapDataResult(result);
+}
+
+export async function updateCurrentUserPreferences(
+  changes: BackendUserPreferencesChanges,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendUserPreferences>> {
+  const result = await requestJson('/api/v1/me/preferences', isUserPreferencesResponse, options, 'PATCH', changes, true);
   return unwrapDataResult(result);
 }

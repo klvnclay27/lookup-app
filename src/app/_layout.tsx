@@ -5,6 +5,7 @@ import { Platform, StyleSheet, Text, useColorScheme, useWindowDimensions, View, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { AuthProvider } from '@/providers/auth-provider';
 
 const ACTIVE_COLOR = '#69E08C';
 const INACTIVE_COLOR = '#64758A';
@@ -25,23 +26,24 @@ export default function TabLayout() {
   const iconSize = compact ? 18 : 20;
   const tabBarBaseHeight = Platform.OS === 'web' ? (compact ? 54 : 57) : (compact ? 52 : 55);
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <Tabs screenOptions={{
-        headerShown: false,
-        tabBarActiveBackgroundColor: 'transparent',
-        tabBarActiveTintColor: ACTIVE_COLOR,
-        tabBarAllowFontScaling: false,
-        tabBarHideOnKeyboard: true,
-        tabBarInactiveTintColor: INACTIVE_COLOR,
-        tabBarItemStyle: styles.tabItem,
-        tabBarBackground: () => <GlassView colorScheme="light" glassEffectStyle="regular" style={StyleSheet.absoluteFill} tintColor="rgba(225, 231, 238, 0.94)" />,
-        tabBarStyle: [styles.tabBar, compact && styles.tabBarCompact, {
-          bottom: Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8),
-          height: tabBarBaseHeight,
-          paddingBottom: Platform.OS === 'web' ? 6 : 4,
-        }],
-      }}>
+    <AuthProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AnimatedSplashOverlay />
+        <Tabs screenOptions={{
+          headerShown: false,
+          tabBarActiveBackgroundColor: 'transparent',
+          tabBarActiveTintColor: ACTIVE_COLOR,
+          tabBarAllowFontScaling: false,
+          tabBarHideOnKeyboard: true,
+          tabBarInactiveTintColor: INACTIVE_COLOR,
+          tabBarItemStyle: styles.tabItem,
+          tabBarBackground: () => <GlassView colorScheme="light" glassEffectStyle="regular" style={StyleSheet.absoluteFill} tintColor="rgba(225, 231, 238, 0.94)" />,
+          tabBarStyle: [styles.tabBar, compact && styles.tabBarCompact, {
+            bottom: Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8),
+            height: tabBarBaseHeight,
+            paddingBottom: Platform.OS === 'web' ? 6 : 4,
+          }],
+        }}>
         <Tabs.Screen name="index" options={{ title: 'Home', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Home" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'house.fill', android: 'home', web: 'home' }} size={iconSize} /> }} />
         <Tabs.Screen name="weather" options={{ title: 'Weather', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Weather" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'cloud.sun.fill', android: 'partly_cloudy_day', web: 'partly_cloudy_day' }} size={iconSize} /> }} />
         <Tabs.Screen name="sports" options={{ title: 'Sports', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Sports" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'basketball.fill', android: 'sports_basketball', web: 'sports_basketball' }} size={iconSize} /> }} />
@@ -52,8 +54,10 @@ export default function TabLayout() {
         <Tabs.Screen name="my-locker" options={{ title: 'My Locker', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="My Locker" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'tshirt.fill', android: 'checkroom', web: 'checkroom' }} size={iconSize} /> }} />
         <Tabs.Screen name="explore" options={{ title: 'Explore', href: null }} />
         <Tabs.Screen name="game-details" options={{ title: 'Game Details', href: null }} />
-      </Tabs>
-    </ThemeProvider>
+        <Tabs.Screen name="sign-in" options={{ title: 'Account', href: null, tabBarStyle: { display: 'none' } }} />
+        </Tabs>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

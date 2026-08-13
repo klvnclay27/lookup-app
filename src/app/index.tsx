@@ -5,7 +5,8 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Te
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DAILY_INTELLIGENCE_TEST_SCENARIOS, generateDailyIntelligence, generateDailyIntelligenceTestSnapshot, getDailyIntelligence, type DailyIntelligenceInput, type DailyIntelligenceSnapshot, type DailyIntelligenceTestScenario } from '@/services/daily-intelligence';
-import { loadDevelopmentUserProfile, saveSmartModePreference } from '@/services/user-profile';
+import { loadHomeUserProfile, saveSmartModePreference } from '@/services/user-profile';
+import { useAuth } from '@/providers/auth-provider';
 
 type IconName = SymbolViewProps['name'];
 type Action = { label: string; route: Href; icon: IconName; color: string; tint: string };
@@ -34,6 +35,7 @@ function SectionHeader({ action, label, title }: { action?: string; label?: stri
 }
 
 export default function HomeScreen() {
+  const { session } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= 900;
@@ -66,13 +68,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     let active = true;
-    void loadDevelopmentUserProfile().then((profile) => {
+    smartModeChangedRef.current = false;
+    void loadHomeUserProfile().then((profile) => {
       if (!active) return;
       setDisplayName(profile.displayName);
       if (!smartModeChangedRef.current) setIntelligenceEnabled(profile.smartModeEnabled);
     });
     return () => { active = false; };
-  }, []);
+  }, [session?.user.id]);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -129,6 +132,10 @@ export default function HomeScreen() {
     applyIntelligenceSnapshot(generateDailyIntelligenceTestSnapshot(dailyIntelligenceBase, scenario));
   };
 
+  const openAccount = () => {
+    router.push('/sign-in');
+  };
+
   const displayedSources = __DEV__ && intelligenceEnabled && testScenario !== 'normal' ? dailyIntelligence.sources : dailyIntelligenceBase;
   const hasLiveWeather = Boolean(displayedSources.weather);
   const hasLiveTraffic = Boolean(displayedSources.traffic);
@@ -175,7 +182,7 @@ export default function HomeScreen() {
     <View style={[styles.topBar, !desktop && styles.topBarMobile]}>
       <View style={styles.wordmark}><Text style={styles.wordmarkLook}>look</Text><Text style={styles.wordmarkUp}>UP</Text></View>
       <View style={[styles.searchBar, !desktop && styles.searchBarMobile]}><Icon color="#8190A2" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} /><TextInput accessibilityLabel="Search LookUP" onChangeText={setSearch} onSubmitEditing={() => search.trim() && Alert.alert('Search LookUP', `Search preview for “${search.trim()}”`)} placeholder="Search LookUP" placeholderTextColor="#8493A6" returnKeyType="search" style={styles.searchInput} value={search} /></View>
-      <View style={styles.headerActions}><Pressable accessibilityLabel="Notifications" onPress={() => Alert.alert('Notifications', 'You are all caught up.')} style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}><Icon color="#43546B" name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} /></Pressable><Pressable accessibilityLabel="Profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable></View>
+      <View style={styles.headerActions}><Pressable accessibilityLabel="Notifications" onPress={() => Alert.alert('Notifications', 'You are all caught up.')} style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}><Icon color="#43546B" name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} /></Pressable><Pressable accessibilityLabel={session ? 'Account' : 'Sign in'} onPress={openAccount} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable></View>
     </View>
 
     <View style={styles.greetingBlock}><Text style={styles.greeting}>{greeting}, {displayName}</Text><Text style={styles.greetingCopy}>Here’s what’s happening today.</Text></View>

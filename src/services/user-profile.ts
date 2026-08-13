@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getUserPreferences, getUserProfile, updateUserPreferences } from '@/services/backend-client';
-
-export const DEVELOPMENT_USER_ID = 'demo-user';
+import { getCurrentUserPreferences, getCurrentUserProfile, updateCurrentUserPreferences } from '@/services/backend-client';
+import { supabase } from '@/services/supabase';
 
 const SMART_MODE_PREFERENCE_KEY = 'lookup.dailyIntelligence.enabled.v1';
 const FALLBACK_DISPLAY_NAME = 'Kelvin';
@@ -23,11 +22,28 @@ async function readLocalSmartModePreference(): Promise<boolean | undefined> {
   }
 }
 
-export async function loadDevelopmentUserProfile(): Promise<HomeUserProfile> {
+export async function loadHomeUserProfile(): Promise<HomeUserProfile> {
   const localSmartMode = await readLocalSmartModePreference();
+  let authenticatedUserId: string | undefined;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    authenticatedUserId = sessionData.session?.user.id;
+  } catch {
+    authenticatedUserId = undefined;
+  }
+
+  if (!authenticatedUserId) {
+    return {
+      displayName: FALLBACK_DISPLAY_NAME,
+      smartModeEnabled: localSmartMode ?? true,
+      source: 'local',
+      userId: 'local-user',
+    };
+  }
+
   const [profileResult, preferencesResult] = await Promise.all([
-    getUserProfile(DEVELOPMENT_USER_ID),
-    getUserPreferences(DEVELOPMENT_USER_ID),
+    getCurrentUserProfile(),
+    getCurrentUserPreferences(),
   ]);
 
   return {
@@ -38,13 +54,13 @@ export async function loadDevelopmentUserProfile(): Promise<HomeUserProfile> {
         ? profileResult.data.smartModeEnabled
         : localSmartMode ?? true,
     source: profileResult.state === 'available' || preferencesResult.state === 'available' ? 'backend' : 'local',
-    userId: profileResult.state === 'available' ? profileResult.data.userId : DEVELOPMENT_USER_ID,
+    userId: profileResult.state === 'available' ? profileResult.data.userId : authenticatedUserId,
   };
 }
 
 export async function saveSmartModePreference(enabled: boolean): Promise<void> {
   await Promise.allSettled([
     AsyncStorage.setItem(SMART_MODE_PREFERENCE_KEY, String(enabled)),
-    updateUserPreferences(DEVELOPMENT_USER_ID, { smartModeEnabled: enabled }),
+    updateCurrentUserPreferences({ smartModeEnabled: enabled }),
   ]);
 }

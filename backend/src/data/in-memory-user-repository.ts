@@ -1,4 +1,5 @@
 import type {
+  NewUserProfile,
   UserId,
   UserPreferences,
   UserPreferencesChanges,
@@ -28,6 +29,16 @@ export class InMemoryUserRepository implements UserRepository {
 
   constructor(seedProfiles: UserProfile[] = [DEMO_USER_PROFILE]) {
     this.profiles = new Map(seedProfiles.map((profile) => [profile.userId, copyProfile(profile)]));
+  }
+
+  async createUserProfile(profile: NewUserProfile): Promise<UserProfile> {
+    const existing = this.profiles.get(profile.userId);
+    if (existing) return copyProfile(existing);
+
+    const now = new Date().toISOString();
+    const created: UserProfile = { ...profile, createdAt: now, updatedAt: now };
+    this.profiles.set(created.userId, created);
+    return copyProfile(created);
   }
 
   async getUserProfile(userId: UserId): Promise<UserProfile | null> {

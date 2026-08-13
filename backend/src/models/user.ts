@@ -13,3 +13,4 @@ export type UserProfile = UserPreferences & {
 
 export type UserProfileChanges = Partial<Pick<UserProfile, 'displayName' | 'smartModeEnabled'>>;
 export type UserPreferencesChanges = Partial<UserPreferences>;
+export type NewUserProfile = Pick<UserProfile, 'displayName' | 'smartModeEnabled' | 'userId'>;

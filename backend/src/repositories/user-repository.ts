@@ -1,4 +1,5 @@
 import type {
+  NewUserProfile,
   UserId,
   UserPreferences,
   UserPreferencesChanges,
@@ -7,6 +8,7 @@ import type {
 } from '../models/user.ts';
 
 export interface UserRepository {
+  createUserProfile(profile: NewUserProfile): Promise<UserProfile>;
   getUserProfile(userId: UserId): Promise<UserProfile | null>;
   updateUserProfile(userId: UserId, changes: UserProfileChanges): Promise<UserProfile | null>;
   getUserPreferences(userId: UserId): Promise<UserPreferences | null>;

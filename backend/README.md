@@ -1,6 +1,6 @@
 # LookUP backend
 
-This folder contains the TypeScript backend foundation for LookUP. It currently exposes two keyless endpoints:
+This folder contains the TypeScript backend foundation for LookUP. Health/status endpoints are public, current-user endpoints require Supabase authentication, and legacy user-ID endpoints are local-development-only:
 
 ```text
 GET /health
@@ -9,6 +9,10 @@ GET /api/v1/users/:userId/profile
 PATCH /api/v1/users/:userId/profile
 GET /api/v1/users/:userId/preferences
 PATCH /api/v1/users/:userId/preferences
+GET /api/v1/me/profile
+PATCH /api/v1/me/profile
+GET /api/v1/me/preferences
+PATCH /api/v1/me/preferences
 ```
 
 The response confirms that the local backend process is available:
@@ -44,6 +48,12 @@ Data is keyed by user ID and stored at `backend/data/users.json`. On first use, 
 The mutable `users.json` file and temporary write files are ignored by Git. This file-backed store is only for local MVP development. The existing `UserRepository` interface is the boundary a future database implementation will replace. No account, authentication, or database service exists yet.
 
 Smart Mode is also exposed through the dedicated preferences endpoints. The preference payload currently contains only `smartModeEnabled`; unsupported preference fields are rejected. The profile endpoint remains backward compatible during this migration.
+
+## Authentication
+
+The `/api/v1/me/*` routes require a Supabase access token in the `Authorization: Bearer <token>` header. The backend validates the token with Supabase Auth, derives the storage key from the verified token's user ID, and never accepts a client-provided user ID for these routes. A first request creates an isolated local profile with safe defaults when that authenticated user has no profile yet.
+
+The older `/api/v1/users/:userId/*` routes are retained only when `NODE_ENV` is not `production` for compatibility with local development. The normal frontend uses `/api/v1/me/*` and no longer reads or writes `demo-user` after a Supabase user signs in.
 
 ## Run locally
 
@@ -91,4 +101,4 @@ npm run start
 
 For local web development, the server returns CORS headers only to loopback origins (`localhost`, `127.0.0.1`, or `::1`). Native applications do not use browser CORS. Production CORS policy will be configured when a production host exists.
 
-No database, authentication, external API, API key, or secret is used at this stage.
+No paid service, database server, service-role credential, or backend secret is used at this stage. Supabase Auth is the sole authentication provider; its public project URL and publishable key are loaded from the ignored local environment file.
