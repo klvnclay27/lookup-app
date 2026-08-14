@@ -13,6 +13,8 @@ GET /api/v1/me/profile
 PATCH /api/v1/me/profile
 GET /api/v1/me/preferences
 PATCH /api/v1/me/preferences
+POST /api/v1/auth/sign-in
+POST /api/v1/auth/sign-up
 ```
 
 The response confirms that the local backend process is available:
@@ -54,6 +56,8 @@ Smart Mode is also exposed through the dedicated preferences endpoints. The pref
 The `/api/v1/me/*` routes require a Supabase access token in the `Authorization: Bearer <token>` header. The backend validates the token with Supabase Auth, derives the storage key from the verified token's user ID, and never accepts a client-provided user ID for these routes. A first request creates an isolated local profile with safe defaults when that authenticated user has no profile yet.
 
 The older `/api/v1/users/:userId/*` routes are retained only when `NODE_ENV` is not `production` for compatibility with local development. The normal frontend uses `/api/v1/me/*` and no longer reads or writes `demo-user` after a Supabase user signs in.
+
+Usernames are normalized to lowercase and stored with the local profile while the verified Supabase user ID remains the authorization and storage identity. Username/password sign-in is proxied through the backend so username-to-email resolution never reaches an unauthenticated client; the backend passes credentials directly to Supabase Auth and does not store or log passwords. Existing users without usernames remain valid and can claim one through their protected profile.
 
 ## Run locally
 

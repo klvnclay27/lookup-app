@@ -5,14 +5,18 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/providers/auth-provider';
-import { recoverPasswordSession, requestPasswordReset, signInWithEmail, signOut, signUpWithEmail, updateRecoveredPassword } from '@/services/auth';
+import { recoverEmailSession, recoverPasswordSession, requestPasswordReset, requestUsernameRecovery, signInWithIdentifier, signOut, signUpWithEmail, updateRecoveredPassword } from '@/services/auth';
+import { getCurrentUserProfile, updateCurrentUserProfile } from '@/services/backend-client';
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const linkingUrl = Linking.useURL();
-  const { recovery } = useLocalSearchParams<{ recovery?: string }>();
+  const { recovery, usernameRecovery } = useLocalSearchParams<{ recovery?: string; usernameRecovery?: string }>();
   const { configured, loading: sessionLoading, session } = useAuth();
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [accountUsername, setAccountUsername] = useState<string | undefined>();
+  const [createMode, setCreateMode] = useState(false);
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,13 +26,38 @@ export default function SignInScreen() {
   const processedRecoveryUrl = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!session) {
+      setAccountUsername(undefined);
+      return;
+    }
+    void getCurrentUserProfile().then((result) => {
+      if (result.state === 'available') {
+        setAccountUsername(result.data.username);
+        setUsername(result.data.username ?? '');
+      }
+    });
+  }, [session?.user.id]);
+
+  useEffect(() => {
     if (!linkingUrl || processedRecoveryUrl.current === linkingUrl) return;
+    const isUsernameRecovery = usernameRecovery === 'true' || linkingUrl.includes('usernameRecovery=true');
     const hasRecoveryCredentials = linkingUrl.includes('type=recovery')
       || linkingUrl.includes('token_hash=')
-      || linkingUrl.includes('code=');
+      || linkingUrl.includes('code=')
+      || linkingUrl.includes('access_token=');
     if (!hasRecoveryCredentials) return;
 
     processedRecoveryUrl.current = linkingUrl;
+    if (isUsernameRecovery) {
+      setSubmitting(true);
+      setMessage(null);
+      void recoverEmailSession(linkingUrl).then((error) => {
+        setSubmitting(false);
+        setMessage(error ?? 'Email verified. Your username is shown below.');
+        router.replace('/sign-in');
+      });
+      return;
+    }
     setRecoveryMode(true);
     setSubmitting(true);
     setMessage(null);
@@ -43,14 +72,14 @@ export default function SignInScreen() {
       setRecoveryMode(true);
       router.replace({ pathname: '/sign-in', params: { recovery: 'true' } });
     });
-  }, [linkingUrl]);
+  }, [linkingUrl, usernameRecovery]);
 
   const submit = async (mode: 'sign-in' | 'sign-up') => {
     setSubmitting(true);
     setMessage(null);
     const result = mode === 'sign-in'
-      ? await signInWithEmail(email, password)
-      : await signUpWithEmail(email, password);
+      ? await signInWithIdentifier(email, password)
+      : await signUpWithEmail(email, password, username);
     setSubmitting(false);
 
     if (result.error) {
@@ -61,6 +90,51 @@ export default function SignInScreen() {
     else setMessage('Check your email to confirm your account, then sign in.');
   };
 
+  const handleCreateAccount = () => {
+    if (!createMode) {
+      setCreateMode(true);
+      setMessage(null);
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]{3,24}$/.test(username.trim())) {
+      setMessage('Username must be 3–24 characters using letters, numbers, or underscores.');
+      return;
+    }
+    void submit('sign-up');
+  };
+
+  const handleForgotUsername = async () => {
+    if (!email.trim() || !email.includes('@')) {
+      setMessage('Enter your email address first.');
+      return;
+    }
+    setSubmitting(true);
+    await requestUsernameRecovery(email);
+    setSubmitting(false);
+    setMessage('If an account matches that email, username recovery instructions have been sent.');
+  };
+
+  const handleSaveUsername = async () => {
+    const normalized = username.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,24}$/.test(normalized)) {
+      setMessage('Username must be 3–24 characters using letters, numbers, or underscores.');
+      return;
+    }
+    setSubmitting(true);
+    const result = await updateCurrentUserProfile({ username: normalized });
+    if (result.state !== 'available') {
+      setSubmitting(false);
+      setMessage(result.error.statusCode === 409 ? 'That username is unavailable.' : result.error.message);
+      return;
+    }
+    const refreshed = await getCurrentUserProfile();
+    setSubmitting(false);
+    const profile = refreshed.state === 'available' ? refreshed.data : result.data;
+    setAccountUsername(profile.username);
+    setUsername(profile.username ?? '');
+    setMessage('Username saved.');
+  };
+
   const handleSignOut = async () => {
     setSubmitting(true);
     const error = await signOut();
@@ -69,7 +143,7 @@ export default function SignInScreen() {
   };
 
   const handleForgotPassword = async () => {
-    if (!email.trim()) {
+    if (!email.trim() || !email.includes('@')) {
       setMessage('Enter your email address first.');
       return;
     }
@@ -117,7 +191,7 @@ export default function SignInScreen() {
         <View style={styles.card}>
           <Text style={styles.eyebrow}>LOOKUP ACCOUNT</Text>
           <Text style={styles.title}>{recoveryMode ? 'Choose a new password' : session ? 'Your account' : 'Welcome to LookUP'}</Text>
-          <Text style={styles.subtitle}>{recoveryMode ? 'Enter and confirm your new LookUP password.' : session ? `Signed in as ${session.user.email ?? 'LookUP user'}` : 'Sign in for your friends-beta account.'}</Text>
+          <Text style={styles.subtitle}>{recoveryMode ? 'Enter and confirm your new LookUP password.' : session ? `Signed in as ${session.user.email ?? 'LookUP user'}` : createMode ? 'Create your friends-beta account.' : 'Sign in for your friends-beta account.'}</Text>
 
           {!configured ? <Text style={styles.message}>Supabase Auth is not configured for this build.</Text> : sessionLoading || (submitting && recoveryMode && !session) ? <ActivityIndicator color="#1FA968" /> : recoveryMode ? (
             <>
@@ -127,15 +201,21 @@ export default function SignInScreen() {
               <Pressable disabled={submitting || !newPassword || !confirmPassword} onPress={handleUpdatePassword} style={({ pressed }) => [styles.primaryButton, (submitting || !newPassword || !confirmPassword) && styles.disabled, pressed && styles.pressed]}>{submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Update password</Text>}</Pressable>
             </>
           ) : session ? (
-            <Pressable disabled={submitting} onPress={handleSignOut} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>Sign out</Text></Pressable>
+            <>
+              <TextInput autoCapitalize="none" autoCorrect={false} onChangeText={setUsername} placeholder="Choose a username" placeholderTextColor="#8290A2" style={styles.input} value={username} />
+              <Pressable disabled={submitting || username.trim().toLowerCase() === accountUsername} onPress={handleSaveUsername} style={({ pressed }) => [styles.primaryButton, (submitting || username.trim().toLowerCase() === accountUsername) && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{accountUsername ? 'Update username' : 'Set username'}</Text></Pressable>
+              <Pressable disabled={submitting} onPress={handleSignOut} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>Sign out</Text></Pressable>
+            </>
           ) : (
             <>
-              <TextInput autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="Email" placeholderTextColor="#8290A2" style={styles.input} value={email} />
+              <TextInput autoCapitalize="none" autoComplete={createMode ? 'email' : undefined} autoCorrect={false} keyboardType={createMode ? 'email-address' : 'default'} onChangeText={setEmail} placeholder={createMode ? 'Email' : 'Email or username'} placeholderTextColor="#8290A2" style={styles.input} value={email} />
+              {createMode ? <TextInput autoCapitalize="none" autoCorrect={false} onChangeText={setUsername} placeholder="Username" placeholderTextColor="#8290A2" style={styles.input} value={username} /> : null}
               <TextInput autoCapitalize="none" autoComplete="password" onChangeText={setPassword} placeholder="Password" placeholderTextColor="#8290A2" secureTextEntry style={styles.input} value={password} />
-              <Pressable accessibilityRole="button" disabled={submitting} onPress={handleForgotPassword} style={({ pressed }) => [styles.forgotButton, pressed && styles.pressed]}><Text style={styles.forgotText}>Forgot password?</Text></Pressable>
+              {!createMode ? <View style={styles.forgotRow}><Pressable accessibilityRole="button" disabled={submitting} onPress={handleForgotUsername} style={({ pressed }) => [styles.forgotButton, pressed && styles.pressed]}><Text style={styles.forgotText}>Forgot username?</Text></Pressable><Pressable accessibilityRole="button" disabled={submitting} onPress={handleForgotPassword} style={({ pressed }) => [styles.forgotButton, pressed && styles.pressed]}><Text style={styles.forgotText}>Forgot password?</Text></Pressable></View> : null}
               {message ? <Text style={styles.message}>{message}</Text> : null}
-              <Pressable disabled={submitting || !email.trim() || !password} onPress={() => submit('sign-in')} style={({ pressed }) => [styles.primaryButton, (submitting || !email.trim() || !password) && styles.disabled, pressed && styles.pressed]}>{submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Sign in</Text>}</Pressable>
-              <Pressable disabled={submitting || !email.trim() || !password} onPress={() => submit('sign-up')} style={({ pressed }) => [styles.secondaryButton, (submitting || !email.trim() || !password) && styles.disabled, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>Create account</Text></Pressable>
+              {!createMode ? <Pressable disabled={submitting || !email.trim() || !password} onPress={() => submit('sign-in')} style={({ pressed }) => [styles.primaryButton, (submitting || !email.trim() || !password) && styles.disabled, pressed && styles.pressed]}>{submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Sign in</Text>}</Pressable> : null}
+              <Pressable disabled={submitting || (createMode && (!email.trim() || !username.trim() || !password))} onPress={handleCreateAccount} style={({ pressed }) => [styles.secondaryButton, (submitting || (createMode && (!email.trim() || !username.trim() || !password))) && styles.disabled, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>Create account</Text></Pressable>
+              {createMode ? <Pressable onPress={() => { setCreateMode(false); setMessage(null); }} style={({ pressed }) => [styles.forgotButton, pressed && styles.pressed]}><Text style={styles.forgotText}>Back to sign in</Text></Pressable> : null}
             </>
           )}
           {session && message ? <Text style={styles.message}>{message}</Text> : null}
@@ -163,6 +243,7 @@ const styles = StyleSheet.create({
   secondaryButton: { alignItems: 'center', borderColor: '#9EADBD', borderRadius: 14, borderWidth: 1, height: 50, justifyContent: 'center' },
   secondaryButtonText: { color: '#30445E', fontSize: 15, fontWeight: '800' },
   forgotButton: { alignSelf: 'flex-end', marginTop: -5, paddingVertical: 4 },
+  forgotRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   forgotText: { color: '#1B7C54', fontSize: 13, fontWeight: '700' },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.78 },

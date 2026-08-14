@@ -12,9 +12,10 @@ export type BackendUserProfile = {
   smartModeEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+  username?: string;
 };
 
-export type BackendUserProfileChanges = Partial<Pick<BackendUserProfile, 'displayName' | 'smartModeEnabled'>>;
+export type BackendUserProfileChanges = Partial<Pick<BackendUserProfile, 'displayName' | 'smartModeEnabled' | 'username'>>;
 
 export type BackendUserPreferences = {
   smartModeEnabled: boolean;
@@ -39,7 +40,9 @@ export type BackendRequestOptions = {
 };
 
 type BackendDataResponse<T> = { data: T };
-type BackendRequestMethod = 'GET' | 'PATCH';
+type BackendRequestMethod = 'GET' | 'PATCH' | 'POST';
+
+export type BackendAuthSession = { accessToken: string | null; refreshToken: string | null };
 
 const DEFAULT_BACKEND_BASE_URL = 'http://localhost:4000';
 
@@ -65,6 +68,15 @@ function isBackendUserProfile(value: unknown): value is BackendUserProfile {
     && typeof profile.smartModeEnabled === 'boolean'
     && typeof profile.createdAt === 'string'
     && typeof profile.updatedAt === 'string';
+}
+
+function isAuthSessionResponse(value: unknown): value is BackendDataResponse<BackendAuthSession> {
+  if (typeof value !== 'object' || value === null) return false;
+  const data = (value as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) return false;
+  const session = data as Partial<BackendAuthSession>;
+  return (typeof session.accessToken === 'string' && typeof session.refreshToken === 'string')
+    || (session.accessToken === null && session.refreshToken === null);
 }
 
 function isUserProfileResponse(value: unknown): value is BackendDataResponse<BackendUserProfile> {
@@ -144,11 +156,20 @@ async function requestJson<T>(
   }
 
   if (!response.ok) {
+    let backendMessage: string | undefined;
+    try {
+      const errorBody = await readJson(response);
+      if (typeof errorBody === 'object' && errorBody !== null && typeof (errorBody as { message?: unknown }).message === 'string') {
+        backendMessage = (errorBody as { message: string }).message;
+      }
+    } catch {
+      backendMessage = undefined;
+    }
     return {
       data: null,
       error: {
         code: 'http',
-        message: `The LookUP backend returned HTTP ${response.status}.`,
+        message: backendMessage ?? `The LookUP backend returned HTTP ${response.status}.`,
         statusCode: response.status,
       },
       state: 'error',
@@ -262,5 +283,24 @@ export async function updateCurrentUserPreferences(
   options: BackendRequestOptions = {},
 ): Promise<BackendResult<BackendUserPreferences>> {
   const result = await requestJson('/api/v1/me/preferences', isUserPreferencesResponse, options, 'PATCH', changes, true);
+  return unwrapDataResult(result);
+}
+
+export async function signInThroughBackend(
+  identifier: string,
+  password: string,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendAuthSession>> {
+  const result = await requestJson('/api/v1/auth/sign-in', isAuthSessionResponse, options, 'POST', { identifier, password });
+  return unwrapDataResult(result);
+}
+
+export async function signUpThroughBackend(
+  email: string,
+  password: string,
+  username: string,
+  options: BackendRequestOptions = {},
+): Promise<BackendResult<BackendAuthSession>> {
+  const result = await requestJson('/api/v1/auth/sign-up', isAuthSessionResponse, options, 'POST', { email, password, username });
   return unwrapDataResult(result);
 }

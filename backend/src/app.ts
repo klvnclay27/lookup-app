@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { fileUserRepository } from './data/file-user-repository.ts';
+import { handleAuthRoute } from './routes/auth.ts';
 import { handleCurrentUserRoute } from './routes/me.ts';
 import { handleUserPreferencesRoute } from './routes/preferences.ts';
 import { API_STATUS_RESPONSE } from './routes/status.ts';
@@ -28,7 +29,7 @@ function getLocalDevelopmentCorsHeaders(request: IncomingMessage): Record<string
     if (isHttp && isLoopback) {
       return {
         'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-        'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, PATCH, POST, OPTIONS',
         'Access-Control-Allow-Origin': origin,
         Vary: 'Origin',
       };
@@ -69,6 +70,12 @@ export async function handleRequest(request: IncomingMessage, response: ServerRe
   }
 
   try {
+    const authResult = await handleAuthRoute(request, requestUrl.pathname, fileUserRepository);
+    if (authResult) {
+      sendJson(request, response, authResult.statusCode, authResult.body);
+      return;
+    }
+
     const currentUserResult = await handleCurrentUserRoute(request, requestUrl.pathname, fileUserRepository);
     if (currentUserResult) {
       sendJson(request, response, currentUserResult.statusCode, currentUserResult.body);

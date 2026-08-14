@@ -11,6 +11,7 @@ import type {
   UserProfileChanges,
 } from '../models/user.ts';
 import type { UserRepository } from '../repositories/user-repository.ts';
+import { UsernameUnavailableError } from '../repositories/user-repository.ts';
 import { DEMO_USER_PROFILE } from './in-memory-user-repository.ts';
 
 type UserStoreDocument = {
@@ -35,6 +36,8 @@ function isUserProfile(value: unknown, expectedUserId: string): value is UserPro
     && typeof profile.displayName === 'string'
     && profile.displayName.trim().length > 0
     && typeof profile.smartModeEnabled === 'boolean'
+    && (profile.email === undefined || typeof profile.email === 'string')
+    && (profile.username === undefined || typeof profile.username === 'string')
     && isIsoDate(profile.createdAt)
     && isIsoDate(profile.updatedAt);
 }
@@ -117,13 +120,37 @@ export class FileUserRepository implements UserRepository {
     return this.runExclusive(async () => {
       const store = await this.readStore();
       const existing = store.profiles[profile.userId];
-      if (existing) return copyProfile(existing);
+      if (existing) {
+        const shouldAddEmail = !existing.email && profile.email;
+        const shouldAddUsername = !existing.username && profile.username;
+        if (!shouldAddEmail && !shouldAddUsername) return copyProfile(existing);
+
+        if (shouldAddUsername && Object.values(store.profiles).some((candidate) => candidate.userId !== profile.userId && candidate.username?.toLowerCase() === profile.username?.toLowerCase())) {
+          return copyProfile(existing);
+        }
+        const updated = { ...existing, ...(shouldAddEmail ? { email: profile.email } : {}), ...(shouldAddUsername ? { username: profile.username } : {}), updatedAt: new Date().toISOString() };
+        store.profiles[profile.userId] = updated;
+        await this.writeStore(store);
+        return copyProfile(updated);
+      }
+
+      if (profile.username && Object.values(store.profiles).some((candidate) => candidate.username?.toLowerCase() === profile.username?.toLowerCase())) {
+        throw new UsernameUnavailableError();
+      }
 
       const now = new Date().toISOString();
       const created: UserProfile = { ...profile, createdAt: now, updatedAt: now };
       store.profiles[created.userId] = created;
       await this.writeStore(store);
       return copyProfile(created);
+    });
+  }
+
+  getUserProfileByUsername(username: string): Promise<UserProfile | null> {
+    return this.runExclusive(async () => {
+      const normalized = username.toLowerCase();
+      const profile = Object.values((await this.readStore()).profiles).find((candidate) => candidate.username?.toLowerCase() === normalized);
+      return profile ? copyProfile(profile) : null;
     });
   }
 
@@ -139,6 +166,10 @@ export class FileUserRepository implements UserRepository {
       const store = await this.readStore();
       const current = store.profiles[userId];
       if (!current) return null;
+
+      if (changes.username && Object.values(store.profiles).some((candidate) => candidate.userId !== userId && candidate.username?.toLowerCase() === changes.username?.toLowerCase())) {
+        throw new UsernameUnavailableError();
+      }
 
       const updated: UserProfile = {
         ...current,

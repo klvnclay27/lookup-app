@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'node:http';
 
 import type { UserProfileChanges } from '../models/user.ts';
 import type { UserRepository } from '../repositories/user-repository.ts';
+import { UsernameUnavailableError } from '../repositories/user-repository.ts';
 
 export type ApiRouteResult = {
   body: unknown;
@@ -10,7 +11,7 @@ export type ApiRouteResult = {
 
 const PROFILE_ROUTE = /^\/api\/v1\/users\/([^/]+)\/profile$/;
 const MAX_BODY_BYTES = 16_384;
-const APPROVED_UPDATE_FIELDS = new Set(['displayName', 'smartModeEnabled']);
+const APPROVED_UPDATE_FIELDS = new Set(['displayName', 'smartModeEnabled', 'username']);
 
 class RequestValidationError extends Error {}
 
@@ -63,6 +64,15 @@ function validateProfileChanges(value: unknown): UserProfileChanges {
     changes.smartModeEnabled = input.smartModeEnabled;
   }
 
+  if ('username' in input) {
+    if (typeof input.username !== 'string') throw new RequestValidationError('username must be a string.');
+    const username = input.username.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+      throw new RequestValidationError('Username must be 3–24 characters using letters, numbers, or underscores.');
+    }
+    changes.username = username;
+  }
+
   return changes;
 }
 
@@ -103,6 +113,7 @@ export async function handleUserProfileRoute(
         : errorResult(404, 'User profile not found.');
     } catch (error) {
       if (error instanceof RequestValidationError) return errorResult(400, error.message);
+      if (error instanceof UsernameUnavailableError) return errorResult(409, 'That username is unavailable.');
       throw error;
     }
   }

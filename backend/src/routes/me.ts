@@ -28,8 +28,8 @@ export async function handleCurrentUserRoute(
     return { statusCode: 405, body: { status: 'error', message: 'Method not allowed.' } };
   }
 
-  const { displayName, userId } = authentication.user;
-  await repository.createUserProfile({ displayName, smartModeEnabled: true, userId });
+  const { displayName, email, userId, username } = authentication.user;
+  await repository.createUserProfile({ displayName, email, smartModeEnabled: true, userId, username });
 
   const encodedUserId = encodeURIComponent(userId);
   return pathname === CURRENT_PROFILE_ROUTE

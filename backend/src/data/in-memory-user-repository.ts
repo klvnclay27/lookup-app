@@ -7,6 +7,7 @@ import type {
   UserProfileChanges,
 } from '../models/user.ts';
 import type { UserRepository } from '../repositories/user-repository.ts';
+import { UsernameUnavailableError } from '../repositories/user-repository.ts';
 
 export const DEMO_USER_ID = 'demo-user';
 
@@ -33,12 +34,23 @@ export class InMemoryUserRepository implements UserRepository {
 
   async createUserProfile(profile: NewUserProfile): Promise<UserProfile> {
     const existing = this.profiles.get(profile.userId);
-    if (existing) return copyProfile(existing);
+    if (existing) {
+      const updated = { ...existing, ...(!existing.email && profile.email ? { email: profile.email } : {}), ...(!existing.username && profile.username && ![...this.profiles.values()].some((candidate) => candidate.userId !== profile.userId && candidate.username?.toLowerCase() === profile.username?.toLowerCase()) ? { username: profile.username } : {}), updatedAt: new Date().toISOString() };
+      this.profiles.set(profile.userId, updated);
+      return copyProfile(updated);
+    }
+    if (profile.username && [...this.profiles.values()].some((candidate) => candidate.username?.toLowerCase() === profile.username?.toLowerCase())) throw new UsernameUnavailableError();
 
     const now = new Date().toISOString();
     const created: UserProfile = { ...profile, createdAt: now, updatedAt: now };
     this.profiles.set(created.userId, created);
     return copyProfile(created);
+  }
+
+  async getUserProfileByUsername(username: string): Promise<UserProfile | null> {
+    const normalized = username.toLowerCase();
+    const profile = [...this.profiles.values()].find((candidate) => candidate.username?.toLowerCase() === normalized);
+    return profile ? copyProfile(profile) : null;
   }
 
   async getUserProfile(userId: UserId): Promise<UserProfile | null> {
@@ -49,6 +61,7 @@ export class InMemoryUserRepository implements UserRepository {
   async updateUserProfile(userId: UserId, changes: UserProfileChanges): Promise<UserProfile | null> {
     const current = this.profiles.get(userId);
     if (!current) return null;
+    if (changes.username && [...this.profiles.values()].some((candidate) => candidate.userId !== userId && candidate.username?.toLowerCase() === changes.username?.toLowerCase())) throw new UsernameUnavailableError();
 
     const updated: UserProfile = {
       ...current,

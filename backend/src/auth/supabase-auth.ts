@@ -4,6 +4,7 @@ export type AuthenticatedUser = {
   displayName: string;
   email?: string;
   userId: string;
+  username?: string;
 };
 
 export type AuthenticationResult =
@@ -35,6 +36,12 @@ function getDisplayName(value: unknown, email?: string): string {
 
   const emailName = email?.split('@')[0]?.trim();
   return emailName ? emailName.slice(0, 80) : 'LookUP User';
+}
+
+function getUsername(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const candidate = (value as Record<string, unknown>).username;
+  return typeof candidate === 'string' ? candidate.trim().toLowerCase() : undefined;
 }
 
 export async function authenticateSupabaseRequest(
@@ -89,6 +96,7 @@ export async function authenticateSupabaseRequest(
         displayName: getDisplayName(user.user_metadata, email),
         email,
         userId: user.id,
+        username: getUsername(user.user_metadata),
       },
     };
   } catch {
