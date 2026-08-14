@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { pageHorizontalPadding } from "@/constants/layout";
 
 import { OutfitBuilder } from "@/components/outfit-builder";
+import { StyleDiscovery } from "@/components/style-discovery";
 import { DEFAULT_CLOSET_ID, getLockerProfile, updateClosetName } from "@/services/my-locker";
 
 const aiFeatures = [
@@ -173,6 +174,7 @@ export default function MyLockerScreen() {
           onAddClothing={() => setIsAddModalVisible(true)}
           onWardrobeCountChange={setClothingItemCount}
         />
+        <StyleDiscovery wardrobeRevision={clothingItemCount} />
 
         </View>
       </ScrollView>

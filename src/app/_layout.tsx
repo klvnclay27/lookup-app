@@ -16,7 +16,22 @@ function TabIcon({ color, focused, name, size }: { color: ColorValue; focused: b
 }
 
 function TabLabel({ color, compact, label }: { color: ColorValue; compact: boolean; label: string }) {
-  return <Text adjustsFontSizeToFit minimumFontScale={0.62} numberOfLines={1} style={[styles.tabLabel, compact && styles.tabLabelCompact, { color }]}>{label}</Text>;
+  const isWeb = Platform.OS === 'web';
+  return (
+    <Text
+      adjustsFontSizeToFit={!isWeb}
+      minimumFontScale={0.62}
+      numberOfLines={isWeb ? undefined : 1}
+      style={[
+        styles.tabLabel,
+        compact && styles.tabLabelCompact,
+        isWeb && styles.tabLabelWeb,
+        isWeb && compact && styles.tabLabelCompactWeb,
+        { color },
+      ]}>
+      {label}
+    </Text>
+  );
 }
 
 export default function TabLayout() {
@@ -25,7 +40,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const compact = width < 430;
   const iconSize = compact ? 18 : 20;
-  const tabBarBaseHeight = Platform.OS === 'web' ? (compact ? 54 : 57) : (compact ? 52 : 55);
+  const tabBarBaseHeight = Platform.OS === 'web' ? (compact ? 72 : 57) : (compact ? 52 : 55);
   const tabBarSideInset = Math.max(12, (width - MAX_APP_SHELL_WIDTH) / 2);
   return (
     <AuthProvider>
@@ -38,20 +53,21 @@ export default function TabLayout() {
           tabBarAllowFontScaling: false,
           tabBarHideOnKeyboard: true,
           tabBarInactiveTintColor: INACTIVE_COLOR,
-          tabBarItemStyle: styles.tabItem,
+          tabBarItemStyle: [styles.tabItem, Platform.OS === 'web' && compact && styles.tabItemCompactWeb],
+          tabBarLabelPosition: 'below-icon',
           tabBarBackground: () => <GlassView colorScheme="light" glassEffectStyle="regular" style={StyleSheet.absoluteFill} tintColor="rgba(225, 231, 238, 0.94)" />,
           tabBarStyle: [styles.tabBar, compact && styles.tabBarCompact, {
             bottom: Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8),
             height: tabBarBaseHeight,
             left: tabBarSideInset,
-            paddingBottom: Platform.OS === 'web' ? 6 : 4,
+            paddingBottom: Platform.OS === 'web' ? (compact ? 10 : 6) : 4,
             right: tabBarSideInset,
           }],
         }}>
         <Tabs.Screen name="index" options={{ title: 'Home', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Home" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'house.fill', android: 'home', web: 'home' }} size={iconSize} /> }} />
         <Tabs.Screen name="weather" options={{ title: 'Weather', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Weather" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'cloud.sun.fill', android: 'partly_cloudy_day', web: 'partly_cloudy_day' }} size={iconSize} /> }} />
         <Tabs.Screen name="sports" options={{ title: 'Sports', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Sports" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'basketball.fill', android: 'sports_basketball', web: 'sports_basketball' }} size={iconSize} /> }} />
-        <Tabs.Screen name="entertainment" options={{ title: 'Entertainment', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Entertainment" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'film.fill', android: 'movie', web: 'movie' }} size={iconSize} /> }} />
+        <Tabs.Screen name="entertainment" options={{ title: 'Entertainment', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label={compact ? 'Enter' : 'Entertainment'} />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'film.fill', android: 'movie', web: 'movie' }} size={iconSize} /> }} />
         <Tabs.Screen name="finance" options={{ title: 'Finance', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Finance" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' }} size={iconSize} /> }} />
         <Tabs.Screen name="music" options={{ title: 'Music', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Music" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'music.note', android: 'music_note', web: 'music_note' }} size={iconSize} /> }} />
         <Tabs.Screen name="traffic" options={{ title: 'Traffic', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Traffic" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'car.fill', android: 'directions_car', web: 'directions_car' }} size={iconSize} /> }} />
@@ -84,10 +100,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 18,
   },
-  tabBarCompact: { paddingHorizontal: 1, paddingTop: 3 },
+  tabBarCompact: { paddingHorizontal: 1, paddingTop: Platform.OS === 'web' ? 5 : 3 },
   tabItem: { marginHorizontal: 0, marginVertical: 0, minWidth: 0, paddingHorizontal: 0 },
+  tabItemCompactWeb: { minHeight: 56 },
   tabLabel: { fontSize: 10, fontWeight: '700', lineHeight: 12, maxWidth: '100%', textAlign: 'center', textDecorationLine: 'none' },
-  tabLabelCompact: { fontSize: 9, lineHeight: 10 },
+  tabLabelCompact: { fontSize: 9, lineHeight: 12 },
+  tabLabelWeb: { minHeight: 12, overflow: 'visible' },
+  tabLabelCompactWeb: { lineHeight: 14, minHeight: 14 },
   iconContainer: { alignItems: 'center', height: 22, justifyContent: 'center', position: 'relative', width: 34 },
   activeIndicator: { backgroundColor: '#69E08C', borderRadius: 2, height: 2, position: 'absolute', top: -4, width: 18 },
   iconFallback: { fontSize: 15, lineHeight: 18 },
