@@ -5,6 +5,7 @@ import { Platform, StyleSheet, Text, useColorScheme, useWindowDimensions, View, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { MAX_APP_SHELL_WIDTH } from '@/constants/layout';
 import { AuthProvider } from '@/providers/auth-provider';
 
 const ACTIVE_COLOR = '#69E08C';
@@ -25,6 +26,7 @@ export default function TabLayout() {
   const compact = width < 430;
   const iconSize = compact ? 18 : 20;
   const tabBarBaseHeight = Platform.OS === 'web' ? (compact ? 54 : 57) : (compact ? 52 : 55);
+  const tabBarSideInset = Math.max(12, (width - MAX_APP_SHELL_WIDTH) / 2);
   return (
     <AuthProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -41,7 +43,9 @@ export default function TabLayout() {
           tabBarStyle: [styles.tabBar, compact && styles.tabBarCompact, {
             bottom: Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8),
             height: tabBarBaseHeight,
+            left: tabBarSideInset,
             paddingBottom: Platform.OS === 'web' ? 6 : 4,
+            right: tabBarSideInset,
           }],
         }}>
         <Tabs.Screen name="index" options={{ title: 'Home', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Home" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'house.fill', android: 'home', web: 'home' }} size={iconSize} /> }} />

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
 import {
   getMusic,
   MOCK_MUSIC_CATALOG,
@@ -52,7 +53,7 @@ function IconButton({ label, icon, onPress, active = false, large = false }: { l
 export default function MusicScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = isTabletWidth(width);
   const compactTabs = width < 430;
   const tabBarHeight = Platform.OS === 'web' ? (compactTabs ? 54 : 57) : (compactTabs ? 52 : 55);
   const tabBarBottomOffset = Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8);
@@ -140,7 +141,7 @@ export default function MusicScreen() {
           styles.content,
           {
             paddingTop: Math.max(insets.top, 20) + 28,
-            paddingHorizontal: isDesktop ? 32 : 20,
+            paddingHorizontal: pageHorizontalPadding(width),
             paddingBottom: 210,
           },
         ]}>

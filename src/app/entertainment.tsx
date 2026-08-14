@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
 import {
   getEntertainment,
   MOCK_ENTERTAINMENT_SNAPSHOT,
@@ -29,7 +30,7 @@ import {
 export default function EntertainmentScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = isTabletWidth(width);
   const [entertainment, setEntertainment] = useState<EntertainmentSnapshot>(MOCK_ENTERTAINMENT_SNAPSHOT);
   const [provenance, setProvenance] = useState<EntertainmentDataProvenance>('unavailable');
   const [selectedCategory, setSelectedCategory] = useState<Category>('For You');
@@ -94,7 +95,7 @@ export default function EntertainmentScreen() {
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
         styles.content,
-        { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 },
+        { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: pageHorizontalPadding(width), paddingBottom: insets.bottom + 140 },
       ]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>

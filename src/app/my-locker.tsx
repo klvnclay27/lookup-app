@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { pageHorizontalPadding } from "@/constants/layout";
+
 import { OutfitBuilder } from "@/components/outfit-builder";
 import { DEFAULT_CLOSET_ID, getLockerProfile, updateClosetName } from "@/services/my-locker";
 
@@ -145,7 +147,7 @@ export default function MyLockerScreen() {
           styles.contentContainer,
           { paddingBottom: insets.bottom + 140 },
         ]}>
-        <View style={[styles.pageContent, { paddingHorizontal: width >= 768 ? 30 : 20 }]}>
+        <View style={[styles.pageContent, { paddingHorizontal: pageHorizontalPadding(width) }]}>
         <Text style={styles.eyebrow}>YOUR DIGITAL WARDROBE</Text>
         <View style={styles.headerRow}>
         <View style={styles.headerCopy}>

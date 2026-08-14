@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
 import {
   getMarketData,
   MOCK_FINANCE_ASSETS,
@@ -92,7 +93,7 @@ function formatEventDate(date: Date) {
 export default function FinanceScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = isTabletWidth(width);
   const chartWidth = Math.max(250, Math.min(width - (isDesktop ? 132 : 80), 980));
   const [query, setQuery] = useState('');
   const [portfolioPeriod, setPortfolioPeriod] = useState<Period>('1M');
@@ -145,7 +146,7 @@ export default function FinanceScreen() {
       style={styles.screen}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 }]}>
+      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: pageHorizontalPadding(width), paddingBottom: insets.bottom + 140 }]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}><Text style={styles.eyebrow}>YOUR MONEY HUB</Text><Text style={styles.title}>Finance</Text><Text style={styles.subtitle}>Markets and money at a glance.</Text></View>
         <View style={styles.headerActions}><Pressable accessibilityLabel="Open profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable><Pressable accessibilityLabel="Finance notifications" onPress={() => Alert.alert('Notifications', 'Finance alerts are coming soon.')} style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}><Text style={styles.settingsIcon}>●</Text></Pressable></View>

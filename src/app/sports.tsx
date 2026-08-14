@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import {
@@ -53,7 +55,7 @@ const ODDS_TEAM_META = MOCK_SPORTS_ODDS_TEAM_META;
 export default function SportsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = isTabletWidth(width);
   const [selectedLeague, setSelectedLeague] = useState<League>('All');
   const [favorites, setFavorites] = useState<string[]>(['NYK', 'NYY']);
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>('Spread');
@@ -132,7 +134,7 @@ export default function SportsScreen() {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 },
+        { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: pageHorizontalPadding(width), paddingBottom: insets.bottom + 140 },
       ]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>

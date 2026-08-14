@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TABLET_MIN_WIDTH, WIDE_LAYOUT_MIN_WIDTH, pageHorizontalPadding } from '@/constants/layout';
 import { DAILY_INTELLIGENCE_TEST_SCENARIOS, generateDailyIntelligence, generateDailyIntelligenceTestSnapshot, getDailyIntelligence, type DailyIntelligenceInput, type DailyIntelligenceSnapshot, type DailyIntelligenceTestScenario } from '@/services/daily-intelligence';
 import { loadHomeUserProfile, saveSmartModePreference } from '@/services/user-profile';
 import { useAuth } from '@/providers/auth-provider';
@@ -38,8 +39,9 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const desktop = width >= 900;
-  const tablet = width >= 600 && width < 900;
+  const desktop = width >= WIDE_LAYOUT_MIN_WIDTH;
+  const tablet = width >= TABLET_MIN_WIDTH && width < WIDE_LAYOUT_MIN_WIDTH;
+  const usesWideCards = width >= TABLET_MIN_WIDTH;
   const [temperature, setTemperature] = useState(72);
   const [condition, setCondition] = useState('Weather loading');
   const [feelsLike, setFeelsLike] = useState<number | undefined>();
@@ -178,10 +180,10 @@ export default function HomeScreen() {
         <Text style={[styles.backgroundUp, desktop ? styles.backgroundTextDesktop : tablet ? styles.backgroundTextTablet : styles.backgroundTextMobile]}>UP</Text>
       </View>
     </View>
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140, paddingHorizontal: desktop ? 32 : 18, paddingTop: Math.max(insets.top, 14) + 16 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scrollLayer}>
-    <View style={[styles.topBar, !desktop && styles.topBarMobile]}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140, paddingHorizontal: width < TABLET_MIN_WIDTH ? 18 : pageHorizontalPadding(width), paddingTop: Math.max(insets.top, 14) + 16 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scrollLayer}>
+    <View style={[styles.topBar, !usesWideCards && styles.topBarMobile]}>
       <View style={styles.wordmark}><Text style={styles.wordmarkLook}>look</Text><Text style={styles.wordmarkUp}>UP</Text></View>
-      <View style={[styles.searchBar, !desktop && styles.searchBarMobile]}><Icon color="#8190A2" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} /><TextInput accessibilityLabel="Search LookUP" onChangeText={setSearch} onSubmitEditing={() => search.trim() && Alert.alert('Search LookUP', `Search preview for “${search.trim()}”`)} placeholder="Search LookUP" placeholderTextColor="#8493A6" returnKeyType="search" style={styles.searchInput} value={search} /></View>
+      <View style={[styles.searchBar, !usesWideCards && styles.searchBarMobile]}><Icon color="#8190A2" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} /><TextInput accessibilityLabel="Search LookUP" onChangeText={setSearch} onSubmitEditing={() => search.trim() && Alert.alert('Search LookUP', `Search preview for “${search.trim()}”`)} placeholder="Search LookUP" placeholderTextColor="#8493A6" returnKeyType="search" style={styles.searchInput} value={search} /></View>
       <View style={styles.headerActions}><Pressable accessibilityLabel="Notifications" onPress={() => Alert.alert('Notifications', 'You are all caught up.')} style={({ pressed }) => [styles.circleButton, pressed && styles.pressed]}><Icon color="#43546B" name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={18} /></Pressable><Pressable accessibilityLabel={session ? 'Account' : 'Sign in'} onPress={openAccount} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable></View>
     </View>
 
@@ -196,11 +198,11 @@ export default function HomeScreen() {
       {__DEV__ && intelligenceEnabled ? <View style={styles.testModeRow}><Text style={styles.testModeLabel}>TEST MODE</Text><ScrollView contentContainerStyle={styles.testModeOptions} horizontal showsHorizontalScrollIndicator={false} style={styles.testModeScroller}>{DAILY_INTELLIGENCE_TEST_SCENARIOS.map((scenario) => <Pressable accessibilityRole="button" key={scenario.value} onPress={() => selectTestScenario(scenario.value)} style={({ pressed }) => [styles.testModePill, testScenario === scenario.value && styles.testModePillActive, pressed && styles.pressed]}><Text style={[styles.testModePillText, testScenario === scenario.value && styles.testModePillTextActive]}>{scenario.label}</Text></Pressable>)}</ScrollView></View> : null}
     </View>
 
-    <View style={[styles.intelligenceDetails, !desktop && styles.intelligenceDetailsMobile]}>
+    <View style={[styles.intelligenceDetails, !usesWideCards && styles.intelligenceDetailsMobile]}>
       {intelligenceDetails.map((item) => <View key={item.key} style={styles.intelligenceDetailCard}><View style={styles.intelligenceDetailCopy}><Text style={styles.insightCategory}>{item.label}</Text><Text style={styles.insightTitle}>{item.insight?.title ?? item.fallbackTitle}</Text><Text numberOfLines={2} style={styles.insightDetail}>{item.insight?.detail ?? item.fallbackDetail}</Text></View><View style={styles.intelligenceDetailIcon}><Icon color={COLORS.green} name={item.icon} size={20} /></View></View>)}
     </View>
 
-    <View style={[styles.heroGrid, !desktop && styles.stack]}>
+    <View style={[styles.heroGrid, !usesWideCards && styles.stack]}>
       <Pressable onPress={() => router.push('/weather')} style={({ pressed }) => [styles.weatherCard, pressed && styles.cardPressed]}>
         <View style={styles.skyGlow} /><View style={styles.weatherTop}><View><Text style={styles.weatherLabel}>CURRENT WEATHER</Text><Text style={styles.location}>New York, NY</Text></View><View style={styles.weatherIcon}><Icon color="#2587C6" name={ACTIONS[0].icon} size={34} /></View></View>
         <View style={styles.weatherPrimary}>{loading ? <ActivityIndicator color={COLORS.green} size="large" /> : <Text style={styles.temperature}>{hasLiveWeather ? `${temperature}°` : '—'}</Text>}<View><Text style={styles.condition}>{hasLiveWeather ? condition : 'Weather unavailable'}</Text>{hasLiveWeather && feelsLike !== undefined ? <Text style={styles.feels}>Feels like {Math.round(feelsLike)}°</Text> : null}</View></View>
@@ -215,7 +217,7 @@ export default function HomeScreen() {
     <SectionHeader label="EVERYTHING IN ONE PLACE" title="Quick Actions" />
     <ScrollView contentContainerStyle={styles.quickRow} horizontal showsHorizontalScrollIndicator={false}>{ACTIONS.map((action) => <Pressable key={action.label} onPress={() => router.push(action.route)} style={({ pressed }) => [styles.quickCard, pressed && styles.cardPressed]}><View style={[styles.quickIcon, { backgroundColor: action.tint }]}><Icon color={action.color} name={action.icon} size={22} /></View><Text numberOfLines={1} style={styles.quickLabel}>{action.label}</Text></Pressable>)}</ScrollView>
 
-    <View style={[styles.middleGrid, !desktop && styles.stack]}>
+    <View style={[styles.middleGrid, !usesWideCards && styles.stack]}>
       <View style={styles.briefingPanel}><SectionHeader label="PERSONAL SNAPSHOT" title="Today’s Briefing" />{briefing.map((item, index) => <View key={item.title}><Pressable onPress={() => item.route ? router.push(item.route) : item.action?.()} style={({ pressed }) => [styles.briefingRow, pressed && styles.rowPressed]}><View style={[styles.rowIcon, { backgroundColor: item.icon.tint }]}><Icon color={item.icon.color} name={item.icon.icon} size={17} /></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{item.title}</Text><Text numberOfLines={1} style={styles.rowDescription}>{item.copy}</Text></View><Text style={styles.rowValue}>{item.value}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < briefing.length - 1 ? <View style={styles.divider} /> : null}</View>)}</View>
       <View style={styles.trendingPanel}><SectionHeader action="See all" label="CURATED FOR YOU" title="Trending Now" />{trends.map((trend) => <Pressable key={trend.category} onPress={() => router.push(trend.route)} style={({ pressed }) => [styles.storyCard, pressed && styles.cardPressed]}><View style={[styles.storyArt, { experimental_backgroundImage: `linear-gradient(145deg, ${trend.colors[0]}, ${trend.colors[1]})` }]}><Icon color="#FFFFFF" name={trend.icon} size={28} /></View><View style={styles.storyCopy}><Text style={styles.storyCategory}>{trend.category}</Text><Text numberOfLines={2} style={styles.storyTitle}>{trend.title}</Text><Text style={styles.storyTime}>{trend.time}</Text></View></Pressable>)}</View>
     </View>

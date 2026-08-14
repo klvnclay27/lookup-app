@@ -12,6 +12,7 @@ import {
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { PremiumMannequinPreview, type MannequinType } from "@/components/premium-mannequin-preview";
+import { TABLET_MIN_WIDTH } from "@/constants/layout";
 import {
   type ClosetCategory,
 } from "@/constants/starter-wardrobe";
@@ -103,7 +104,7 @@ function ClothingCarouselCard({
 
 export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBuilderProps) {
   const { width } = useWindowDimensions();
-  const isWideLayout = width >= 900;
+  const isWideLayout = width >= TABLET_MIN_WIDTH;
   const [activeSlot, setActiveSlot] = useState<SlotDefinition | null>(null);
   const [activeClosetFilter, setActiveClosetFilter] = useState<ClosetFilter>("Shirts");
   const [bannerVisible, setBannerVisible] = useState(true);
@@ -333,7 +334,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
 
         <View style={[styles.builderLayout, !isWideLayout && styles.builderLayoutMobile]}>
           <View style={styles.mannequinColumn}>
-            <PremiumMannequinPreview bottom={selection.bottom} mannequinType={mannequinType} onMannequinTypeChange={setMannequinType} shoes={selection.shoes} top={selection.top} />
+            <PremiumMannequinPreview mannequinType={mannequinType} onMannequinTypeChange={setMannequinType} />
           </View>
           <View style={styles.lookPanel}>
             <Text style={styles.panelEyebrow}>CURRENT OUTFIT</Text>

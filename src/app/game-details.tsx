@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isTabletWidth } from '@/constants/layout';
 import {
   BoxScoreColumn,
   GameCenterPlayer,
@@ -61,7 +62,7 @@ export default function GameDetails() {
   const gameId = Array.isArray(params.gameId) ? params.gameId[0] : params.gameId;
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const isDesktop = width >= 760;
+  const isDesktop = isTabletWidth(width);
   const [game, setGame] = useState<SportsGameDetails>();
   const [loadError, setLoadError] = useState<string>();
   const [loading, setLoading] = useState(true);

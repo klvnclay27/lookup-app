@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
 import {
   getTraffic,
   searchFlights as filterFlights,
@@ -34,7 +35,7 @@ const MODES: TravelMode[] = ['Drive', 'Transit', 'Walk', 'Bike'];
 export default function TrafficScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = isTabletWidth(width);
   const [hubMode, setHubMode] = useState<HubMode>('Road');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [mode, setMode] = useState<TravelMode>('Drive');
@@ -133,7 +134,7 @@ export default function TrafficScreen() {
       style={styles.screen}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: isDesktop ? 32 : 20, paddingBottom: insets.bottom + 140 }]}>
+      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 28, paddingHorizontal: pageHorizontalPadding(width), paddingBottom: insets.bottom + 140 }]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}><Text style={styles.eyebrow}>YOUR COMMUTE HUB</Text><Text style={styles.title}>Traffic</Text><Text style={styles.subtitle}>Know before you go.</Text></View>
         <View style={styles.headerActions}><Pressable accessibilityLabel="Open profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable><Pressable accessibilityLabel="Map layers" onPress={() => Alert.alert('Map layers', 'More simulated map layers are coming soon.')} style={({ pressed }) => [styles.layersButton, pressed && styles.pressed]}><Text style={styles.layersIcon}>▱</Text></Pressable></View>

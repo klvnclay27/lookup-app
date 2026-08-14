@@ -1,46 +1,22 @@
 import { Image } from "expo-image";
 import { Pressable, useWindowDimensions, View, StyleSheet, Text } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
-import type { ClothingItem } from "@/constants/starter-wardrobe";
+import { TABLET_MIN_WIDTH } from "@/constants/layout";
 
 export type MannequinType = "male" | "female";
 
 type PremiumMannequinPreviewProps = {
-  bottom: ClothingItem | null;
   mannequinType: MannequinType;
   onMannequinTypeChange: (value: MannequinType) => void;
-  shoes: ClothingItem | null;
-  top: ClothingItem | null;
 };
 
-const femaleAssets = {
-  model: require("../../assets/images/my-locker/fitting-room/fitting-model-v1.png"),
-  top: require("../../assets/images/my-locker/fitting-room/black-polo-v1.png"),
-  bottom: require("../../assets/images/my-locker/fitting-room/blue-jeans-v1.png"),
-  shoes: require("../../assets/images/my-locker/fitting-room/white-sneakers-v1.png"),
-};
+const femaleModel = require("../../assets/images/my-locker/fitting-room/fitting-model-v1.png");
+const maleModel = require("../../assets/images/my-locker/fitting-room/male-model-v1.png");
 
-const maleAssets = {
-  model: require("../../assets/images/my-locker/fitting-room/male-model-v1.png"),
-  top: require("../../assets/images/my-locker/fitting-room/male-black-polo-v1.png"),
-  bottom: require("../../assets/images/my-locker/fitting-room/male-blue-jeans-v1.png"),
-  shoes: require("../../assets/images/my-locker/fitting-room/male-white-sneakers-v1.png"),
-};
-
-function GarmentLayer({ source, style }: { source: number; style: object }) {
-  return (
-    <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(150)} style={[styles.garmentLayer, style]}>
-      <Image contentFit="contain" source={source} style={styles.fill} />
-    </Animated.View>
-  );
-}
-
-export function PremiumMannequinPreview({ top, bottom, shoes, mannequinType, onMannequinTypeChange }: PremiumMannequinPreviewProps) {
+export function PremiumMannequinPreview({ mannequinType, onMannequinTypeChange }: PremiumMannequinPreviewProps) {
   const { width } = useWindowDimensions();
-  const compact = width < 600;
-  const assets = mannequinType === "male" ? maleAssets : femaleAssets;
-  const male = mannequinType === "male";
+  const compact = width < TABLET_MIN_WIDTH;
+  const model = mannequinType === "male" ? maleModel : femaleModel;
 
   return (
     <View style={[styles.previewCard, compact && styles.previewCardCompact]}>
@@ -58,12 +34,10 @@ export function PremiumMannequinPreview({ top, bottom, shoes, mannequinType, onM
         <View style={styles.spotlightCore} />
         <View style={styles.floorShadow} />
         <View style={[styles.figureFrame, compact && styles.figureFrameCompact]}>
-          <Image contentFit="contain" source={assets.model} style={styles.fill} />
-          {top ? <GarmentLayer source={assets.top} style={male ? styles.maleTopLayer : styles.femaleTopLayer} /> : null}
-          {bottom ? <GarmentLayer source={assets.bottom} style={male ? styles.maleBottomLayer : styles.femaleBottomLayer} /> : null}
-          {shoes ? <GarmentLayer source={assets.shoes} style={male ? styles.maleShoesLayer : styles.femaleShoesLayer} /> : null}
+          <Image contentFit="contain" source={model} style={styles.fill} />
         </View>
       </View>
+      <Text style={styles.previewNote}>Visual outfit preview coming soon</Text>
     </View>
   );
 }
@@ -98,11 +72,5 @@ const styles = StyleSheet.create({
   figureFrame: { aspectRatio: 2 / 3, height: 420, position: "relative" },
   figureFrameCompact: { height: 390 },
   fill: { bottom: 0, left: 0, position: "absolute", right: 0, top: 0 },
-  garmentLayer: { position: "absolute" },
-  femaleTopLayer: { height: "30%", left: "24%", top: "14.5%", width: "52%", zIndex: 3 },
-  femaleBottomLayer: { height: "49%", left: "30%", top: "39%", width: "40%", zIndex: 4 },
-  femaleShoesLayer: { height: "10%", left: "24%", top: "87%", width: "52%", zIndex: 5 },
-  maleTopLayer: { height: "32%", left: "19%", top: "14%", width: "62%", zIndex: 3 },
-  maleBottomLayer: { height: "49%", left: "29%", top: "39%", width: "42%", zIndex: 4 },
-  maleShoesLayer: { height: "9.5%", left: "24%", top: "87.5%", width: "52%", zIndex: 5 },
+  previewNote: { color: "#87939F", fontSize: 11, fontWeight: "600", marginTop: 12, textAlign: "center" },
 });
