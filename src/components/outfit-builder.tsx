@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -30,6 +31,13 @@ import {
   type OutfitSlotKey,
   type WardrobeItem,
 } from "@/services/my-locker";
+import {
+  buildWeatherOutfitRecommendation,
+  buildWeeklyOutfitPlan,
+  type WeeklyOutfitDay,
+  type WeeklyOutfitOccasion,
+} from "@/services/outfit-recommendations";
+import { getWeather, type WeatherSnapshot } from "@/services/weather";
 
 type SlotDefinition = {
   key: OutfitSlotKey;
@@ -121,6 +129,10 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   const [resetSelection, setResetSelection] = useState<OutfitSelection>(emptySelection);
   const [wardrobe, setWardrobe] = useState<WardrobeItem[]>([]);
   const [wardrobeReady, setWardrobeReady] = useState(false);
+  const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [outfitIntelligenceMode, setOutfitIntelligenceMode] = useState<"today" | "week">("today");
+  const [weeklyOccasion, setWeeklyOccasion] = useState<WeeklyOutfitOccasion>("work");
 
   useEffect(() => {
     let isMounted = true;
@@ -142,6 +154,26 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
     }
 
     restoreLockerData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWeatherContext() {
+      try {
+        const result = await getWeather();
+        if (isMounted && result.data) setWeather(result.data);
+      } catch {
+        // Weather is optional context. The Outfit Builder remains usable without it.
+      } finally {
+        if (isMounted) setWeatherLoading(false);
+      }
+    }
+
+    void loadWeatherContext();
     return () => {
       isMounted = false;
     };
@@ -176,6 +208,26 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
   }, [wardrobe]);
   const favoriteBrand = wardrobe.find((item) => item.favorite)?.brand ?? wardrobe[0]?.brand ?? "—";
+  const weatherRecommendation = useMemo(
+    () => weather ? buildWeatherOutfitRecommendation(weather.current, wardrobe) : null,
+    [wardrobe, weather],
+  );
+  const weeklyOutfits = useMemo(
+    () => weather ? buildWeeklyOutfitPlan(weather.daily, wardrobe, weeklyOccasion) : [],
+    [wardrobe, weather, weeklyOccasion],
+  );
+
+  const tryWeatherOutfit = () => {
+    if (!weatherRecommendation?.complete) return;
+    setSelection({ ...weatherRecommendation.selection });
+    setSaveMessage("Today's recommended outfit is ready in Current Look.");
+  };
+
+  const tryWeeklyOutfit = (day: WeeklyOutfitDay) => {
+    if (!day.complete) return;
+    setSelection({ ...day.selection });
+    setSaveMessage(`${day.dayLabel}'s recommended outfit is ready in Current Look.`);
+  };
 
   const selectItem = (item: WardrobeItem) => {
     if (!activeSlot) return;
@@ -330,6 +382,90 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
         </View>
         {helpVisible && (
           <Text style={styles.helpText}>Choose pieces around the mannequin, shuffle for inspiration, then name and save your outfit.</Text>
+        )}
+
+        <View style={styles.outfitIntelligenceTabs}>
+          <Pressable onPress={() => setOutfitIntelligenceMode("today")} style={[styles.outfitIntelligenceTab, outfitIntelligenceMode === "today" && styles.outfitIntelligenceTabActive]}>
+            <Text style={[styles.outfitIntelligenceTabText, outfitIntelligenceMode === "today" && styles.outfitIntelligenceTabTextActive]}>Today</Text>
+          </Pressable>
+          <Pressable onPress={() => setOutfitIntelligenceMode("week")} style={[styles.outfitIntelligenceTab, outfitIntelligenceMode === "week" && styles.outfitIntelligenceTabActive]}>
+            <Text style={[styles.outfitIntelligenceTabText, outfitIntelligenceMode === "week" && styles.outfitIntelligenceTabTextActive]}>Style My Week</Text>
+          </Pressable>
+        </View>
+
+        {outfitIntelligenceMode === "today" ? (
+          <View style={[styles.todayOutfitCard, isWideLayout && styles.todayOutfitCardWide]}>
+            <View style={styles.todayOutfitCopy}>
+              <Text style={styles.todayOutfitEyebrow}>TODAY&apos;S OUTFIT</Text>
+              <Text style={styles.todayOutfitTitle}>Today&apos;s Outfit</Text>
+              <Text style={styles.todayOutfitSubtitle}>Picked for your weather and your style.</Text>
+              {weatherLoading ? (
+                <View style={styles.weatherLoadingRow}>
+                  <ActivityIndicator color="#69E08C" size="small" />
+                  <Text style={styles.weatherUnavailableText}>Checking today&apos;s weather…</Text>
+                </View>
+              ) : weatherRecommendation ? (
+                <>
+                  <Text style={styles.weatherContext}>{weatherRecommendation.weatherLabel}</Text>
+                  <Text style={styles.todayOutfitRecommendation}>{weatherRecommendation.recommendation}</Text>
+                </>
+              ) : (
+                <Text style={styles.weatherUnavailableText}>Weather is unavailable right now. You can still build and save outfits normally.</Text>
+              )}
+            </View>
+            {weatherRecommendation?.complete && (
+              <Pressable onPress={tryWeatherOutfit} style={({ pressed }) => [styles.tryOutfitButton, pressed && styles.pressed]}>
+                <Text style={styles.tryOutfitButtonText}>Try This Outfit</Text>
+              </Pressable>
+            )}
+          </View>
+        ) : (
+          <View style={styles.weekPlannerCard}>
+            <View style={[styles.weekPlannerHeader, !isWideLayout && styles.weekPlannerHeaderMobile]}>
+              <View style={styles.todayOutfitCopy}>
+                <Text style={styles.todayOutfitEyebrow}>STYLE MY WEEK</Text>
+                <Text style={styles.todayOutfitTitle}>Weekly Outfit Plan</Text>
+                <Text style={styles.todayOutfitSubtitle}>Forecast-aware ideas using only pieces in your Locker.</Text>
+              </View>
+              <View style={styles.occasionTabs}>
+                {(["work", "everyday"] as WeeklyOutfitOccasion[]).map((occasion) => (
+                  <Pressable key={occasion} onPress={() => setWeeklyOccasion(occasion)} style={[styles.occasionTab, weeklyOccasion === occasion && styles.occasionTabActive]}>
+                    <Text style={[styles.occasionTabText, weeklyOccasion === occasion && styles.occasionTabTextActive]}>{occasion === "work" ? "Work Week" : "Everyday"}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+            {weatherLoading ? (
+              <View style={styles.weatherLoadingRow}>
+                <ActivityIndicator color="#69E08C" size="small" />
+                <Text style={styles.weatherUnavailableText}>Building your week from the forecast…</Text>
+              </View>
+            ) : weeklyOutfits.length > 0 ? (
+              <View style={styles.weekDaysGrid}>
+                {weeklyOutfits.map((day) => (
+                  <View key={day.date} style={[styles.weekDayCard, isWideLayout && styles.weekDayCardWide]}>
+                    <Text style={styles.weekDayLabel}>{day.dayLabel}</Text>
+                    <Text style={styles.weekWeather}>{day.weatherLabel}</Text>
+                    <Text style={styles.weekOccasion}>{day.occasionLabel}</Text>
+                    <View style={styles.weekItems}>
+                      {day.selection.top && <Text numberOfLines={1} style={styles.weekItemText}>{day.selection.top.name}</Text>}
+                      {day.selection.bottom && <Text numberOfLines={1} style={styles.weekItemText}>{day.selection.bottom.name}</Text>}
+                      {day.selection.shoes && <Text numberOfLines={1} style={styles.weekItemText}>{day.selection.shoes.name}</Text>}
+                      {day.selection.jacket && <Text numberOfLines={1} style={styles.weekItemText}>{day.selection.jacket.name}</Text>}
+                    </View>
+                    {day.missingCategories.length > 0 && <Text style={styles.weekMissingText}>{day.recommendation}</Text>}
+                    {day.complete && (
+                      <Pressable onPress={() => tryWeeklyOutfit(day)} style={({ pressed }) => [styles.weekTryButton, pressed && styles.pressed]}>
+                        <Text style={styles.weekTryButtonText}>Try Outfit</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.weatherUnavailableText}>A multi-day forecast is unavailable right now. Today&apos;s Outfit and the Outfit Builder remain available.</Text>
+            )}
+          </View>
         )}
 
         <View style={[styles.builderLayout, !isWideLayout && styles.builderLayoutMobile]}>
@@ -511,6 +647,42 @@ const styles = StyleSheet.create({
   helpButton: { borderColor: "rgba(139,92,246,0.5)", borderRadius: 10, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 8 },
   helpButtonText: { color: "#c4b5fd", fontSize: 12, fontWeight: "bold" },
   helpText: { backgroundColor: "rgba(139,92,246,0.09)", borderRadius: 10, color: "#cbd5e1", fontSize: 12, lineHeight: 18, marginBottom: 14, padding: 11 },
+  outfitIntelligenceTabs: { alignSelf: "flex-start", backgroundColor: "#0B100D", borderColor: "rgba(255,255,255,0.07)", borderRadius: 12, borderWidth: 1, flexDirection: "row", marginBottom: 12, padding: 3 },
+  outfitIntelligenceTab: { borderRadius: 9, paddingHorizontal: 15, paddingVertical: 8 },
+  outfitIntelligenceTabActive: { backgroundColor: "#243429" },
+  outfitIntelligenceTabText: { color: "#78857C", fontSize: 12, fontWeight: "800" },
+  outfitIntelligenceTabTextActive: { color: "#8EE4A6" },
+  todayOutfitCard: { alignItems: "flex-start", backgroundColor: "#151B17", borderColor: "rgba(105,224,140,0.2)", borderRadius: 18, borderWidth: 1, gap: 14, marginBottom: 20, padding: 17 },
+  todayOutfitCardWide: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20 },
+  todayOutfitCopy: { flex: 1, minWidth: 0 },
+  todayOutfitEyebrow: { color: "#69E08C", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  todayOutfitTitle: { color: "#FFFFFF", fontSize: 19, fontWeight: "900", marginTop: 4 },
+  todayOutfitSubtitle: { color: "#94A3B8", fontSize: 12, marginTop: 3 },
+  weatherContext: { color: "#D8E5DC", fontSize: 13, fontWeight: "800", marginTop: 12 },
+  todayOutfitRecommendation: { color: "#B8C5BD", fontSize: 13, lineHeight: 19, marginTop: 6 },
+  weatherLoadingRow: { alignItems: "center", flexDirection: "row", gap: 8, marginTop: 12 },
+  weatherUnavailableText: { color: "#89978E", flex: 1, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  tryOutfitButton: { alignItems: "center", alignSelf: "stretch", backgroundColor: "#69E08C", borderRadius: 11, justifyContent: "center", minHeight: 42, paddingHorizontal: 16, paddingVertical: 10 },
+  tryOutfitButtonText: { color: "#07120C", fontSize: 12, fontWeight: "900" },
+  weekPlannerCard: { backgroundColor: "#151B17", borderColor: "rgba(105,224,140,0.2)", borderRadius: 18, borderWidth: 1, marginBottom: 20, padding: 17 },
+  weekPlannerHeader: { alignItems: "center", flexDirection: "row", gap: 18, justifyContent: "space-between", marginBottom: 16 },
+  weekPlannerHeaderMobile: { alignItems: "flex-start", flexDirection: "column", gap: 12 },
+  occasionTabs: { backgroundColor: "#0D120F", borderRadius: 10, flexDirection: "row", padding: 3 },
+  occasionTab: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  occasionTabActive: { backgroundColor: "rgba(105,224,140,0.16)" },
+  occasionTabText: { color: "#7F8D83", fontSize: 11, fontWeight: "800" },
+  occasionTabTextActive: { color: "#8EE4A6" },
+  weekDaysGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  weekDayCard: { backgroundColor: "#0F1511", borderColor: "rgba(255,255,255,0.07)", borderRadius: 14, borderWidth: 1, padding: 13, width: "100%" },
+  weekDayCardWide: { flexBasis: 210, flexGrow: 1, maxWidth: 330, width: "auto" },
+  weekDayLabel: { color: "#69E08C", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  weekWeather: { color: "#FFFFFF", fontSize: 14, fontWeight: "800", marginTop: 6 },
+  weekOccasion: { color: "#829087", fontSize: 11, marginTop: 2 },
+  weekItems: { borderTopColor: "rgba(255,255,255,0.07)", borderTopWidth: 1, gap: 4, marginTop: 10, paddingTop: 9 },
+  weekItemText: { color: "#D5DED8", fontSize: 12, fontWeight: "700" },
+  weekMissingText: { color: "#D5AE72", fontSize: 11, lineHeight: 16, marginTop: 9 },
+  weekTryButton: { alignItems: "center", borderColor: "rgba(105,224,140,0.32)", borderRadius: 9, borderWidth: 1, marginTop: 11, paddingVertical: 8 },
+  weekTryButtonText: { color: "#8EE4A6", fontSize: 11, fontWeight: "900" },
   builderLayout: { alignItems: "stretch", flexDirection: "row", gap: 22 },
   builderLayoutMobile: { flexDirection: "column" },
   sideColumn: { flex: 1, gap: 12, maxWidth: 220, minWidth: 170 },
