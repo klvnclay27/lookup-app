@@ -29,6 +29,227 @@ export type FinanceSpendingSnapshot = {
   categories: { name: string; amount: number; displayAmount: string; color: string }[];
 };
 
+export type FinanceEducationTopic = {
+  id: string;
+  title: string;
+  summary: string;
+  whatItIs: string;
+  whyPeopleUseIt: string;
+  keyRisks: string;
+  example?: string;
+  disclaimer: string;
+  comparison?: {
+    left: { title: string; pros: string[]; cons: string[] };
+    right: { title: string; pros: string[]; cons: string[] };
+    simpleExplanation: string;
+  };
+  sourceLinks?: { label: string; url: string }[];
+};
+
+export type FinancialProfessionalCredential = 'CFP' | 'CFA' | 'CPA' | 'RIA' | 'IAR';
+export type FinancialProfessionalSpecialty = 'Retirement planning' | 'Financial planning' | 'Tax planning' | 'Investment management' | 'Digital-asset experience';
+
+export type FinancialProfessionalProfile = {
+  id: string;
+  name: string;
+  firm?: string;
+  professionalType?: string;
+  credentials: { type: FinancialProfessionalCredential; verified: boolean; verificationSource?: string }[];
+  specialties: FinancialProfessionalSpecialty[];
+  approximateDistanceMiles?: number;
+  city?: string;
+  state?: string;
+  contact?: { phone?: string; email?: string; website?: string };
+  feeInformation?: string;
+  registrationStatus?: string;
+  disciplinaryDisclosure?: string;
+  verificationSources?: { authority: string; url: string }[];
+  verificationLinks?: { label: string; url: string }[];
+};
+
+export type FinancialProfessionalDiscoveryContext = {
+  topicId: FinanceEducationTopic['id'];
+  topicTitle: string;
+  specialties: FinancialProfessionalSpecialty[];
+  location?: { latitude: number; longitude: number };
+};
+
+const PROFESSIONAL_SPECIALTIES_BY_TOPIC: Record<string, FinancialProfessionalSpecialty[]> = {
+  stocks: ['Investment management', 'Financial planning'],
+  etfs: ['Investment management', 'Financial planning'],
+  'index-funds': ['Investment management', 'Financial planning'],
+  bonds: ['Investment management', 'Retirement planning'],
+  cryptocurrency: ['Financial planning', 'Investment management', 'Digital-asset experience'],
+  'roth-ira': ['Retirement planning', 'Financial planning', 'Tax planning'],
+  'traditional-ira': ['Retirement planning', 'Financial planning', 'Tax planning'],
+  'roth-vs-traditional-ira': ['Retirement planning', 'Financial planning', 'Tax planning'],
+  diversification: ['Investment management', 'Financial planning'],
+  'market-volatility': ['Financial planning', 'Investment management'],
+  'compound-growth': ['Financial planning', 'Retirement planning'],
+  'risk-reward': ['Financial planning', 'Investment management'],
+};
+
+export function getProfessionalDiscoveryContext(topic: FinanceEducationTopic): FinancialProfessionalDiscoveryContext {
+  return {
+    topicId: topic.id,
+    topicTitle: topic.title,
+    specialties: PROFESSIONAL_SPECIALTIES_BY_TOPIC[topic.id] ?? ['Financial planning'],
+  };
+}
+
+const EDUCATION_DISCLAIMER = 'For general education only—not financial, tax, or legal advice.';
+
+export const FINANCE_EDUCATION_TOPICS: FinanceEducationTopic[] = [
+  {
+    id: 'stocks',
+    title: 'Stocks',
+    summary: 'Small ownership shares in a company.',
+    whatItIs: 'A stock represents partial ownership of a public company.',
+    whyPeopleUseIt: 'People use stocks to participate in a company’s potential growth and, sometimes, receive dividends.',
+    keyRisks: 'Prices can rise or fall sharply, and a company can lose significant value or fail.',
+    example: 'Owning one share means owning a very small portion of that company—not lending money to it.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'etfs',
+    title: 'ETFs',
+    summary: 'Tradable funds that hold a collection of assets.',
+    whatItIs: 'An exchange-traded fund pools assets such as stocks or bonds and trades on an exchange like a stock.',
+    whyPeopleUseIt: 'ETFs can provide broad exposure through one purchase and may simplify diversification.',
+    keyRisks: 'An ETF can lose value, charge fees, and may be concentrated in one sector or strategy.',
+    example: 'A broad-market ETF might hold shares in hundreds of companies.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'index-funds',
+    title: 'Index Funds',
+    summary: 'Funds designed to follow a market index.',
+    whatItIs: 'An index fund aims to track a defined index rather than select investments one by one.',
+    whyPeopleUseIt: 'People use them for broad market exposure and often lower management costs.',
+    keyRisks: 'They follow the market down as well as up and may not match an index perfectly.',
+    example: 'A fund tracking the S&P 500 seeks to reflect that index’s performance before fees.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'bonds',
+    title: 'Bonds',
+    summary: 'Loans made to governments or organizations.',
+    whatItIs: 'A bond is debt: the issuer borrows money and generally promises interest and repayment on set terms.',
+    whyPeopleUseIt: 'Bonds may provide income and can behave differently from stocks.',
+    keyRisks: 'Issuers can default, prices can fall when rates rise, and inflation can reduce purchasing power.',
+    example: 'A five-year bond generally promises repayment at maturity, subject to the issuer’s ability to pay.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'cryptocurrency',
+    title: 'Cryptocurrency',
+    summary: 'Digital assets recorded on blockchain networks.',
+    whatItIs: 'Cryptocurrency is a broad category of digital assets transferred and recorded using distributed networks.',
+    whyPeopleUseIt: 'Uses can include network participation, digital transfers, or speculation.',
+    keyRisks: 'Prices can be extremely volatile, protections may be limited, and loss, fraud, or technical failure can be irreversible.',
+    example: 'Different crypto assets can have very different designs and risks even when traded in similar apps.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'roth-ira',
+    title: 'Roth IRA',
+    summary: 'A retirement account funded with after-tax money.',
+    whatItIs: 'A Roth IRA is a U.S. retirement account with specific contribution and withdrawal tax rules.',
+    whyPeopleUseIt: 'Qualified withdrawals can be tax-free, and contributions are made with after-tax dollars.',
+    keyRisks: 'Eligibility and contribution limits apply, investments can lose value, and tax rules can change.',
+    example: 'The account is the container; stocks, funds, or other eligible investments may be held inside it.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'traditional-ira',
+    title: 'Traditional IRA',
+    summary: 'A retirement account that may offer tax-deferred growth.',
+    whatItIs: 'A Traditional IRA is a U.S. retirement account governed by contribution, deduction, and withdrawal rules.',
+    whyPeopleUseIt: 'Eligible contributions may be deductible, while taxes are generally due on taxable withdrawals.',
+    keyRisks: 'Early-withdrawal rules, required distributions, tax treatment, and investment losses may apply.',
+    example: 'Tax treatment depends on individual circumstances, so the account is not automatically tax-free.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'roth-vs-traditional-ira',
+    title: 'Roth IRA vs Traditional IRA',
+    summary: 'Compare when taxes may apply to two common retirement accounts.',
+    whatItIs: 'A side-by-side overview of two U.S. individual retirement account structures.',
+    whyPeopleUseIt: 'The comparison helps explain how contribution and withdrawal tax treatment can differ.',
+    keyRisks: 'Eligibility, deductions, distributions, and tax outcomes depend on current rules and individual circumstances.',
+    disclaimer: 'Tax rules and eligibility can change. This is educational information, not tax or financial advice.',
+    comparison: {
+      left: {
+        title: 'Roth IRA',
+        pros: [
+          'Qualified retirement withdrawals can be tax-free.',
+          'No lifetime required minimum distributions for the original owner.',
+          'Can be useful for someone who expects a higher tax rate later.',
+        ],
+        cons: [
+          'Contributions use after-tax money.',
+          'Direct contributions are subject to income eligibility limits.',
+          'No upfront federal tax deduction for contributions.',
+        ],
+      },
+      right: {
+        title: 'Traditional IRA',
+        pros: [
+          'Contributions may be tax-deductible depending on eligibility.',
+          'May provide a tax benefit today.',
+          'Contributions are not prohibited solely because income is high, although deduction rules may apply.',
+        ],
+        cons: [
+          'Retirement withdrawals are generally taxable.',
+          'Required minimum distributions eventually apply.',
+          'Future tax rates are unknown.',
+        ],
+      },
+      simpleExplanation: 'Roth = potentially pay taxes now and receive qualified withdrawals tax-free later. Traditional = potentially receive a tax benefit now and generally pay taxes when withdrawing later.',
+    },
+  },
+  {
+    id: 'diversification',
+    title: 'Diversification',
+    summary: 'Spreading exposure across different investments.',
+    whatItIs: 'Diversification means avoiding reliance on a single company, sector, asset type, or region.',
+    whyPeopleUseIt: 'It can reduce the impact of one holding performing poorly.',
+    keyRisks: 'It cannot prevent all losses and does not guarantee positive returns.',
+    example: 'A portfolio holding many sectors is less concentrated than one holding only technology companies.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'market-volatility',
+    title: 'Market Volatility',
+    summary: 'How quickly and widely prices move.',
+    whatItIs: 'Volatility describes the size and frequency of price changes over time.',
+    whyPeopleUseIt: 'Understanding volatility helps explain why short-term values can move even when long-term goals are unchanged.',
+    keyRisks: 'Large swings can create losses, uncertainty, and emotional decision-making pressure.',
+    example: 'An asset moving several percent in a day is more volatile than one moving only slightly.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'compound-growth',
+    title: 'Compound Growth',
+    summary: 'Growth that can build on earlier growth.',
+    whatItIs: 'Compounding occurs when returns remain invested and can generate additional returns over time.',
+    whyPeopleUseIt: 'It helps explain how time and repeated growth can affect long-term values.',
+    keyRisks: 'Returns are not guaranteed; losses and fees also compound and reduce outcomes.',
+    example: 'At a hypothetical 5% annual return, $100 becomes $105 after one year and $110.25 after two.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+  {
+    id: 'risk-reward',
+    title: 'Risk vs. Reward',
+    summary: 'Potential return is connected to uncertainty and loss.',
+    whatItIs: 'Risk and reward describe the tradeoff between uncertain outcomes and possible returns.',
+    whyPeopleUseIt: 'The concept helps compare how different assets may behave and what losses are possible.',
+    keyRisks: 'Higher potential return does not guarantee a better result and often comes with greater potential loss.',
+    example: 'Cash and a volatile stock have different possible outcomes, time horizons, and kinds of risk.',
+    disclaimer: EDUCATION_DISCLAIMER,
+  },
+];
+
 export type FinanceAsset = {
   id: FinanceAssetId;
   symbol: string;

@@ -13,8 +13,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FinanceProfessionalDiscovery } from '@/components/finance-professional-discovery';
+import { FinanceProviderExplorer } from '@/components/finance-provider-explorer';
+import { FinanceSponsoredSlot } from '@/components/finance-sponsored-slot';
 import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
 import {
+  FINANCE_EDUCATION_TOPICS,
+  getProfessionalDiscoveryContext,
   getMarketData,
   MOCK_FINANCE_ASSETS,
   MOCK_FINANCE_INDEXES,
@@ -23,6 +28,8 @@ import {
   type FinanceAsset,
   type FinanceChartPeriod as Period,
   type FinanceDataProvenance,
+  type FinanceEducationTopic,
+  type FinancialProfessionalDiscoveryContext,
   type FinanceMarketIndex,
   type FinanceMarketException,
   type FinanceNewsStory as NewsStory,
@@ -30,6 +37,8 @@ import {
   type FinanceSnapshot,
   type FinanceSpendingSnapshot,
 } from '@/services/finance';
+import { getFinancialInstitutionsForTopic } from '@/services/financial-institutions';
+import { FINANCE_EDUCATION_SPONSORSHIP_PLACEHOLDER } from '@/services/finance-sponsorship';
 
 type MarketStatus = 'Pre-Market' | 'Market Open' | 'After Hours' | 'Market Closed' | 'Holiday' | 'Early Close';
 
@@ -105,6 +114,10 @@ export default function FinanceScreen() {
   const [selectedAsset, setSelectedAsset] = useState<FinanceAsset>(MOCK_FINANCE_ASSETS[0]);
   const [favorites, setFavorites] = useState<string[]>(['aapl', 'nvda']);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
+  const [educationOpen, setEducationOpen] = useState(false);
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
+  const [professionalContext, setProfessionalContext] = useState<FinancialProfessionalDiscoveryContext | null>(null);
+  const [providerTopic, setProviderTopic] = useState<FinanceEducationTopic | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -158,6 +171,21 @@ export default function FinanceScreen() {
 
       <View style={styles.searchBar}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Search stocks, ETFs, crypto" autoCapitalize="characters" autoCorrect={false} onChangeText={setQuery} placeholder="Search stocks, ETFs, crypto" placeholderTextColor="#7E8793" returnKeyType="search" style={styles.searchInput} value={query} />{query.length > 0 && <Pressable accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}><Text style={styles.clearIcon}>×</Text></Pressable>}</View>
 
+      <FinanceEducationCenter
+        expanded={educationOpen}
+        expandedLessonId={expandedLessonId}
+        isTablet={isDesktop}
+        onToggleSection={() => {
+          if (educationOpen) setExpandedLessonId(null);
+          setEducationOpen((current) => !current);
+        }}
+        onToggleLesson={(lessonId) => setExpandedLessonId((current) => current === lessonId ? null : lessonId)}
+        onFindProfessional={(topic) => setProfessionalContext(getProfessionalDiscoveryContext(topic))}
+        onExploreProviders={setProviderTopic}
+      />
+
+      <FinanceSponsoredSlot placement={FINANCE_EDUCATION_SPONSORSHIP_PLACEHOLDER} />
+
       {query.trim() ? (
         <SearchResults results={searchResults} query={query.trim()} onSelect={(asset) => { setSelectedAsset(asset); setQuery(''); }} />
       ) : (
@@ -179,6 +207,8 @@ export default function FinanceScreen() {
           <Text style={styles.disclaimer}>Market and portfolio information shown in this MVP is simulated and is not financial advice.</Text>
         </>
       )}
+      <FinanceProfessionalDiscovery context={professionalContext} onClose={() => setProfessionalContext(null)} />
+      <FinanceProviderExplorer onClose={() => setProviderTopic(null)} topic={providerTopic} />
     </ScrollView>
   );
 }
@@ -365,6 +395,84 @@ function SpendingCategory({ name, amount, color }: { name: string; amount: strin
   return <View style={styles.spendingCategory}><View style={[styles.categoryDot, { backgroundColor: color }]} /><View><Text style={styles.categoryName}>{name}</Text><Text style={styles.categoryAmount}>{amount}</Text></View></View>;
 }
 
+function FinanceEducationCenter({ expanded, expandedLessonId, isTablet, onExploreProviders, onFindProfessional, onToggleLesson, onToggleSection }: { expanded: boolean; expandedLessonId: string | null; isTablet: boolean; onExploreProviders: (topic: FinanceEducationTopic) => void; onFindProfessional: (topic: FinanceEducationTopic) => void; onToggleLesson: (lessonId: string) => void; onToggleSection: () => void }) {
+  return (
+    <View style={styles.educationSection}>
+      <View style={[styles.educationContainer, expanded && styles.educationContainerExpanded]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggleSection} style={({ pressed }) => [styles.educationHeading, pressed && styles.cardPressed]}>
+          <View style={styles.educationHeadingCopy}><Text style={styles.educationEyebrow}>LOOKUP LEARNING CENTER</Text><Text style={styles.educationDepartmentTitle}>Financial Literacy Department</Text><Text style={styles.educationIntro}>Understand your money. Understand the markets.</Text></View>
+          <View style={styles.educationAffordance}><Text numberOfLines={1} style={styles.educationAffordanceText}>{expanded ? 'Close Department' : 'Enter Department'}</Text><Text style={[styles.educationChevron, expanded && styles.educationChevronExpanded]}>⌄</Text></View>
+        </Pressable>
+        {expanded ? <View style={styles.educationGrid}>
+        {FINANCE_EDUCATION_TOPICS.map((topic, index) => (
+          <EducationLessonCard
+            expanded={expandedLessonId === topic.id}
+            index={index}
+            isTablet={isTablet}
+            key={topic.id}
+            onExploreProviders={getFinancialInstitutionsForTopic(topic.id).length > 0 ? () => onExploreProviders(topic) : undefined}
+            onFindProfessional={() => onFindProfessional(topic)}
+            onToggle={() => onToggleLesson(topic.id)}
+            topic={topic}
+          />
+        ))}
+        </View> : null}
+      </View>
+    </View>
+  );
+}
+
+function EducationLessonCard({ expanded, index, isTablet, onExploreProviders, onFindProfessional, onToggle, topic }: { expanded: boolean; index: number; isTablet: boolean; onExploreProviders?: () => void; onFindProfessional: () => void; onToggle: () => void; topic: FinanceEducationTopic }) {
+  return (
+    <View style={[styles.educationCard, isTablet && styles.educationCardTablet, expanded && styles.educationCardExpanded]}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggle} style={({ pressed }) => [styles.educationCardHeader, pressed && styles.cardPressed]}>
+        <View style={[styles.educationMarker, expanded && styles.educationMarkerActive]}><Text style={[styles.educationMarkerText, expanded && styles.educationMarkerTextActive]}>{String(index + 1).padStart(2, '0')}</Text></View>
+        <View style={styles.educationCardCopy}><Text style={styles.educationTitle}>{topic.title}</Text><Text style={styles.educationSummary}>{topic.summary}</Text></View>
+        <View style={[styles.educationToggle, expanded && styles.educationToggleActive]}><Text style={[styles.educationToggleText, expanded && styles.educationToggleTextActive]}>{expanded ? '⌄' : '›'}</Text></View>
+      </Pressable>
+      {expanded ? topic.comparison ? (
+        <IraComparison comparison={topic.comparison} disclaimer={topic.disclaimer} isTablet={isTablet} onExploreProviders={onExploreProviders} onFindProfessional={onFindProfessional} />
+      ) : <View style={styles.educationDetail}>
+          <LessonDetail label="WHAT IT IS" value={topic.whatItIs} />
+          <LessonDetail label="WHY PEOPLE USE IT" value={topic.whyPeopleUseIt} />
+          <LessonDetail label="KEY RISKS" value={topic.keyRisks} />
+          {topic.example ? <LessonDetail label="SIMPLE EXAMPLE" value={topic.example} /> : null}
+          <Text style={styles.educationDisclaimer}>{topic.disclaimer}</Text>
+          <LessonNextSteps onExploreProviders={onExploreProviders} onFindProfessional={onFindProfessional} />
+        </View> : null}
+    </View>
+  );
+}
+
+function IraComparison({ comparison, disclaimer, isTablet, onExploreProviders, onFindProfessional }: { comparison: NonNullable<FinanceEducationTopic['comparison']>; disclaimer: string; isTablet: boolean; onExploreProviders?: () => void; onFindProfessional: () => void }) {
+  return (
+    <View style={styles.educationDetail}>
+      <View style={[styles.comparisonGrid, !isTablet && styles.comparisonGridPhone]}>
+        {[comparison.left, comparison.right].map((column) => <View key={column.title} style={styles.comparisonCard}>
+          <Text style={styles.comparisonTitle}>{column.title}</Text>
+          <ComparisonList items={column.pros} label="PROS" positive />
+          <ComparisonList items={column.cons} label="CONS" />
+        </View>)}
+      </View>
+      <View style={styles.simpleExplanation}><Text style={styles.lessonLabel}>SIMPLE EXPLANATION</Text><Text style={styles.simpleExplanationText}>{comparison.simpleExplanation}</Text></View>
+      <Text style={styles.educationDisclaimer}>{disclaimer}</Text>
+      <LessonNextSteps onExploreProviders={onExploreProviders} onFindProfessional={onFindProfessional} />
+    </View>
+  );
+}
+
+function LessonNextSteps({ onExploreProviders, onFindProfessional }: { onExploreProviders?: () => void; onFindProfessional: () => void }) {
+  return <View style={styles.professionalHelpCta}><View style={styles.professionalHelpCopy}><Text style={styles.professionalHelpTitle}>Take the next step</Text><Text style={styles.professionalHelpText}>Find and verify individual help, or research institutions related to this lesson.</Text></View><View style={styles.lessonActions}><Pressable onPress={onFindProfessional} style={({ pressed }) => [styles.professionalHelpButton, pressed && styles.cardPressed]}><Text style={styles.professionalHelpButtonText}>Find Professional Help</Text></Pressable>{onExploreProviders ? <Pressable onPress={onExploreProviders} style={({ pressed }) => [styles.providerExploreButton, pressed && styles.cardPressed]}><Text style={styles.providerExploreButtonText}>Explore Providers</Text></Pressable> : null}</View></View>;
+}
+
+function ComparisonList({ items, label, positive = false }: { items: string[]; label: string; positive?: boolean }) {
+  return <View style={styles.comparisonList}><Text style={[styles.comparisonListLabel, positive && styles.comparisonListLabelPositive]}>{label}</Text>{items.map((item) => <View key={item} style={styles.comparisonListItem}><Text style={[styles.comparisonMarker, positive && styles.comparisonMarkerPositive]}>{positive ? '+' : '−'}</Text><Text style={styles.comparisonListText}>{item}</Text></View>)}</View>;
+}
+
+function LessonDetail({ label, value }: { label: string; value: string }) {
+  return <View style={styles.lessonDetail}><Text style={styles.lessonLabel}>{label}</Text><Text style={styles.lessonValue}>{value}</Text></View>;
+}
+
 function SearchResults({ results, query, onSelect }: { results: FinanceAsset[]; query: string; onSelect: (asset: FinanceAsset) => void }) {
   return <View style={styles.searchResults}><Text style={styles.sectionTitle}>Search results</Text>{results.length === 0 ? <EmptyState title={`No matches for “${query}”`} copy="Try a company, symbol, ETF, index, crypto asset, or bond." /> : <View style={styles.listCard}>{results.map((asset, index) => <View key={asset.id}><Pressable onPress={() => onSelect(asset)} style={({ pressed }) => [styles.searchRow, pressed && styles.cardPressed]}><AssetLogo asset={asset} /><View style={styles.watchName}><Text style={styles.assetName}>{asset.name}</Text><Text style={styles.assetTicker}>{asset.symbol} · {asset.assetType}</Text></View><View style={styles.watchPrice}><Text style={styles.priceText}>{asset.displayValue}</Text><Text style={[styles.changeText, asset.dailyChangePercent < 0 && styles.negative]}>{asset.dailyChangePercent >= 0 ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%</Text></View></Pressable>{index < results.length - 1 && <View style={styles.divider} />}</View>)}</View>}</View>;
 }
@@ -530,6 +638,61 @@ const styles = StyleSheet.create({
   categoryDot: { width: 9, height: 9, borderRadius: 5 },
   categoryName: { color: '#858F9B', fontSize: 10 },
   categoryAmount: { color: '#E1E6EB', fontSize: 12, fontWeight: '800', marginTop: 3 },
+  educationSection: { marginBottom: 30 },
+  educationContainer: { backgroundColor: '#141A21', borderColor: '#2D3742', borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  educationContainerExpanded: { paddingBottom: 12 },
+  educationHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', minHeight: 92, paddingHorizontal: 18, paddingVertical: 15 },
+  educationHeadingCopy: { flex: 1, minWidth: 0 },
+  educationEyebrow: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 1.1, marginBottom: 6 },
+  educationDepartmentTitle: { color: '#F8FAFC', fontSize: 20, fontWeight: '900', letterSpacing: -0.35 },
+  educationIntro: { color: '#7F8A96', fontSize: 10, lineHeight: 15, marginTop: 4, maxWidth: 480 },
+  educationAffordance: { alignItems: 'center', backgroundColor: '#202832', borderRadius: 15, flexDirection: 'row', gap: 6, paddingHorizontal: 11, paddingVertical: 8 },
+  educationAffordanceText: { color: '#69E08C', fontSize: 10, fontWeight: '800' },
+  educationChevron: { color: '#69E08C', fontSize: 15, fontWeight: '900', transform: [{ rotate: '0deg' }] },
+  educationChevronExpanded: { transform: [{ rotate: '180deg' }] },
+  educationGrid: { borderTopColor: '#252E37', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
+  educationCard: { backgroundColor: '#182029', borderColor: 'transparent', borderRadius: 15, borderWidth: 1, overflow: 'hidden', width: '100%' },
+  educationCardTablet: { width: '48%' },
+  educationCardExpanded: { backgroundColor: '#19232B', borderColor: 'rgba(105,224,140,0.34)' },
+  educationCardHeader: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between', minHeight: 72, paddingHorizontal: 13, paddingVertical: 11 },
+  educationMarker: { alignItems: 'center', backgroundColor: '#242D37', borderRadius: 10, height: 28, justifyContent: 'center', width: 28 },
+  educationMarkerActive: { backgroundColor: 'rgba(105,224,140,0.14)' },
+  educationMarkerText: { color: '#788592', fontSize: 8, fontWeight: '900', letterSpacing: 0.3 },
+  educationMarkerTextActive: { color: '#69E08C' },
+  educationCardCopy: { flex: 1, minWidth: 0 },
+  educationTitle: { color: '#F3F6F8', fontSize: 14, fontWeight: '900' },
+  educationSummary: { color: '#818D99', fontSize: 10, lineHeight: 14, marginTop: 3 },
+  educationToggle: { alignItems: 'center', backgroundColor: '#222B35', borderRadius: 12, height: 25, justifyContent: 'center', width: 25 },
+  educationToggleActive: { backgroundColor: '#69E08C' },
+  educationToggleText: { color: '#9AA5B0', fontSize: 17, fontWeight: '700', lineHeight: 19 },
+  educationToggleTextActive: { color: '#08140D' },
+  educationDetail: { borderTopColor: '#29333D', borderTopWidth: StyleSheet.hairlineWidth, gap: 12, padding: 14, paddingTop: 13 },
+  lessonDetail: { gap: 4 },
+  lessonLabel: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
+  lessonValue: { color: '#B5BEC7', fontSize: 11, lineHeight: 17 },
+  educationDisclaimer: { color: '#6E7A86', fontSize: 9, fontStyle: 'italic', lineHeight: 14, marginTop: 1 },
+  comparisonGrid: { flexDirection: 'row', gap: 10 },
+  comparisonGridPhone: { flexDirection: 'column' },
+  comparisonCard: { backgroundColor: '#141B22', borderRadius: 12, flex: 1, padding: 12 },
+  comparisonTitle: { color: '#F1F5F8', fontSize: 13, fontWeight: '900' },
+  comparisonList: { gap: 6, marginTop: 12 },
+  comparisonListLabel: { color: '#DA858C', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  comparisonListLabelPositive: { color: '#69E08C' },
+  comparisonListItem: { alignItems: 'flex-start', flexDirection: 'row', gap: 7 },
+  comparisonMarker: { color: '#DA858C', fontSize: 11, fontWeight: '900', lineHeight: 16, width: 9 },
+  comparisonMarkerPositive: { color: '#69E08C' },
+  comparisonListText: { color: '#AAB4BE', flex: 1, fontSize: 10, lineHeight: 15 },
+  simpleExplanation: { backgroundColor: 'rgba(105,224,140,0.07)', borderRadius: 11, padding: 12 },
+  simpleExplanationText: { color: '#B8C2CB', fontSize: 10, lineHeight: 16, marginTop: 5 },
+  professionalHelpCta: { alignItems: 'center', backgroundColor: '#141B22', borderRadius: 11, flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between', padding: 11 },
+  professionalHelpCopy: { flex: 1, minWidth: 180 },
+  professionalHelpTitle: { color: '#E6EBEF', fontSize: 10, fontWeight: '900' },
+  professionalHelpText: { color: '#77838F', fontSize: 9, lineHeight: 13, marginTop: 3 },
+  lessonActions: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  professionalHelpButton: { backgroundColor: 'rgba(105,224,140,0.11)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  professionalHelpButtonText: { color: '#69E08C', fontSize: 9, fontWeight: '900' },
+  providerExploreButton: { backgroundColor: '#252E38', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  providerExploreButtonText: { color: '#D2DAE1', fontSize: 9, fontWeight: '900' },
   disclaimer: { color: '#697581', fontSize: 10, lineHeight: 15, textAlign: 'center', maxWidth: 620, alignSelf: 'center', marginBottom: 12 },
   searchResults: { minHeight: 360 },
   searchRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 11 },
