@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { TABLET_MIN_WIDTH } from '@/constants/layout';
-import { getWardrobeItems, type WardrobeItem } from '@/services/my-locker';
+import { getWardrobeItems, type LockerScope, type WardrobeItem } from '@/services/my-locker';
 import { getStyleDiscoveryRecommendations } from '@/services/style-discovery';
 
-export function StyleDiscovery({ wardrobeRevision }: { wardrobeRevision: number }) {
+export function StyleDiscovery({ lockerScope, wardrobeRevision }: { lockerScope: LockerScope | null; wardrobeRevision: number }) {
   const { width } = useWindowDimensions();
   const isTablet = width >= TABLET_MIN_WIDTH;
   const [adventurous, setAdventurous] = useState(false);
@@ -13,13 +13,19 @@ export function StyleDiscovery({ wardrobeRevision }: { wardrobeRevision: number 
 
   useEffect(() => {
     let isMounted = true;
-    void getWardrobeItems().then((result) => {
+    if (!lockerScope) {
+      setWardrobe([]);
+      return () => {
+        isMounted = false;
+      };
+    }
+    void getWardrobeItems(lockerScope).then((result) => {
       if (isMounted) setWardrobe(result.data ?? []);
     });
     return () => {
       isMounted = false;
     };
-  }, [wardrobeRevision]);
+  }, [lockerScope?.userId, wardrobeRevision]);
 
   const recommendations = useMemo(
     () => getStyleDiscoveryRecommendations(wardrobe, { adventurous, limit: 3 }),

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { Redirect } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Modal,
@@ -18,6 +20,7 @@ import { pageHorizontalPadding } from "@/constants/layout";
 import { OutfitBuilder } from "@/components/outfit-builder";
 import { StyleDiscovery } from "@/components/style-discovery";
 import { DEFAULT_CLOSET_ID, getLockerProfile, updateClosetName } from "@/services/my-locker";
+import { useAuth } from "@/providers/auth-provider";
 
 const aiFeatures = [
   { icon: "🤖", title: "AI Clothing Recognition", description: "Automatically identifies clothing." },
@@ -33,6 +36,7 @@ const aiFeatures = [
 ];
 
 export default function MyLockerScreen() {
+  const { loading: authLoading, session } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -46,11 +50,22 @@ export default function MyLockerScreen() {
   const renameOpacity = useRef(new Animated.Value(0)).current;
   const renameScale = useRef(new Animated.Value(0.94)).current;
   const isClosetEmpty = clothingItemCount === 0;
+  const lockerScope = useMemo(
+    () => session?.user.id ? { userId: session.user.id } : null,
+    [session?.user.id],
+  );
 
   useEffect(() => {
     let isMounted = true;
 
-    getLockerProfile()
+    if (!lockerScope) {
+      setLockerName("My Locker");
+      setLockerNameDraft("My Locker");
+      setClothingItemCount(0);
+      return;
+    }
+
+    getLockerProfile(lockerScope)
       .then((result) => {
         if (isMounted && result.data) {
           setLockerName(result.data.displayName);
@@ -62,7 +77,7 @@ export default function MyLockerScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [lockerScope]);
 
   useEffect(() => {
     if (!isAddModalVisible) return;
@@ -132,13 +147,21 @@ export default function MyLockerScreen() {
     setLockerNameDraft(nextName);
     closeRenameModal();
 
+    if (!lockerScope) return;
+
     try {
-      const result = await updateClosetName(DEFAULT_CLOSET_ID, nextName);
+      const result = await updateClosetName(DEFAULT_CLOSET_ID, nextName, lockerScope);
       if (result.provenance === "unavailable") console.warn("Unable to save locker name", result.error);
     } catch (error) {
       console.warn("Unable to save locker name", error);
     }
   };
+
+  if (authLoading) {
+    return <View style={styles.authLoading}><ActivityIndicator color="#69E08C" size="large" /></View>;
+  }
+
+  if (!session) return <Redirect href="/sign-in" />;
 
   return (
     <>
@@ -171,10 +194,12 @@ export default function MyLockerScreen() {
         </Pressable>
 
         <OutfitBuilder
+          key={lockerScope?.userId ?? "signed-out"}
+          lockerScope={lockerScope}
           onAddClothing={() => setIsAddModalVisible(true)}
           onWardrobeCountChange={setClothingItemCount}
         />
-        <StyleDiscovery wardrobeRevision={clothingItemCount} />
+        <StyleDiscovery key={`discovery-${lockerScope?.userId ?? "signed-out"}`} lockerScope={lockerScope} wardrobeRevision={clothingItemCount} />
 
         </View>
       </ScrollView>
@@ -313,6 +338,7 @@ export default function MyLockerScreen() {
 }
 
 const styles = StyleSheet.create({
+  authLoading: { alignItems: "center", backgroundColor: "#121212", flex: 1, justifyContent: "center" },
   container: {
     flex: 1,
     backgroundColor: "#121212",

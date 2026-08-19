@@ -44,14 +44,14 @@ type BackendRequestMethod = 'GET' | 'PATCH' | 'POST';
 
 export type BackendAuthSession = { accessToken: string | null; refreshToken: string | null };
 
-const DEFAULT_BACKEND_BASE_URL = 'http://localhost:4000';
+const LOCAL_DEVELOPMENT_BACKEND_URL = 'http://localhost:4000';
 
 function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, '');
 }
 
 export const BACKEND_BASE_URL = normalizeBaseUrl(
-  process.env.EXPO_PUBLIC_LOOKUP_BACKEND_URL || DEFAULT_BACKEND_BASE_URL,
+  process.env.EXPO_PUBLIC_LOOKUP_BACKEND_URL || (__DEV__ ? LOCAL_DEVELOPMENT_BACKEND_URL : ''),
 );
 
 function isBackendStatus(value: unknown): value is BackendStatus {
@@ -114,6 +114,14 @@ async function requestJson<T>(
   const fetchImplementation = options.fetchImplementation ?? fetch;
   let response: Response;
   let accessToken = options.accessToken;
+
+  if (!baseUrl) {
+    return {
+      data: null,
+      error: { code: 'network', message: 'The LookUP backend is not configured for this build.' },
+      state: 'unavailable',
+    };
+  }
 
   if (requiresAuthentication && !accessToken) {
     try {

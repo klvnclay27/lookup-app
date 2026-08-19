@@ -3,9 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileUserRepository } from './data/file-user-repository.ts';
 import { handleAuthRoute } from './routes/auth.ts';
 import { handleCurrentUserRoute } from './routes/me.ts';
-import { handleUserPreferencesRoute } from './routes/preferences.ts';
 import { API_STATUS_RESPONSE } from './routes/status.ts';
-import { handleUserProfileRoute } from './routes/users.ts';
 
 export type HealthResponse = {
   service: 'lookup-backend';
@@ -17,7 +15,17 @@ const HEALTH_RESPONSE: HealthResponse = {
   service: 'lookup-backend',
 };
 
-function getLocalDevelopmentCorsHeaders(request: IncomingMessage): Record<string, string> {
+function getConfiguredOrigins(): Set<string> {
+  const configuredOrigins = process.env.LOOKUP_ALLOWED_ORIGINS ?? '';
+  return new Set(
+    configuredOrigins
+      .split(',')
+      .map((origin) => origin.trim().replace(/\/+$/, ''))
+      .filter(Boolean),
+  );
+}
+
+function getCorsHeaders(request: IncomingMessage): Record<string, string> {
   const origin = request.headers.origin;
   if (!origin) return {};
 
@@ -25,8 +33,9 @@ function getLocalDevelopmentCorsHeaders(request: IncomingMessage): Record<string
     const parsedOrigin = new URL(origin);
     const isHttp = parsedOrigin.protocol === 'http:' || parsedOrigin.protocol === 'https:';
     const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(parsedOrigin.hostname);
+    const isConfiguredOrigin = getConfiguredOrigins().has(parsedOrigin.origin);
 
-    if (isHttp && isLoopback) {
+    if (isHttp && (isLoopback || isConfiguredOrigin)) {
       return {
         'Access-Control-Allow-Headers': 'Authorization, Content-Type',
         'Access-Control-Allow-Methods': 'GET, PATCH, POST, OPTIONS',
@@ -45,7 +54,7 @@ function sendJson(request: IncomingMessage, response: ServerResponse, statusCode
   response.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    ...getLocalDevelopmentCorsHeaders(request),
+    ...getCorsHeaders(request),
   });
   response.end(JSON.stringify(body));
 }
@@ -54,7 +63,7 @@ export async function handleRequest(request: IncomingMessage, response: ServerRe
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
 
   if (request.method === 'OPTIONS' && requestUrl.pathname.startsWith('/api/v1/')) {
-    response.writeHead(204, getLocalDevelopmentCorsHeaders(request));
+    response.writeHead(204, getCorsHeaders(request));
     response.end();
     return;
   }
@@ -82,26 +91,6 @@ export async function handleRequest(request: IncomingMessage, response: ServerRe
       return;
     }
 
-    // Legacy demo-user routes remain available in local development only.
-    if (process.env.NODE_ENV === 'production') {
-      sendJson(request, response, 404, {
-        status: 'error',
-        message: 'Route not found',
-      });
-      return;
-    }
-
-    const userProfileResult = await handleUserProfileRoute(request, requestUrl.pathname, fileUserRepository);
-    if (userProfileResult) {
-      sendJson(request, response, userProfileResult.statusCode, userProfileResult.body);
-      return;
-    }
-
-    const userPreferencesResult = await handleUserPreferencesRoute(request, requestUrl.pathname, fileUserRepository);
-    if (userPreferencesResult) {
-      sendJson(request, response, userPreferencesResult.statusCode, userPreferencesResult.body);
-      return;
-    }
   } catch {
     sendJson(request, response, 500, {
       status: 'error',

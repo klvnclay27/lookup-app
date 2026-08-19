@@ -96,13 +96,8 @@ export interface LockerDataProvider {
   updateClosetName(scope: LockerScope, closetId: ClosetId, name: string): Promise<Closet>;
 }
 
-export const LOCAL_DEMO_USER_ID = 'local-demo-user';
-export const DEFAULT_LOCKER_SCOPE: LockerScope = { userId: LOCAL_DEMO_USER_ID };
 export const DEFAULT_CLOSET_ID = 'default-closet';
 
-const LEGACY_NAME_KEY = 'lookup.myLocker.name';
-const LEGACY_WARDROBE_KEY = 'lookup.myLocker.wardrobe.v1';
-const LEGACY_OUTFITS_KEY = 'lookup.myLocker.savedOutfits';
 const keyFor = (scope: LockerScope, resource: string) => `lookup.myLocker.${scope.userId}.${resource}.v1`;
 
 const emptySelection = (): OutfitSelection => ({ top: null, jacket: null, bottom: null, shoes: null, accessory: null });
@@ -112,7 +107,6 @@ const parseArray = <T>(value: string | null): T[] => {
   return Array.isArray(parsed) ? parsed as T[] : [];
 };
 const scopeItem = (item: ClothingItem, scope: LockerScope, closetId = DEFAULT_CLOSET_ID): WardrobeItem => ({ ...item, userId: scope.userId, closetId });
-export const LOCAL_STARTER_WARDROBE: WardrobeItem[] = DEVELOPMENT_STARTER_WARDROBE.map((item) => scopeItem(item, DEFAULT_LOCKER_SCOPE));
 const normalizeSelection = (items: Partial<Record<OutfitSlotKey, ClothingItem | null>> | undefined, scope: LockerScope, closetId: ClosetId): OutfitSelection => {
   const selection = emptySelection();
   (Object.keys(selection) as OutfitSlotKey[]).forEach((slot) => {
@@ -122,15 +116,6 @@ const normalizeSelection = (items: Partial<Record<OutfitSlotKey, ClothingItem | 
   return selection;
 };
 
-async function readWithLegacyMigration(scope: LockerScope, resource: string, legacyKey: string) {
-  const scopedKey = keyFor(scope, resource);
-  const current = await AsyncStorage.getItem(scopedKey);
-  if (current !== null) return current;
-  const legacy = scope.userId === LOCAL_DEMO_USER_ID ? await AsyncStorage.getItem(legacyKey) : null;
-  if (legacy !== null) await AsyncStorage.setItem(scopedKey, legacy);
-  return legacy;
-}
-
 export const localLockerProvider: LockerDataProvider = {
   name: 'LookUP device storage',
   provenance: 'local',
@@ -139,16 +124,14 @@ export const localLockerProvider: LockerDataProvider = {
     return { id: `profile-${scope.userId}`, userId: scope.userId, displayName: closets[0]?.name ?? 'My Locker', defaultClosetId: closets[0]?.id ?? DEFAULT_CLOSET_ID, stylePreferences: [] };
   },
   async getClosets(scope) {
-    const storedName = await readWithLegacyMigration(scope, 'closet-name', LEGACY_NAME_KEY);
+    const storedName = await AsyncStorage.getItem(keyFor(scope, 'closet-name'));
     const now = new Date().toISOString();
     return [{ id: DEFAULT_CLOSET_ID, userId: scope.userId, name: storedName?.trim() || 'My Locker', createdAt: now, updatedAt: now }];
   },
   async getWardrobeItems(scope, closetId = DEFAULT_CLOSET_ID) {
-    const stored = await readWithLegacyMigration(scope, 'wardrobe', LEGACY_WARDROBE_KEY);
+    const stored = await AsyncStorage.getItem(keyFor(scope, 'wardrobe'));
     if (stored === null) {
-      const starter = scope.userId === LOCAL_DEMO_USER_ID && closetId === DEFAULT_CLOSET_ID
-        ? LOCAL_STARTER_WARDROBE
-        : DEVELOPMENT_STARTER_WARDROBE.map((item) => scopeItem(item, scope, closetId));
+      const starter = DEVELOPMENT_STARTER_WARDROBE.map((item) => scopeItem(item, scope, closetId));
       await AsyncStorage.setItem(keyFor(scope, 'wardrobe'), JSON.stringify(starter));
       return starter;
     }
@@ -187,7 +170,7 @@ export const localLockerProvider: LockerDataProvider = {
     return next;
   },
   async getOutfits(scope) {
-    const stored = await readWithLegacyMigration(scope, 'outfits', LEGACY_OUTFITS_KEY);
+    const stored = await AsyncStorage.getItem(keyFor(scope, 'outfits'));
     return parseArray<Partial<Outfit>>(stored).map((outfit) => {
       const createdAt = outfit.createdAt ?? new Date().toISOString();
       const closetId = outfit.closetId ?? DEFAULT_CLOSET_ID;
@@ -213,7 +196,7 @@ export const localLockerProvider: LockerDataProvider = {
   },
 };
 
-async function run<T>(operation: (provider: LockerDataProvider, scope: LockerScope) => Promise<T>, scope = DEFAULT_LOCKER_SCOPE, provider: LockerDataProvider = localLockerProvider): Promise<LockerResult<T>> {
+async function run<T>(operation: (provider: LockerDataProvider, scope: LockerScope) => Promise<T>, scope: LockerScope, provider: LockerDataProvider = localLockerProvider): Promise<LockerResult<T>> {
   try {
     return { data: await operation(provider, scope), error: null, provenance: provider.provenance };
   } catch {
@@ -221,16 +204,16 @@ async function run<T>(operation: (provider: LockerDataProvider, scope: LockerSco
   }
 }
 
-export const getLockerProfile = (scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.getLockerProfile(user), scope, provider);
-export const getClosets = (scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.getClosets(user), scope, provider);
-export const getWardrobeItems = (scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.getWardrobeItems(user), scope, provider);
-export const addWardrobeItem = (item: WardrobeItem, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.addWardrobeItem(user, item), scope, provider);
-export const updateWardrobeItem = (item: WardrobeItem, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.updateWardrobeItem(user, item), scope, provider);
-export const removeWardrobeItem = (itemId: WardrobeItemId, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.removeWardrobeItem(user, itemId), scope, provider);
-export const getWishlist = (scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.getWishlist(user), scope, provider);
-export const addWishlistItem = (item: WishlistItem, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.addWishlistItem(user, item), scope, provider);
-export const removeWishlistItem = (itemId: WishlistItemId, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.removeWishlistItem(user, itemId), scope, provider);
-export const getOutfits = (scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.getOutfits(user), scope, provider);
-export const saveOutfit = (outfit: Outfit, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.saveOutfit(user, outfit), scope, provider);
-export const removeOutfit = (outfitId: OutfitId, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.removeOutfit(user, outfitId), scope, provider);
-export const updateClosetName = (closetId: ClosetId, name: string, scope = DEFAULT_LOCKER_SCOPE, provider?: LockerDataProvider) => run((source, user) => source.updateClosetName(user, closetId, name), scope, provider);
+export const getLockerProfile = (scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.getLockerProfile(user), scope, provider);
+export const getClosets = (scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.getClosets(user), scope, provider);
+export const getWardrobeItems = (scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.getWardrobeItems(user), scope, provider);
+export const addWardrobeItem = (item: WardrobeItem, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.addWardrobeItem(user, item), scope, provider);
+export const updateWardrobeItem = (item: WardrobeItem, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.updateWardrobeItem(user, item), scope, provider);
+export const removeWardrobeItem = (itemId: WardrobeItemId, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.removeWardrobeItem(user, itemId), scope, provider);
+export const getWishlist = (scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.getWishlist(user), scope, provider);
+export const addWishlistItem = (item: WishlistItem, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.addWishlistItem(user, item), scope, provider);
+export const removeWishlistItem = (itemId: WishlistItemId, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.removeWishlistItem(user, itemId), scope, provider);
+export const getOutfits = (scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.getOutfits(user), scope, provider);
+export const saveOutfit = (outfit: Outfit, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.saveOutfit(user, outfit), scope, provider);
+export const removeOutfit = (outfitId: OutfitId, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.removeOutfit(user, outfitId), scope, provider);
+export const updateClosetName = (closetId: ClosetId, name: string, scope: LockerScope, provider?: LockerDataProvider) => run((source, user) => source.updateClosetName(user, closetId, name), scope, provider);

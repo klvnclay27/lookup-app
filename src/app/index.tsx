@@ -80,9 +80,12 @@ export default function HomeScreen() {
   }, [session?.user.id]);
 
   useEffect(() => {
+    let active = true;
+    const lockerScope = session?.user.id ? { userId: session.user.id } : null;
     async function loadDashboard() {
       try {
-        const data = await getDailyIntelligence();
+        const data = await getDailyIntelligence(new Date(), lockerScope);
+        if (!active) return;
         setDailyIntelligenceBase(data.sources);
         setDailyIntelligence(data);
         if (data.sources.weather) { setTemperature(data.sources.weather.temperature ?? 72); setCondition(data.sources.weather.condition ?? 'Unknown'); }
@@ -97,10 +100,13 @@ export default function HomeScreen() {
         setTracks(data.previews?.music?.tracks ?? []);
         setMusicIsMock(data.sourceProvenance?.music === 'mock');
         setFeelsLike(data.previews?.weather?.feelsLike);
-      } finally { setLoading(false); }
+      } finally {
+        if (active) setLoading(false);
+      }
     }
     void loadDashboard();
-  }, []);
+    return () => { active = false; };
+  }, [session?.user.id]);
 
   const updateIntelligencePreference = (enabled: boolean) => {
     smartModeChangedRef.current = true;

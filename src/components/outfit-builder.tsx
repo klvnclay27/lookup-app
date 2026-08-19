@@ -19,13 +19,12 @@ import {
 } from "@/constants/starter-wardrobe";
 import {
   DEFAULT_CLOSET_ID,
-  DEFAULT_LOCKER_SCOPE,
   getOutfits,
   getWardrobeItems,
-  LOCAL_STARTER_WARDROBE,
   removeOutfit as removeStoredOutfit,
   saveOutfit as saveStoredOutfit,
   updateWardrobeItem,
+  type LockerScope,
   type Outfit as SavedOutfit,
   type OutfitSelection,
   type OutfitSlotKey,
@@ -47,6 +46,7 @@ type SlotDefinition = {
 };
 
 type OutfitBuilderProps = {
+  lockerScope: LockerScope | null;
   onAddClothing: () => void;
   onWardrobeCountChange?: (count: number) => void;
 };
@@ -110,7 +110,7 @@ function ClothingCarouselCard({
   );
 }
 
-export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBuilderProps) {
+export function OutfitBuilder({ lockerScope, onAddClothing, onWardrobeCountChange }: OutfitBuilderProps) {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= TABLET_MIN_WIDTH;
   const [activeSlot, setActiveSlot] = useState<SlotDefinition | null>(null);
@@ -121,11 +121,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   const [saveMessage, setSaveMessage] = useState("");
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
   const [mannequinType, setMannequinType] = useState<MannequinType>("male");
-  const [selection, setSelection] = useState<OutfitSelection>(() => ({
-    ...emptySelection(),
-    top: LOCAL_STARTER_WARDROBE.find((item) => item.id === "sample-shirt-black-polo") ?? null,
-    bottom: LOCAL_STARTER_WARDROBE.find((item) => item.id === "sample-pants-blue-jeans") ?? null,
-  }));
+  const [selection, setSelection] = useState<OutfitSelection>(emptySelection);
   const [resetSelection, setResetSelection] = useState<OutfitSelection>(emptySelection);
   const [wardrobe, setWardrobe] = useState<WardrobeItem[]>([]);
   const [wardrobeReady, setWardrobeReady] = useState(false);
@@ -138,14 +134,28 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
     let isMounted = true;
 
     async function restoreLockerData() {
+      if (!lockerScope) {
+        setWardrobe([]);
+        setSavedOutfits([]);
+        setSelection(emptySelection());
+        setWardrobeReady(true);
+        return;
+      }
+
       try {
         const [wardrobeResult, outfitsResult] = await Promise.all([
-          getWardrobeItems(),
-          getOutfits(),
+          getWardrobeItems(lockerScope),
+          getOutfits(lockerScope),
         ]);
         if (!isMounted) return;
-        setWardrobe(wardrobeResult.data ?? []);
+        const restoredWardrobe = wardrobeResult.data ?? [];
+        setWardrobe(restoredWardrobe);
         setSavedOutfits(outfitsResult.data ?? []);
+        setSelection({
+          ...emptySelection(),
+          top: restoredWardrobe.find((item) => item.id === "sample-shirt-black-polo") ?? null,
+          bottom: restoredWardrobe.find((item) => item.id === "sample-pants-blue-jeans") ?? null,
+        });
       } catch (error) {
         console.warn("Unable to restore outfit builder data", error);
       } finally {
@@ -157,7 +167,7 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [lockerScope?.userId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -266,23 +276,24 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
   };
 
   const toggleFavorite = (itemId: string) => {
+    if (!lockerScope) return;
     const item = wardrobe.find((candidate) => candidate.id === itemId);
     if (!item) return;
     const updated = { ...item, favorite: !item.favorite };
     setWardrobe((current) => current.map((candidate) => candidate.id === itemId ? updated : candidate));
-    void updateWardrobeItem(updated).then((result) => {
+    void updateWardrobeItem(updated, lockerScope).then((result) => {
       if (result.data) setWardrobe(result.data);
     });
   };
 
   const saveOutfit = async () => {
-    if (!hasSelectedItems) return;
+    if (!hasSelectedItems || !lockerScope) return;
     const savedOutfit: SavedOutfit = {
       createdAt: new Date().toISOString(),
       id: `${Date.now()}`,
       name: outfitName.trim() || "Untitled Outfit",
       items: { ...selection },
-      userId: DEFAULT_LOCKER_SCOPE.userId,
+      userId: lockerScope.userId,
       closetId: DEFAULT_CLOSET_ID,
       mannequinType,
       updatedAt: new Date().toISOString(),
@@ -291,14 +302,15 @@ export function OutfitBuilder({ onAddClothing, onWardrobeCountChange }: OutfitBu
     setSavedOutfits(nextOutfits);
     setOutfitName("");
     setSaveMessage(`“${savedOutfit.name}” saved successfully.`);
-    const result = await saveStoredOutfit(savedOutfit);
+    const result = await saveStoredOutfit(savedOutfit, lockerScope);
     if (result.data) setSavedOutfits(result.data);
   };
 
   const deleteOutfit = async (outfitId: string) => {
+    if (!lockerScope) return;
     const nextOutfits = savedOutfits.filter((outfit) => outfit.id !== outfitId);
     setSavedOutfits(nextOutfits);
-    const result = await removeStoredOutfit(outfitId);
+    const result = await removeStoredOutfit(outfitId, lockerScope);
     if (result.data) setSavedOutfits(result.data);
   };
 

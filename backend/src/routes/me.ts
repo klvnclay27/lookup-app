@@ -1,7 +1,12 @@
 import type { IncomingMessage } from 'node:http';
 
 import { authenticateSupabaseRequest } from '../auth/supabase-auth.ts';
+import {
+  AuthenticatedUserRepository,
+  SupabaseProfileUnavailableError,
+} from '../repositories/authenticated-user-repository.ts';
 import type { UserRepository } from '../repositories/user-repository.ts';
+import { UsernameUnavailableError } from '../repositories/user-repository.ts';
 import { handleUserPreferencesRoute } from './preferences.ts';
 import type { ApiRouteResult } from './users.ts';
 import { handleUserProfileRoute } from './users.ts';
@@ -32,7 +37,21 @@ export async function handleCurrentUserRoute(
   await repository.createUserProfile({ displayName, email, smartModeEnabled: true, userId, username });
 
   const encodedUserId = encodeURIComponent(userId);
-  return pathname === CURRENT_PROFILE_ROUTE
-    ? handleUserProfileRoute(request, `/api/v1/users/${encodedUserId}/profile`, repository)
-    : handleUserPreferencesRoute(request, `/api/v1/users/${encodedUserId}/preferences`, repository);
+  if (pathname === CURRENT_PREFERENCES_ROUTE) {
+    return handleUserPreferencesRoute(request, `/api/v1/users/${encodedUserId}/preferences`, repository);
+  }
+
+  try {
+    const authenticatedRepository = new AuthenticatedUserRepository(repository, userId, authentication.accessToken);
+    await authenticatedRepository.createUserProfile({ displayName, email, smartModeEnabled: true, userId, username });
+    return handleUserProfileRoute(request, `/api/v1/users/${encodedUserId}/profile`, authenticatedRepository);
+  } catch (error) {
+    if (error instanceof UsernameUnavailableError) {
+      return { statusCode: 409, body: { status: 'error', message: error.message } };
+    }
+    if (error instanceof SupabaseProfileUnavailableError) {
+      return { statusCode: 503, body: { status: 'error', message: error.message } };
+    }
+    throw error;
+  }
 }

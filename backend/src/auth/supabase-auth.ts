@@ -8,7 +8,7 @@ export type AuthenticatedUser = {
 };
 
 export type AuthenticationResult =
-  | { authenticated: true; user: AuthenticatedUser }
+  | { accessToken: string; authenticated: true; user: AuthenticatedUser }
   | { authenticated: false; message: string; statusCode: 401 | 503 };
 
 type SupabaseAuthConfiguration = {
@@ -91,6 +91,7 @@ export async function authenticateSupabaseRequest(
 
     const email = typeof user.email === 'string' ? user.email : undefined;
     return {
+      accessToken: token,
       authenticated: true,
       user: {
         displayName: getDisplayName(user.user_metadata, email),

@@ -1,7 +1,7 @@
 import { createMockCalendarEvent, getCalendarEvents, getCalendarForIntelligence, type CalendarDataProvenance, type CalendarEvent } from '@/services/calendar';
 import { getEntertainment, getEntertainmentSummary, type EntertainmentDataProvenance, type EntertainmentIntelligenceSummary } from '@/services/entertainment';
 import { getFinance, getFinanceSummary, type FinanceDataProvenance, type FinanceIntelligenceSummary } from '@/services/finance';
-import { getWardrobeItems, type WardrobeItem } from '@/services/my-locker';
+import { getWardrobeItems, type LockerScope, type WardrobeItem } from '@/services/my-locker';
 import { getMusic, getMusicSummary, type MusicDataProvenance, type MusicIntelligenceSummary } from '@/services/music';
 import { getSports, getSportsSummary, type SportsDataProvenance, type SportsIntelligenceSummary } from '@/services/sports';
 import { getTraffic, getTrafficSummaryForIntelligence, getTransitSummary, type CommuteData, type SubwayCommute, type TrafficDataProvenance, type TrafficSummary } from '@/services/traffic';
@@ -449,14 +449,15 @@ export function generateDailyIntelligenceTestSnapshot(baseInput: DailyIntelligen
   };
 }
 
-export async function readDailyLockerContext(): Promise<DailyLockerContext | undefined> {
-  const result = await getWardrobeItems();
+export async function readDailyLockerContext(lockerScope: LockerScope | null): Promise<DailyLockerContext | undefined> {
+  if (!lockerScope) return undefined;
+  const result = await getWardrobeItems(lockerScope);
   if (!result.data) return undefined;
   const items: DailyWardrobeItem[] = result.data.map(({ brand, category, favorite, id, name, primaryColor }) => ({ brand, category, favorite, id, name, primaryColor }));
   return { itemCount: items.length, favoriteCount: items.filter((item) => item.favorite).length, items };
 }
 
-export async function getDailyIntelligence(now = new Date()): Promise<DailyIntelligenceSnapshot> {
+export async function getDailyIntelligence(now = new Date(), lockerScope: LockerScope | null = null): Promise<DailyIntelligenceSnapshot> {
   const [calendarResult, entertainmentResult, financeResult, musicResult, sportsResult, trafficResult, weatherResult, lockerResult] = await Promise.all([
     getCalendarEvents(now),
     getEntertainment(),
@@ -465,7 +466,9 @@ export async function getDailyIntelligence(now = new Date()): Promise<DailyIntel
     getSports(),
     getTraffic(),
     getWeather(),
-    getWardrobeItems(),
+    lockerScope
+      ? getWardrobeItems(lockerScope)
+      : Promise.resolve({ data: null, error: 'Sign in to use My Locker intelligence.', provenance: 'unavailable' } as const),
   ]);
 
   const calendar = getCalendarForIntelligence(calendarResult);
