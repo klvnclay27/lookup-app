@@ -45,7 +45,10 @@
         {
           "locationWhenInUsePermission": "LookUP uses your approximate location to find financial professionals near you."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,
