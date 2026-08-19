@@ -47,7 +47,9 @@ export async function loadHomeUserProfile(): Promise<HomeUserProfile> {
   ]);
 
   return {
-    displayName: profileResult.state === 'available' ? profileResult.data.displayName : FALLBACK_DISPLAY_NAME,
+    displayName: profileResult.state === 'available'
+      ? profileResult.data.username?.trim() || profileResult.data.displayName || FALLBACK_DISPLAY_NAME
+      : FALLBACK_DISPLAY_NAME,
     smartModeEnabled: preferencesResult.state === 'available'
       ? preferencesResult.data.smartModeEnabled
       : profileResult.state === 'available'
