@@ -59,7 +59,7 @@ export default function HomeScreen() {
   const [dailyIntelligenceBase, setDailyIntelligenceBase] = useState<DailyIntelligenceInput>({});
   const [testScenario, setTestScenario] = useState<DailyIntelligenceTestScenario>('normal');
   const [intelligenceEnabled, setIntelligenceEnabled] = useState(true);
-  const [displayName, setDisplayName] = useState('Kelvin');
+  const [displayName, setDisplayName] = useState('LookUP User');
   const [search, setSearch] = useState('');
   const smartModeChangedRef = useRef(false);
 

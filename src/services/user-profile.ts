@@ -3,8 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUserPreferences, getCurrentUserProfile, updateCurrentUserPreferences } from '@/services/backend-client';
 import { supabase } from '@/services/supabase';
 
-const SMART_MODE_PREFERENCE_KEY = 'lookup.dailyIntelligence.enabled.v1';
-const FALLBACK_DISPLAY_NAME = 'Kelvin';
+const SIGNED_OUT_SMART_MODE_PREFERENCE_KEY = 'lookup.dailyIntelligence.enabled.v1';
+const FALLBACK_DISPLAY_NAME = 'LookUP User';
 
 export type HomeUserProfile = {
   displayName: string;
@@ -13,9 +13,24 @@ export type HomeUserProfile = {
   userId: string;
 };
 
-async function readLocalSmartModePreference(): Promise<boolean | undefined> {
+function smartModePreferenceKey(userId: string | null): string {
+  return userId
+    ? `lookup.dailyIntelligence.${userId}.enabled.v1`
+    : SIGNED_OUT_SMART_MODE_PREFERENCE_KEY;
+}
+
+async function getAuthenticatedUserId(): Promise<string | null | undefined> {
   try {
-    const stored = await AsyncStorage.getItem(SMART_MODE_PREFERENCE_KEY);
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id ?? null;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readLocalSmartModePreference(userId: string | null): Promise<boolean | undefined> {
+  try {
+    const stored = await AsyncStorage.getItem(smartModePreferenceKey(userId));
     return stored === null ? undefined : stored === 'true';
   } catch {
     return undefined;
@@ -23,14 +38,10 @@ async function readLocalSmartModePreference(): Promise<boolean | undefined> {
 }
 
 export async function loadHomeUserProfile(): Promise<HomeUserProfile> {
-  const localSmartMode = await readLocalSmartModePreference();
-  let authenticatedUserId: string | undefined;
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    authenticatedUserId = sessionData.session?.user.id;
-  } catch {
-    authenticatedUserId = undefined;
-  }
+  const authenticatedUserId = await getAuthenticatedUserId();
+  const localSmartMode = authenticatedUserId === undefined
+    ? undefined
+    : await readLocalSmartModePreference(authenticatedUserId);
 
   if (!authenticatedUserId) {
     return {
@@ -61,8 +72,10 @@ export async function loadHomeUserProfile(): Promise<HomeUserProfile> {
 }
 
 export async function saveSmartModePreference(enabled: boolean): Promise<void> {
-  await Promise.allSettled([
-    AsyncStorage.setItem(SMART_MODE_PREFERENCE_KEY, String(enabled)),
-    updateCurrentUserPreferences({ smartModeEnabled: enabled }),
-  ]);
+  const authenticatedUserId = await getAuthenticatedUserId();
+  const operations: Promise<unknown>[] = [updateCurrentUserPreferences({ smartModeEnabled: enabled })];
+  if (authenticatedUserId !== undefined) {
+    operations.push(AsyncStorage.setItem(smartModePreferenceKey(authenticatedUserId), String(enabled)));
+  }
+  await Promise.allSettled(operations);
 }
