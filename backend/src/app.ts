@@ -1,9 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { fileUserRepository } from './data/file-user-repository.ts';
+import { authenticateSupabaseRequest } from './auth/supabase-auth.ts';
+import { supabaseAdminUserRepository } from './repositories/supabase-admin-user-repository.ts';
 import { handleAuthRoute } from './routes/auth.ts';
 import { handleCurrentUserRoute } from './routes/me.ts';
 import { API_STATUS_RESPONSE } from './routes/status.ts';
+import { handleUserProfileRoute } from './routes/users.ts';
 
 export type HealthResponse = {
   service: 'lookup-backend';
@@ -14,6 +16,8 @@ const HEALTH_RESPONSE: HealthResponse = {
   status: 'ok',
   service: 'lookup-backend',
 };
+
+const USER_PROFILE_ROUTE = /^\/api\/v1\/users\/([^/]+)\/profile$/;
 
 function getConfiguredOrigins(): Set<string> {
   const configuredOrigins = process.env.LOOKUP_ALLOWED_ORIGINS ?? '';
@@ -79,16 +83,54 @@ export async function handleRequest(request: IncomingMessage, response: ServerRe
   }
 
   try {
-    const authResult = await handleAuthRoute(request, requestUrl.pathname, fileUserRepository);
+    const authResult = await handleAuthRoute(request, requestUrl.pathname, supabaseAdminUserRepository);
     if (authResult) {
       sendJson(request, response, authResult.statusCode, authResult.body);
       return;
     }
 
-    const currentUserResult = await handleCurrentUserRoute(request, requestUrl.pathname, fileUserRepository);
+    const currentUserResult = await handleCurrentUserRoute(request, requestUrl.pathname);
     if (currentUserResult) {
       sendJson(request, response, currentUserResult.statusCode, currentUserResult.body);
       return;
+    }
+
+    const userProfileMatch = USER_PROFILE_ROUTE.exec(requestUrl.pathname);
+    if (userProfileMatch) {
+      const authentication = await authenticateSupabaseRequest(request.headers);
+      if (!authentication.authenticated) {
+        sendJson(request, response, authentication.statusCode, {
+          status: 'error',
+          message: authentication.message,
+        });
+        return;
+      }
+
+      let requestedUserId: string;
+      try {
+        requestedUserId = decodeURIComponent(userProfileMatch[1]);
+      } catch {
+        sendJson(request, response, 400, { status: 'error', message: 'The user ID is invalid.' });
+        return;
+      }
+
+      if (requestedUserId !== authentication.user.userId) {
+        sendJson(request, response, 403, {
+          status: 'error',
+          message: 'You cannot access another user profile.',
+        });
+        return;
+      }
+
+      const userProfileResult = await handleUserProfileRoute(
+        request,
+        requestUrl.pathname,
+        supabaseAdminUserRepository,
+      );
+      if (userProfileResult) {
+        sendJson(request, response, userProfileResult.statusCode, userProfileResult.body);
+        return;
+      }
     }
 
   } catch {

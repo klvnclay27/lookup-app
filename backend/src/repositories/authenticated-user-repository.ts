@@ -11,9 +11,11 @@ import { UsernameUnavailableError } from './user-repository.ts';
 
 type SupabaseProfileRow = {
   created_at: string;
+  display_name: string;
   id: string;
+  smart_mode_enabled: boolean;
   updated_at: string;
-  username: string;
+  username: string | null;
 };
 
 type SupabaseConfiguration = {
@@ -39,7 +41,9 @@ function isProfileRow(value: unknown, userId: string): value is SupabaseProfileR
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const row = value as Partial<SupabaseProfileRow>;
   return row.id === userId
-    && typeof row.username === 'string'
+    && (row.username === null || typeof row.username === 'string')
+    && typeof row.display_name === 'string'
+    && typeof row.smart_mode_enabled === 'boolean'
     && typeof row.created_at === 'string'
     && typeof row.updated_at === 'string';
 }
@@ -51,17 +55,33 @@ function parseProfileRows(value: unknown, userId: string): SupabaseProfileRow[] 
   return value;
 }
 
+function toUserProfile(row: SupabaseProfileRow): UserProfile {
+  return {
+    userId: row.id,
+    displayName: row.display_name,
+    smartModeEnabled: row.smart_mode_enabled,
+    ...(row.username ? { username: row.username } : {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function responseIsUniqueConflict(response: Response): Promise<boolean> {
+  if (response.status === 409) return true;
+  if (response.status !== 400) return false;
+  try {
+    const body = await response.clone().json() as { code?: unknown };
+    return body.code === '23505';
+  } catch {
+    return false;
+  }
+}
+
 export class AuthenticatedUserRepository implements UserRepository {
   private readonly accessToken: string;
   private readonly authenticatedUserId: string;
-  private readonly localRepository: UserRepository;
 
-  constructor(
-    localRepository: UserRepository,
-    authenticatedUserId: string,
-    accessToken: string,
-  ) {
-    this.localRepository = localRepository;
+  constructor(authenticatedUserId: string, accessToken: string) {
     this.authenticatedUserId = authenticatedUserId;
     this.accessToken = accessToken;
   }
@@ -88,89 +108,77 @@ export class AuthenticatedUserRepository implements UserRepository {
     }
   }
 
-  private async getSupabaseProfile(userId: UserId): Promise<SupabaseProfileRow | null> {
+  private async getRow(userId: UserId): Promise<SupabaseProfileRow | null> {
     this.assertCurrentUser(userId);
-    const response = await this.request(`?id=eq.${encodeURIComponent(userId)}&select=id,username,created_at,updated_at`);
+    const response = await this.request(`?id=eq.${encodeURIComponent(userId)}&select=id,username,display_name,smart_mode_enabled,created_at,updated_at`);
     if (!response.ok) throw new SupabaseProfileUnavailableError();
     const rows = parseProfileRows(await response.json() as unknown, userId);
     return rows[0] ?? null;
   }
 
-  private async createSupabaseProfile(userId: UserId, username: string): Promise<SupabaseProfileRow> {
-    this.assertCurrentUser(userId);
-    const response = await this.request('?select=id,username,created_at,updated_at', {
-      body: JSON.stringify({ id: userId, username }),
+  private async insertRow(profile: NewUserProfile): Promise<SupabaseProfileRow> {
+    this.assertCurrentUser(profile.userId);
+    const response = await this.request('?select=id,username,display_name,smart_mode_enabled,created_at,updated_at', {
+      body: JSON.stringify({
+        id: profile.userId,
+        username: profile.username ?? null,
+        display_name: profile.displayName,
+        smart_mode_enabled: profile.smartModeEnabled,
+      }),
       headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
       method: 'POST',
     });
-    if (response.status === 409) throw new UsernameUnavailableError();
+    if (await responseIsUniqueConflict(response)) throw new UsernameUnavailableError();
     if (!response.ok) throw new SupabaseProfileUnavailableError();
-    const rows = parseProfileRows(await response.json() as unknown, userId);
-    if (!rows[0]) throw new SupabaseProfileUnavailableError();
-    return rows[0];
-  }
-
-  private async updateSupabaseUsername(userId: UserId, username: string): Promise<SupabaseProfileRow> {
-    this.assertCurrentUser(userId);
-    const response = await this.request(
-      `?id=eq.${encodeURIComponent(userId)}&select=id,username,created_at,updated_at`,
-      {
-        body: JSON.stringify({ updated_at: new Date().toISOString(), username }),
-        headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
-        method: 'PATCH',
-      },
-    );
-    if (response.status === 409) throw new UsernameUnavailableError();
-    if (!response.ok) throw new SupabaseProfileUnavailableError();
-    const rows = parseProfileRows(await response.json() as unknown, userId);
+    const rows = parseProfileRows(await response.json() as unknown, profile.userId);
     if (!rows[0]) throw new SupabaseProfileUnavailableError();
     return rows[0];
   }
 
   async createUserProfile(profile: NewUserProfile): Promise<UserProfile> {
     this.assertCurrentUser(profile.userId);
-    const localProfile = await this.localRepository.createUserProfile(profile);
-    let supabaseProfile = await this.getSupabaseProfile(profile.userId);
-    if (!supabaseProfile) {
-      const username = localProfile.username ?? profile.username;
-      if (!username) return localProfile;
-      supabaseProfile = await this.createSupabaseProfile(profile.userId, username);
-    }
-    return { ...localProfile, username: supabaseProfile.username };
+    const existing = await this.getRow(profile.userId);
+    return toUserProfile(existing ?? await this.insertRow(profile));
   }
 
-  getUserProfileByUsername(username: string): Promise<UserProfile | null> {
-    return this.localRepository.getUserProfileByUsername(username);
+  async getUserProfileByUsername(username: string): Promise<UserProfile | null> {
+    const profile = await this.getRow(this.authenticatedUserId);
+    return profile?.username?.toLowerCase() === username.toLowerCase() ? toUserProfile(profile) : null;
   }
 
   async getUserProfile(userId: UserId): Promise<UserProfile | null> {
-    this.assertCurrentUser(userId);
-    const [localProfile, supabaseProfile] = await Promise.all([
-      this.localRepository.getUserProfile(userId),
-      this.getSupabaseProfile(userId),
-    ]);
-    return localProfile && supabaseProfile
-      ? { ...localProfile, username: supabaseProfile.username }
-      : localProfile;
+    const row = await this.getRow(userId);
+    return row ? toUserProfile(row) : null;
   }
 
   async updateUserProfile(userId: UserId, changes: UserProfileChanges): Promise<UserProfile | null> {
     this.assertCurrentUser(userId);
-    let supabaseProfile: SupabaseProfileRow | null = null;
-    if (changes.username) supabaseProfile = await this.updateSupabaseUsername(userId, changes.username);
-    const localProfile = await this.localRepository.updateUserProfile(userId, changes);
-    return localProfile && supabaseProfile
-      ? { ...localProfile, username: supabaseProfile.username }
-      : localProfile;
+    const response = await this.request(
+      `?id=eq.${encodeURIComponent(userId)}&select=id,username,display_name,smart_mode_enabled,created_at,updated_at`,
+      {
+        body: JSON.stringify({
+          ...(changes.displayName !== undefined ? { display_name: changes.displayName } : {}),
+          ...(changes.smartModeEnabled !== undefined ? { smart_mode_enabled: changes.smartModeEnabled } : {}),
+          ...(changes.username !== undefined ? { username: changes.username } : {}),
+          updated_at: new Date().toISOString(),
+        }),
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        method: 'PATCH',
+      },
+    );
+    if (await responseIsUniqueConflict(response)) throw new UsernameUnavailableError();
+    if (!response.ok) throw new SupabaseProfileUnavailableError();
+    const rows = parseProfileRows(await response.json() as unknown, userId);
+    return rows[0] ? toUserProfile(rows[0]) : null;
   }
 
-  getUserPreferences(userId: UserId): Promise<UserPreferences | null> {
-    this.assertCurrentUser(userId);
-    return this.localRepository.getUserPreferences(userId);
+  async getUserPreferences(userId: UserId): Promise<UserPreferences | null> {
+    const profile = await this.getUserProfile(userId);
+    return profile ? { smartModeEnabled: profile.smartModeEnabled } : null;
   }
 
-  updateUserPreferences(userId: UserId, changes: UserPreferencesChanges): Promise<UserPreferences | null> {
-    this.assertCurrentUser(userId);
-    return this.localRepository.updateUserPreferences(userId, changes);
+  async updateUserPreferences(userId: UserId, changes: UserPreferencesChanges): Promise<UserPreferences | null> {
+    const profile = await this.updateUserProfile(userId, changes);
+    return profile ? { smartModeEnabled: profile.smartModeEnabled } : null;
   }
 }

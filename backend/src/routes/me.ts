@@ -5,7 +5,6 @@ import {
   AuthenticatedUserRepository,
   SupabaseProfileUnavailableError,
 } from '../repositories/authenticated-user-repository.ts';
-import type { UserRepository } from '../repositories/user-repository.ts';
 import { UsernameUnavailableError } from '../repositories/user-repository.ts';
 import { handleUserPreferencesRoute } from './preferences.ts';
 import type { ApiRouteResult } from './users.ts';
@@ -17,7 +16,6 @@ const CURRENT_PREFERENCES_ROUTE = '/api/v1/me/preferences';
 export async function handleCurrentUserRoute(
   request: IncomingMessage,
   pathname: string,
-  repository: UserRepository,
 ): Promise<ApiRouteResult | null> {
   if (pathname !== CURRENT_PROFILE_ROUTE && pathname !== CURRENT_PREFERENCES_ROUTE) return null;
 
@@ -34,16 +32,14 @@ export async function handleCurrentUserRoute(
   }
 
   const { displayName, email, userId, username } = authentication.user;
-  await repository.createUserProfile({ displayName, email, smartModeEnabled: true, userId, username });
-
   const encodedUserId = encodeURIComponent(userId);
-  if (pathname === CURRENT_PREFERENCES_ROUTE) {
-    return handleUserPreferencesRoute(request, `/api/v1/users/${encodedUserId}/preferences`, repository);
-  }
 
   try {
-    const authenticatedRepository = new AuthenticatedUserRepository(repository, userId, authentication.accessToken);
+    const authenticatedRepository = new AuthenticatedUserRepository(userId, authentication.accessToken);
     await authenticatedRepository.createUserProfile({ displayName, email, smartModeEnabled: true, userId, username });
+    if (pathname === CURRENT_PREFERENCES_ROUTE) {
+      return handleUserPreferencesRoute(request, `/api/v1/users/${encodedUserId}/preferences`, authenticatedRepository);
+    }
     return handleUserProfileRoute(request, `/api/v1/users/${encodedUserId}/profile`, authenticatedRepository);
   } catch (error) {
     if (error instanceof UsernameUnavailableError) {

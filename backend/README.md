@@ -32,23 +32,21 @@ The response confirms that the local backend process is available:
 }
 ```
 
-## Development user data
+## User data
 
-The backend includes a development-only JSON-file user repository seeded with the non-sensitive user ID `demo-user`. The seed remains an internal development fixture; it is not exposed through a public user-ID route.
+Authenticated account data is stored in the RLS-protected Supabase `public.user_profiles` table. The row ID is the verified Supabase Auth user ID, and username, display name, and Smart Mode are persisted in that row. Run `supabase/migrations/001_persist_account_profiles.sql` in the Supabase SQL Editor before deploying this backend version.
 
-Data is keyed by user ID and stored at `backend/data/users.json`. On first use, a missing file is created with the demo profile; an existing valid file is loaded without being overwritten. Updates use a temporary file and atomic rename. A malformed or unreadable store produces a safe API error instead of silently replacing the file with invented data.
+Normal `/api/v1/me/*` profile and preference requests forward the signed-in user's Bearer token to Supabase, so row-level security enforces ownership. The server-only `SUPABASE_SERVICE_ROLE_KEY` is used only by the public sign-up and username sign-in flow to create a profile and resolve a username to its Supabase Auth user. It must be stored only in the backend environment and must never use an `EXPO_PUBLIC_` name.
 
-The mutable `users.json` file and temporary write files are ignored by Git. This file-backed store is only for local MVP development. The existing `UserRepository` interface is the boundary a future database implementation will replace. No account, authentication, or database service exists yet.
-
-Smart Mode is also exposed through the dedicated preferences endpoints. The preference payload currently contains only `smartModeEnabled`; unsupported preference fields are rejected. The profile endpoint remains backward compatible during this migration.
+Smart Mode is exposed through the dedicated preferences endpoints. The preference payload currently contains only `smartModeEnabled`; unsupported preference fields are rejected.
 
 ## Authentication
 
-The `/api/v1/me/*` routes require a Supabase access token in the `Authorization: Bearer <token>` header. The backend validates the token with Supabase Auth, derives the storage key from the verified token's user ID, and never accepts a client-provided user ID for these routes. A first request creates an isolated local profile with safe defaults when that authenticated user has no profile yet.
+The `/api/v1/me/*` routes require a Supabase access token in the `Authorization: Bearer <token>` header. The backend validates the token with Supabase Auth, derives the storage key from the verified token's user ID, and never accepts a client-provided user ID for these routes. A first request creates an isolated Supabase profile with safe defaults when that authenticated user has no profile yet.
 
 The older `/api/v1/users/:userId/*` routes are not mounted. Authenticated profile and preference access is available only through `/api/v1/me/*`, which derives ownership from the verified Supabase token.
 
-Usernames are normalized to lowercase and stored with the local profile while the verified Supabase user ID remains the authorization and storage identity. Username/password sign-in is proxied through the backend so username-to-email resolution never reaches an unauthenticated client; the backend passes credentials directly to Supabase Auth and does not store or log passwords. Existing users without usernames remain valid and can claim one through their protected profile.
+Usernames are normalized to lowercase and protected by a case-insensitive unique database index. Username/password sign-in is proxied through the backend so username-to-email resolution never reaches an unauthenticated client; the backend passes credentials directly to Supabase Auth and does not store or log passwords. Existing users without usernames remain valid and can claim one through their protected profile.
 
 ## Run locally
 
@@ -96,4 +94,4 @@ npm run start
 
 For local web development, the server returns CORS headers to loopback origins (`localhost`, `127.0.0.1`, or `::1`). A deployed backend must set `LOOKUP_ALLOWED_ORIGINS` to a comma-separated list of exact trusted web origins, such as `https://lookup-app-kc.expo.app`. Wildcard origins are not used, and native applications do not use browser CORS.
 
-No paid service, database server, service-role credential, or backend secret is used at this stage. Supabase Auth and the RLS-protected `public.user_profiles` table use the public project URL and publishable key loaded from the ignored local environment file. Authenticated profile requests forward the user's Bearer token to Supabase; username reads and writes are therefore limited by the table's RLS policies. Display name and Smart Mode remain in the local file-backed store during this migration.
+No paid service or separate database server is used. Supabase Auth and the RLS-protected `public.user_profiles` table remain on the Supabase free tier. Authenticated profile requests forward the user's Bearer token to Supabase. The service-role credential is confined to the backend environment for username lookup and account creation and is never included in the Expo bundle.

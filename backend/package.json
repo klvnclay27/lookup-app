@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=../.env.local --watch src/server.ts",
     "start": "node --env-file-if-exists=../.env.local src/server.ts",
+    "test": "node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

@@ -44,6 +44,7 @@
     "android": "expo start --android",
     "backend:check": "tsc -p backend/tsconfig.json --noEmit",
     "backend:start": "node --env-file-if-exists=.env.local backend/src/server.ts",
+    "backend:test": "npm --prefix backend test",
     "build:web": "expo export --platform web --max-workers 1",
     "ios": "expo start --ios",
     "web": "expo start --web",
