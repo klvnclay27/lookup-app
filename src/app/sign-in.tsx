@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,9 +13,11 @@ export default function SignInScreen() {
   const linkingUrl = Linking.useURL();
   const { recovery, usernameRecovery } = useLocalSearchParams<{ recovery?: string; usernameRecovery?: string }>();
   const { configured, loading: sessionLoading, session } = useAuth();
+  const authenticatedUserId = session?.user.id;
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [accountUsername, setAccountUsername] = useState<string | undefined>();
+  const [profileStatus, setProfileStatus] = useState<'idle' | 'loading' | 'available' | 'error'>('idle');
   const [createMode, setCreateMode] = useState(false);
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -25,18 +27,33 @@ export default function SignInScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const processedRecoveryUrl = useRef<string | null>(null);
 
+  const loadAccountProfile = useCallback(async () => {
+    if (!authenticatedUserId) return;
+
+    setProfileStatus('loading');
+    try {
+      const result = await getCurrentUserProfile();
+      if (result.state !== 'available') {
+        setProfileStatus('error');
+        return;
+      }
+
+      setAccountUsername(result.data.username);
+      setUsername(result.data.username ?? '');
+      setProfileStatus('available');
+    } catch {
+      setProfileStatus('error');
+    }
+  }, [authenticatedUserId]);
+
   useEffect(() => {
-    if (!session) {
+    if (!authenticatedUserId) {
       setAccountUsername(undefined);
+      setProfileStatus('idle');
       return;
     }
-    void getCurrentUserProfile().then((result) => {
-      if (result.state === 'available') {
-        setAccountUsername(result.data.username);
-        setUsername(result.data.username ?? '');
-      }
-    });
-  }, [session?.user.id]);
+    void loadAccountProfile();
+  }, [authenticatedUserId, loadAccountProfile]);
 
   useEffect(() => {
     if (!linkingUrl || processedRecoveryUrl.current === linkingUrl) return;
@@ -202,8 +219,22 @@ export default function SignInScreen() {
             </>
           ) : session ? (
             <>
-              <TextInput autoCapitalize="none" autoCorrect={false} onChangeText={setUsername} placeholder="Choose a username" placeholderTextColor="#8290A2" style={styles.input} value={username} />
-              <Pressable disabled={submitting || username.trim().toLowerCase() === accountUsername} onPress={handleSaveUsername} style={({ pressed }) => [styles.primaryButton, (submitting || username.trim().toLowerCase() === accountUsername) && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{accountUsername ? 'Update username' : 'Set username'}</Text></Pressable>
+              {profileStatus === 'idle' || profileStatus === 'loading' ? (
+                <View accessibilityLiveRegion="polite" style={styles.profileState}>
+                  <ActivityIndicator color="#1FA968" />
+                  <Text style={styles.profileStateText}>Loading your account…</Text>
+                </View>
+              ) : profileStatus === 'error' ? (
+                <View accessibilityLiveRegion="polite" style={styles.profileState}>
+                  <Text style={styles.profileErrorText}>We couldn’t load your account details. Please try again.</Text>
+                  <Pressable accessibilityRole="button" onPress={loadAccountProfile} style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>Retry</Text></Pressable>
+                </View>
+              ) : (
+                <>
+                  <TextInput autoCapitalize="none" autoCorrect={false} onChangeText={setUsername} placeholder="Choose a username" placeholderTextColor="#8290A2" style={styles.input} value={username} />
+                  <Pressable disabled={submitting || username.trim().toLowerCase() === accountUsername} onPress={handleSaveUsername} style={({ pressed }) => [styles.primaryButton, (submitting || username.trim().toLowerCase() === accountUsername) && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{accountUsername ? 'Update username' : 'Set username'}</Text></Pressable>
+                </>
+              )}
               <Pressable disabled={submitting} onPress={handleSignOut} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>Sign out</Text></Pressable>
             </>
           ) : (
@@ -242,6 +273,10 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   secondaryButton: { alignItems: 'center', borderColor: '#9EADBD', borderRadius: 14, borderWidth: 1, height: 50, justifyContent: 'center' },
   secondaryButtonText: { color: '#30445E', fontSize: 15, fontWeight: '800' },
+  profileState: { alignItems: 'center', gap: 12, paddingVertical: 12 },
+  profileStateText: { color: '#66758A', fontSize: 14, lineHeight: 20 },
+  profileErrorText: { color: '#5B3B3B', fontSize: 13, lineHeight: 18, textAlign: 'center' },
+  retryButton: { alignItems: 'center', borderColor: '#9EADBD', borderRadius: 12, borderWidth: 1, justifyContent: 'center', minHeight: 42, paddingHorizontal: 24 },
   forgotButton: { alignSelf: 'flex-end', marginTop: -5, paddingVertical: 4 },
   forgotRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   forgotText: { color: '#1B7C54', fontSize: 13, fontWeight: '700' },
