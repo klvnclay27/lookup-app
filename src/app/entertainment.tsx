@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
+import { SocialHub } from '@/components/social-hub';
 import {
   getEntertainment,
   MOCK_ENTERTAINMENT_SNAPSHOT,
@@ -138,6 +139,8 @@ export default function EntertainmentScreen() {
       ) : (
         <>
           <FeaturedStory story={featuredStory} onRead={() => Alert.alert(featuredStory.headline, featuredStory.summary)} />
+
+          <SocialHub />
 
           <View style={styles.section}>
             <SectionHeader title="Trending Now" />
