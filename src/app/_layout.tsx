@@ -1,7 +1,8 @@
-import { DarkTheme, DefaultTheme, ThemeProvider, Tabs } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider, Tabs, usePathname } from 'expo-router';
 import { GlassView } from 'expo-glass-effect';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Platform, StyleSheet, Text, useColorScheme, useWindowDimensions, View, type ColorValue } from 'react-native';
+import { useRef, useState } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, Text, useColorScheme, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -21,7 +22,7 @@ function TabLabel({ color, compact, label }: { color: ColorValue; compact: boole
     <Text
       adjustsFontSizeToFit={!isWeb}
       minimumFontScale={0.62}
-      numberOfLines={isWeb ? undefined : 1}
+      numberOfLines={1}
       style={[
         styles.tabLabel,
         compact && styles.tabLabelCompact,
@@ -36,12 +37,38 @@ function TabLabel({ color, compact, label }: { color: ColorValue; compact: boole
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const pathname = usePathname();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [tabBarCollapsed, setTabBarCollapsed] = useState(false);
+  const tabBarProgress = useRef(new Animated.Value(1)).current;
   const compact = width < 430;
   const iconSize = compact ? 18 : 20;
   const tabBarBaseHeight = Platform.OS === 'web' ? (compact ? 72 : 57) : (compact ? 52 : 55);
   const tabBarSideInset = Math.max(12, (width - MAX_APP_SHELL_WIDTH) / 2);
+  const tabBarBottom = Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8);
+  const tabBarControlsVisible = pathname !== '/sign-in';
+  const hiddenTabOffset = tabBarBaseHeight + tabBarBottom + 24;
+
+  const collapseTabBar = () => {
+    setTabBarCollapsed(true);
+    Animated.timing(tabBarProgress, {
+      duration: 220,
+      toValue: 0,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  };
+
+  const restoreTabBar = () => {
+    Animated.timing(tabBarProgress, {
+      duration: 220,
+      toValue: 1,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(({ finished }) => {
+      if (finished) setTabBarCollapsed(false);
+    });
+  };
+
   return (
     <AuthProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -53,15 +80,22 @@ export default function TabLayout() {
           tabBarAllowFontScaling: false,
           tabBarHideOnKeyboard: true,
           tabBarInactiveTintColor: INACTIVE_COLOR,
-          tabBarItemStyle: [styles.tabItem, Platform.OS === 'web' && compact && styles.tabItemCompactWeb],
+          tabBarItemStyle: [styles.tabItem, Platform.OS === 'web' && styles.tabItemWeb, Platform.OS === 'web' && compact && styles.tabItemCompactWeb],
           tabBarLabelPosition: 'below-icon',
           tabBarBackground: () => <GlassView colorScheme="light" glassEffectStyle="regular" style={StyleSheet.absoluteFill} tintColor="rgba(225, 231, 238, 0.94)" />,
           tabBarStyle: [styles.tabBar, compact && styles.tabBarCompact, {
-            bottom: Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8),
+            bottom: tabBarBottom,
             height: tabBarBaseHeight,
             left: tabBarSideInset,
+            opacity: tabBarProgress,
             paddingBottom: Platform.OS === 'web' ? (compact ? 10 : 6) : 4,
             right: tabBarSideInset,
+            transform: [{
+              translateY: tabBarProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [hiddenTabOffset, 0],
+              }),
+            }],
           }],
         }}>
         <Tabs.Screen name="index" options={{ title: 'Home', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="Home" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'house.fill', android: 'home', web: 'home' }} size={iconSize} /> }} />
@@ -76,6 +110,23 @@ export default function TabLayout() {
         <Tabs.Screen name="game-details" options={{ title: 'Game Details', href: null }} />
         <Tabs.Screen name="sign-in" options={{ title: 'Account', href: null, tabBarStyle: { display: 'none' } }} />
         </Tabs>
+        {tabBarControlsVisible ? tabBarCollapsed ? (
+          <Animated.View style={[styles.restoreControlPosition, {
+            bottom: tabBarBottom,
+            opacity: tabBarProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+          }]}>
+            <Pressable accessibilityLabel="Show bottom navigation" accessibilityRole="button" onPress={restoreTabBar} style={({ pressed }) => [styles.restoreControl, pressed && styles.controlPressed]}>
+              <SymbolView name={{ ios: 'chevron.up', android: 'keyboard_arrow_up', web: 'keyboard_arrow_up' }} size={16} tintColor="#40536A" />
+            </Pressable>
+          </Animated.View>
+        ) : (
+          <Pressable accessibilityLabel="Hide bottom navigation" accessibilityRole="button" onPress={collapseTabBar} style={({ pressed }) => [styles.collapseControl, {
+            bottom: tabBarBottom + tabBarBaseHeight + 4,
+            right: tabBarSideInset + 8,
+          }, pressed && styles.controlPressed]}>
+            <SymbolView name={{ ios: 'chevron.down', android: 'keyboard_arrow_down', web: 'keyboard_arrow_down' }} size={14} tintColor="#40536A" />
+          </Pressable>
+        ) : null}
       </ThemeProvider>
     </AuthProvider>
   );
@@ -101,13 +152,18 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
   },
   tabBarCompact: { paddingHorizontal: 1, paddingTop: Platform.OS === 'web' ? 5 : 3 },
-  tabItem: { marginHorizontal: 0, marginVertical: 0, minWidth: 0, paddingHorizontal: 0 },
+  tabItem: { flexBasis: 0, flexGrow: 1, flexShrink: 1, marginHorizontal: 0, marginVertical: 0, minWidth: 0, paddingHorizontal: 0, width: '12.5%' },
+  tabItemWeb: { paddingHorizontal: 1 },
   tabItemCompactWeb: { minHeight: 56 },
   tabLabel: { fontSize: 10, fontWeight: '700', lineHeight: 12, maxWidth: '100%', textAlign: 'center', textDecorationLine: 'none' },
-  tabLabelCompact: { fontSize: 9, lineHeight: 12 },
+  tabLabelCompact: { fontSize: 9, lineHeight: 12, minWidth: 44 },
   tabLabelWeb: { minHeight: 12, overflow: 'visible' },
   tabLabelCompactWeb: { lineHeight: 14, minHeight: 14 },
   iconContainer: { alignItems: 'center', height: 22, justifyContent: 'center', position: 'relative', width: 34 },
   activeIndicator: { backgroundColor: '#69E08C', borderRadius: 2, height: 2, position: 'absolute', top: -4, width: 18 },
   iconFallback: { fontSize: 15, lineHeight: 18 },
+  collapseControl: { alignItems: 'center', backgroundColor: 'rgba(225, 231, 238, 0.96)', borderColor: 'rgba(70, 92, 118, 0.14)', borderRadius: 12, borderWidth: 1, elevation: 5, height: 24, justifyContent: 'center', position: 'absolute', shadowColor: '#465C76', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 8, width: 32, zIndex: 20 },
+  restoreControlPosition: { alignItems: 'center', left: 0, position: 'absolute', right: 0, zIndex: 20 },
+  restoreControl: { alignItems: 'center', backgroundColor: 'rgba(225, 231, 238, 0.97)', borderColor: 'rgba(70, 92, 118, 0.16)', borderRadius: 14, borderWidth: 1, elevation: 6, height: 28, justifyContent: 'center', shadowColor: '#465C76', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.12, shadowRadius: 9, width: 48 },
+  controlPressed: { opacity: 0.72 },
 });
