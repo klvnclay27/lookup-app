@@ -42,7 +42,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const [tabBarCollapsed, setTabBarCollapsed] = useState(false);
   const tabBarProgress = useRef(new Animated.Value(1)).current;
-  const compact = width < 430;
+  const compact = width <= 430;
   const iconSize = compact ? 18 : 20;
   const tabBarBaseHeight = Platform.OS === 'web' ? (compact ? 72 : 57) : (compact ? 52 : 55);
   const tabBarSideInset = Math.max(12, (width - MAX_APP_SHELL_WIDTH) / 2);
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   tabItemWeb: { paddingHorizontal: 1 },
   tabItemCompactWeb: { minHeight: 56 },
   tabLabel: { fontSize: 10, fontWeight: '700', lineHeight: 12, maxWidth: '100%', textAlign: 'center', textDecorationLine: 'none' },
-  tabLabelCompact: { fontSize: 9, lineHeight: 12, minWidth: 44 },
+  tabLabelCompact: { fontSize: 8, lineHeight: 12, minWidth: 40 },
   tabLabelWeb: { minHeight: 12, overflow: 'visible' },
   tabLabelCompactWeb: { lineHeight: 14, minHeight: 14 },
   iconContainer: { alignItems: 'center', height: 22, justifyContent: 'center', position: 'relative', width: 34 },
