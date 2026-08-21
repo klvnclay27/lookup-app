@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { router } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +15,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
-import { SocialHub } from '@/components/social-hub';
 import {
   getEntertainment,
   MOCK_ENTERTAINMENT_SNAPSHOT,
@@ -140,7 +140,7 @@ export default function EntertainmentScreen() {
         <>
           <FeaturedStory story={featuredStory} onRead={() => Alert.alert(featuredStory.headline, featuredStory.summary)} />
 
-          <SocialHub />
+          <SocialHubOption onOpen={() => router.push('/social-hub')} />
 
           <View style={styles.section}>
             <SectionHeader title="Trending Now" />
@@ -216,6 +216,19 @@ function FeaturedStory({ story, onRead }: { story: Story; onRead: () => void }) 
         <Pressable onPress={onRead} style={({ pressed }) => [styles.readButton, pressed && styles.pressed]}><Text style={styles.readButtonText}>Read Story</Text></Pressable>
       </View>
     </View>
+  );
+}
+
+function SocialHubOption({ onOpen }: { onOpen: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Open Social Hub" onPress={onOpen} style={({ pressed }) => [styles.socialHubOption, pressed && styles.cardPressed]}>
+      <View style={styles.socialHubOptionCopy}>
+        <Text style={styles.socialHubEyebrow}>SOCIAL · DEMO</Text>
+        <Text style={styles.socialHubTitle}>Social Hub</Text>
+        <Text style={styles.socialHubDescription}>Messages, updates, and posting in one place.</Text>
+      </View>
+      <View style={styles.socialHubAction}><Text style={styles.socialHubActionText}>Open Social Hub</Text><Text style={styles.socialHubArrow}>›</Text></View>
+    </Pressable>
   );
 }
 
@@ -339,6 +352,14 @@ const styles = StyleSheet.create({
   featuredMeta: { color: '#939DA8', fontSize: 11, marginTop: 10 },
   readButton: { alignSelf: 'flex-start', backgroundColor: '#69E08C', borderRadius: 18, paddingHorizontal: 18, paddingVertical: 10, marginTop: 16 },
   readButtonText: { color: '#09140E', fontSize: 12, fontWeight: '900' },
+  socialHubOption: { alignItems: 'center', backgroundColor: '#131B23', borderColor: '#2B3947', borderRadius: 18, borderWidth: 1, flexDirection: 'row', gap: 16, justifyContent: 'space-between', marginBottom: 38, padding: 16 },
+  socialHubOptionCopy: { flex: 1, minWidth: 0 },
+  socialHubEyebrow: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  socialHubTitle: { color: '#F8FAFC', fontSize: 19, fontWeight: '900', marginTop: 4 },
+  socialHubDescription: { color: '#8C99A7', fontSize: 11, lineHeight: 16, marginTop: 3 },
+  socialHubAction: { alignItems: 'center', backgroundColor: '#1A3025', borderRadius: 14, flexDirection: 'row', gap: 5, paddingHorizontal: 12, paddingVertical: 9 },
+  socialHubActionText: { color: '#69E08C', fontSize: 10, fontWeight: '900' },
+  socialHubArrow: { color: '#69E08C', fontSize: 17, lineHeight: 17 },
   section: { marginBottom: 52 },
   sectionLast: { marginBottom: 14 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },

@@ -14,13 +14,13 @@ const PLATFORM_MARKS: Record<SocialPlatform, string> = {
   Instagram: 'IG',
   X: 'X',
   Facebook: 'f',
-  Threads: '@',
   TikTok: 'TT',
 };
 
 export function SocialHub() {
   const { width } = useWindowDimensions();
   const tablet = isTabletWidth(width);
+  const narrowPhone = width <= 430;
   const [connected, setConnected] = useState<SocialPlatform[]>(() =>
     MOCK_SOCIAL_ACCOUNTS
       .filter((account) => account.initiallyConnected)
@@ -69,7 +69,7 @@ export function SocialHub() {
         {MOCK_SOCIAL_ACCOUNTS.map((account) => {
           const isConnected = connectedSet.has(account.platform);
           return (
-            <View key={account.id} style={[styles.accountCard, tablet ? styles.accountCardTablet : styles.accountCardPhone]}>
+            <View key={account.id} style={[styles.accountCard, tablet ? styles.accountCardTablet : styles.accountCardPhone, narrowPhone && styles.accountCardNarrow]}>
               <View style={styles.platformMark}><Text style={styles.platformMarkText}>{PLATFORM_MARKS[account.platform]}</Text></View>
               <View style={styles.accountCopy}><Text numberOfLines={1} style={styles.platformName}>{account.platform}</Text><Text style={[styles.connectionState, isConnected && styles.connectedState]}>{isConnected ? 'Connected' : 'Not connected'}</Text></View>
               <Pressable
@@ -149,6 +149,7 @@ const styles = StyleSheet.create({
   accountCard: { alignItems: 'center', backgroundColor: '#171F28', borderColor: '#2A3541', borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 6, minHeight: 50, padding: 7 },
   accountCardPhone: { width: '48.5%' },
   accountCardTablet: { width: '32.4%' },
+  accountCardNarrow: { width: '100%' },
   platformMark: { alignItems: 'center', backgroundColor: '#22303C', borderRadius: 9, height: 26, justifyContent: 'center', width: 26 },
   platformMarkText: { color: '#EAF2F7', fontSize: 10, fontWeight: '900' },
   accountCopy: { flex: 1, minWidth: 0 },

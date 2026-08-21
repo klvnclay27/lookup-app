@@ -108,6 +108,7 @@ export default function TabLayout() {
         <Tabs.Screen name="my-locker" options={{ title: 'My Locker', tabBarLabel: ({ color }) => <TabLabel color={color} compact={compact} label="My Locker" />, tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name={{ ios: 'tshirt.fill', android: 'checkroom', web: 'checkroom' }} size={iconSize} /> }} />
         <Tabs.Screen name="explore" options={{ title: 'Explore', href: null }} />
         <Tabs.Screen name="game-details" options={{ title: 'Game Details', href: null }} />
+        <Tabs.Screen name="social-hub" options={{ title: 'Social Hub', href: null }} />
         <Tabs.Screen name="sign-in" options={{ title: 'Account', href: null, tabBarStyle: { display: 'none' } }} />
         </Tabs>
         {tabBarControlsVisible ? tabBarCollapsed ? (
