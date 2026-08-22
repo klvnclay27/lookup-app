@@ -117,7 +117,7 @@ export default function MusicScreen() {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator color="#69E08C" size="large" />
-        <Text style={styles.loadingText}>Loading your soundtrack…</Text>
+        <Text style={styles.loadingText}>Loading your rhythm…</Text>
       </View>
     );
   }
@@ -125,7 +125,7 @@ export default function MusicScreen() {
   if (error) {
     return (
       <View style={styles.loadingScreen}>
-        <Text style={styles.errorTitle}>Music is unavailable</Text>
+        <Text style={styles.errorTitle}>Rhythm is unavailable</Text>
         <Text style={styles.loadingText}>{error}</Text>
         <Pressable onPress={() => { void loadMusic(); }} style={styles.retryButton}><Text style={styles.retryText}>Try again</Text></Pressable>
       </View>
@@ -147,21 +147,21 @@ export default function MusicScreen() {
         ]}>
         <View style={styles.header}>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>YOUR SOUNDTRACK</Text>
-            <Text style={styles.title}>Music</Text>
+            <Text style={styles.eyebrow}>YOUR RHYTHM</Text>
+            <Text style={styles.title}>Rhythm</Text>
             <Text style={styles.subtitle}>Play it your way.</Text>
           </View>
           <View style={styles.headerActions}>
             <Pressable accessibilityLabel="Open profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}>
               <Text style={styles.profileText}>LU</Text>
             </Pressable>
-            <Pressable accessibilityLabel="Music filters" onPress={() => Alert.alert('Music filters', 'Filter controls are coming soon.')} style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}>
+            <Pressable accessibilityLabel="Rhythm filters" onPress={() => Alert.alert('Rhythm filters', 'Filter controls are coming soon.')} style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}>
               <Text style={styles.filterIcon}>≡</Text>
             </Pressable>
           </View>
         </View>
 
-        {musicProvenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED MUSIC DATA</Text> : null}
+        {musicProvenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED RHYTHM DATA</Text> : null}
 
         <View style={styles.searchBar}>
           <Text style={styles.searchIcon}>⌕</Text>

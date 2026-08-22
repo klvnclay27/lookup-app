@@ -19,13 +19,17 @@ import {
   getEntertainment,
   MOCK_ENTERTAINMENT_SNAPSHOT,
   searchEntertainment,
+  STREAMING_SERVICES,
   type EntertainmentCategory as Category,
+  type EntertainmentCreator as Creator,
   type EntertainmentDataProvenance,
+  type EntertainmentLocalEvent as LocalEvent,
   type EntertainmentMediaTitle as MediaTitle,
   type EntertainmentSnapshot,
   type EntertainmentStory as Story,
   type EntertainmentStreamingPick as StreamingPick,
   type EntertainmentUpcoming as Upcoming,
+  type StreamingServiceName,
 } from '@/services/entertainment';
 
 export default function EntertainmentScreen() {
@@ -38,8 +42,9 @@ export default function EntertainmentScreen() {
   const [selectedStory, setSelectedStory] = useState<Story>(MOCK_ENTERTAINMENT_SNAPSHOT.stories[0]);
   const [query, setQuery] = useState('');
   const [watchlist, setWatchlist] = useState<string[]>(['north-star']);
-  const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [reminders, setReminders] = useState<string[]>(['atlas']);
+  const [selectedServices, setSelectedServices] = useState<StreamingServiceName[]>(['Netflix', 'Hulu', 'Max']);
+  const [followedCreators, setFollowedCreators] = useState<string[]>(['creator-roam', 'creator-thread']);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,7 +65,7 @@ export default function EntertainmentScreen() {
     void loadEntertainment();
   }, []);
 
-  const { categories, media, stories, streamingPicks, upcoming } = entertainment;
+  const { aroundYou, categories, creators, media, stories, streamingPicks, upcoming } = entertainment;
 
   const visibleStories = useMemo(
     () => selectedCategory === 'For You' ? stories : stories.filter((story) => story.category === selectedCategory),
@@ -74,20 +79,44 @@ export default function EntertainmentScreen() {
     () => selectedCategory === 'For You' ? upcoming : upcoming.filter((item) => item.category === selectedCategory),
     [selectedCategory, upcoming],
   );
+  const supportedStreamingPicks = useMemo(
+    () => streamingPicks.filter((pick): pick is StreamingPick & { platform: StreamingServiceName } => STREAMING_SERVICES.some((service) => service === pick.platform)),
+    [streamingPicks],
+  );
+  const filteredStreamingPicks = useMemo(
+    () => selectedServices.length ? supportedStreamingPicks.filter((pick) => selectedServices.includes(pick.platform)) : [],
+    [selectedServices, supportedStreamingPicks],
+  );
+  const followedCreatorsFirst = useMemo(
+    () => [...creators].sort((first, second) => Number(followedCreators.includes(second.id)) - Number(followedCreators.includes(first.id))),
+    [creators, followedCreators],
+  );
+  const preferredCreator = useMemo(
+    () => followedCreatorsFirst.find((creator) => followedCreators.includes(creator.id)) ?? creators[0],
+    [creators, followedCreators, followedCreatorsFirst],
+  );
+  const preferredMedia = useMemo(() => {
+    const selectedTitles = new Set(
+      filteredStreamingPicks.flatMap((pick) => pick.titles.map((title) => title.toLowerCase())),
+    );
+    return [...visibleMedia].sort(
+      (first, second) => Number(selectedTitles.has(second.title.toLowerCase())) - Number(selectedTitles.has(first.title.toLowerCase())),
+    );
+  }, [filteredStreamingPicks, visibleMedia]);
   const featuredStory = visibleStories.some((story) => story.id === selectedStory.id) ? selectedStory : visibleStories[0] ?? stories[0];
 
-  const toggle = (id: string, setter: Dispatch<SetStateAction<string[]>>) => {
+  const toggle = <T extends string,>(id: T, setter: Dispatch<SetStateAction<T[]>>) => {
     setter((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   };
 
   if (isLoading) {
-    return <ScreenState loading title="Loading your entertainment feed" copy="Finding what everyone’s watching…" />;
+    return <ScreenState loading title="Loading your media feed" copy="Finding something worth watching, following, or doing…" />;
   }
 
   if (error) {
-    return <ScreenState title="Entertainment is unavailable" copy={error} action="Try again" onAction={() => { void loadEntertainment(); }} />;
+    return <ScreenState title="Media is unavailable" copy={error} action="Try again" onAction={() => { void loadEntertainment(); }} />;
   }
-  if (!featuredStory) return <ScreenState title="Entertainment is unavailable" copy="No entertainment content is available right now." action="Try again" onAction={() => { void loadEntertainment(); }} />;
+  if (!featuredStory) return <ScreenState title="Media is unavailable" copy="No media content is available right now." action="Try again" onAction={() => { void loadEntertainment(); }} />;
 
   return (
     <ScrollView
@@ -100,24 +129,24 @@ export default function EntertainmentScreen() {
       ]}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>YOUR ENTERTAINMENT HUB</Text>
-          <Text style={[styles.title, !isDesktop && styles.titleMobile]}>Entertainment</Text>
-          <Text style={styles.subtitle}>What everyone’s watching.</Text>
+          <Text style={styles.eyebrow}>YOUR MEDIA HUB</Text>
+          <Text style={[styles.title, !isDesktop && styles.titleMobile]}>Media</Text>
+          <Text style={styles.subtitle}>Watch, follow, discover, and go.</Text>
         </View>
         <View style={styles.headerActions}>
           <Pressable accessibilityLabel="Open profile" onPress={() => Alert.alert('Profile', 'LookUP profile controls are coming soon.')} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}><Text style={styles.profileText}>LU</Text></Pressable>
-          <Pressable accessibilityLabel="Entertainment filters" onPress={() => Alert.alert('Filters', 'More entertainment filters are coming soon.')} style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}><Text style={styles.filterIcon}>≡</Text></Pressable>
+          <Pressable accessibilityLabel="Media filters" onPress={() => Alert.alert('Filters', 'More media filters are coming soon.')} style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}><Text style={styles.filterIcon}>≡</Text></Pressable>
         </View>
       </View>
 
       <View style={styles.searchBar}>
         <Text style={styles.searchIcon}>⌕</Text>
         <TextInput
-          accessibilityLabel="Search entertainment"
+          accessibilityLabel="Search media"
           autoCapitalize="none"
           autoCorrect={false}
           onChangeText={setQuery}
-          placeholder="Search movies, shows, artists, stories"
+          placeholder="Search movies, shows, creators, stories"
           placeholderTextColor="#7E8793"
           returnKeyType="search"
           style={styles.searchInput}
@@ -126,24 +155,47 @@ export default function EntertainmentScreen() {
         {query.length > 0 && <Pressable accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}><Text style={styles.clearIcon}>×</Text></Pressable>}
       </View>
 
+      <MyServices selected={selectedServices} onToggle={(service) => toggle(service, setSelectedServices)} />
+
+      <SocialHubOption onOpen={() => router.push('/social-hub')} />
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
         {categories.map((category) => {
           const active = selectedCategory === category;
           return <Pressable key={category} onPress={() => setSelectedCategory(category)} style={({ pressed }) => [styles.categoryPill, active && styles.categoryPillActive, pressed && styles.pressed]}><Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category}</Text></Pressable>;
         })}
       </ScrollView>
-      {provenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED ENTERTAINMENT DATA</Text> : null}
+      {provenance === 'mock' ? <Text style={styles.simulatedDataLabel}>SIMULATED MEDIA DATA</Text> : null}
 
       {query.trim() ? (
         <SearchResults entertainment={entertainment} query={query.trim()} onStory={setSelectedStory} />
       ) : (
         <>
-          <FeaturedStory story={featuredStory} onRead={() => Alert.alert(featuredStory.headline, featuredStory.summary)} />
-
-          <SocialHubOption onOpen={() => router.push('/social-hub')} />
+          <View style={styles.section}>
+            <SectionHeader title="For You" />
+            <FeaturedStory story={featuredStory} onRead={() => Alert.alert(featuredStory.headline, featuredStory.summary)} />
+            <ForYouRail creator={preferredCreator} event={aroundYou[0]} media={preferredMedia} />
+          </View>
 
           <View style={styles.section}>
-            <SectionHeader title="Trending Now" />
+            <SectionHeader title="Creators" />
+            <Text style={styles.sectionIntro}>People and perspectives across the topics you care about.</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
+              {followedCreatorsFirst.map((creator) => <CreatorCard followed={followedCreators.includes(creator.id)} key={creator.id} creator={creator} onToggle={() => toggle(creator.id, setFollowedCreators)} />)}
+            </ScrollView>
+          </View>
+
+          <View style={styles.section}>
+            <SectionHeader title="Around You" />
+            <Text style={styles.sectionIntro}>Mock local picks for now. Location access is not enabled.</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
+              {aroundYou.map((event) => <LocalEventCard event={event} key={event.id} />)}
+            </ScrollView>
+          </View>
+
+          <View style={styles.section}>
+            <SectionHeader title="New & Trending" />
+            <Text style={styles.sectionIntro}>{selectedServices.length ? 'Prioritized using your selected services.' : 'Choose your services above to personalize these picks.'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
               {visibleStories.slice(0, 6).map((story) => <TrendingCard key={story.id} story={story} onPress={() => setSelectedStory(story)} />)}
             </ScrollView>
@@ -159,18 +211,6 @@ export default function EntertainmentScreen() {
           </View>
 
           <View style={styles.section}>
-            <SectionHeader title="Celebrity Buzz" />
-            <View style={styles.storiesCard}>
-              {stories.filter((story) => story.category === 'Celebrity').slice(0, 4).map((story, index) => (
-                <View key={story.id}>
-                  <StoryRow story={story} saved={bookmarks.includes(story.id)} onSelect={() => setSelectedStory(story)} onBookmark={() => toggle(story.id, setBookmarks)} />
-                  {index < 3 && <View style={styles.divider} />}
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.section}>
             <SectionHeader title="Coming Soon" />
             {visibleUpcoming.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
@@ -181,13 +221,64 @@ export default function EntertainmentScreen() {
 
           <View style={styles.sectionLast}>
             <SectionHeader title="Streaming Picks" />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
-              {streamingPicks.map((pick) => <StreamingCard key={pick.platform} pick={pick} />)}
-            </ScrollView>
+            {filteredStreamingPicks.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
+                {filteredStreamingPicks.map((pick) => <StreamingCard key={pick.platform} pick={pick} />)}
+              </ScrollView>
+            ) : <EmptyState title="Choose your services" copy="Select your streaming services above to see picks from services you use." />}
           </View>
         </>
       )}
     </ScrollView>
+  );
+}
+
+function MyServices({ selected, onToggle }: { selected: StreamingServiceName[]; onToggle: (service: StreamingServiceName) => void }) {
+  return (
+    <View style={styles.servicesSection}>
+      <View style={styles.servicesHeader}><View><Text style={styles.servicesEyebrow}>YOUR PREFERENCES</Text><Text style={styles.servicesTitle}>My Services</Text></View><Text style={styles.servicesCount}>{selected.length} selected</Text></View>
+      <Text style={styles.servicesCopy}>Choose the streaming services you use. No account connection is required.</Text>
+      <View style={styles.servicesGrid}>
+        {STREAMING_SERVICES.map((service) => {
+          const active = selected.includes(service);
+          return <Pressable accessibilityLabel={`${active ? 'Remove' : 'Select'} ${service}`} accessibilityRole="button" key={service} onPress={() => onToggle(service)} style={({ pressed }) => [styles.servicePill, active && styles.servicePillActive, pressed && styles.pressed]}><Text style={[styles.servicePillText, active && styles.servicePillTextActive]}>{active ? '✓ ' : ''}{service}</Text></Pressable>;
+        })}
+      </View>
+    </View>
+  );
+}
+
+function ForYouRail({ creator, event, media }: { creator?: Creator; event?: LocalEvent; media: MediaTitle[] }) {
+  const picks = [
+    media[0] ? { id: `media-${media[0].id}`, label: 'MOVIE PICK', title: media[0].title, meta: `${media[0].genre} · ${media[0].year}`, colors: media[0].colors } : null,
+    media[1] ? { id: `media-${media[1].id}`, label: 'SHOW PICK', title: media[1].title, meta: `${media[1].genre} · ${media[1].year}`, colors: media[1].colors } : null,
+    creator ? { id: creator.id, label: 'CREATOR', title: creator.name, meta: `${creator.category} · ${creator.platform}`, colors: creator.colors } : null,
+    event ? { id: event.id, label: 'AROUND YOU', title: event.title, meta: `${event.date} · ${event.area}`, colors: event.colors } : null,
+  ].filter((item): item is NonNullable<typeof item> => item !== null);
+
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.forYouRail}>{picks.map((pick) => <Pressable key={pick.id} onPress={() => Alert.alert(pick.title, pick.meta)} style={({ pressed }) => [styles.forYouCard, { backgroundColor: pick.colors[0] }, pressed && styles.cardPressed]}><View style={[styles.forYouOrb, { backgroundColor: pick.colors[1] }]} /><Text style={styles.forYouLabel}>{pick.label}</Text><Text numberOfLines={1} style={styles.forYouTitle}>{pick.title}</Text><Text numberOfLines={2} style={styles.forYouMeta}>{pick.meta}</Text></Pressable>)}</ScrollView>;
+}
+
+function CreatorCard({ creator, followed, onToggle }: { creator: Creator; followed: boolean; onToggle: () => void }) {
+  return (
+    <View style={styles.creatorCard}>
+      <Artwork colors={creator.colors} label={creator.category} />
+      <View style={styles.creatorTop}><View style={styles.creatorCopy}><Text numberOfLines={1} style={styles.creatorName}>{creator.name}</Text><Text style={styles.creatorHandle}>{creator.handle} · {creator.platform}</Text></View><Pressable accessibilityLabel={`${followed ? 'Unfollow' : 'Follow'} ${creator.name}`} onPress={onToggle} style={({ pressed }) => [styles.creatorFollow, followed && styles.creatorFollowActive, pressed && styles.pressed]}><Text style={[styles.creatorFollowText, followed && styles.creatorFollowTextActive]}>{followed ? 'Following' : 'Follow'}</Text></Pressable></View>
+      <Text style={styles.creatorCategory}>{creator.category}</Text>
+      <Text numberOfLines={2} style={styles.creatorDescription}>{creator.description}</Text>
+    </View>
+  );
+}
+
+function LocalEventCard({ event }: { event: LocalEvent }) {
+  return (
+    <Pressable onPress={() => Alert.alert(event.title, `${event.date} · ${event.area}\n\n${event.description}\n\nDemo local recommendation.`)} style={({ pressed }) => [styles.localEventCard, { backgroundColor: event.colors[0] }, pressed && styles.cardPressed]}>
+      <View style={[styles.localEventOrb, { backgroundColor: event.colors[1] }]} />
+      <Text style={styles.localEventCategory}>{event.category}</Text>
+      <Text numberOfLines={2} style={styles.localEventTitle}>{event.title}</Text>
+      <Text style={styles.localEventDate}>{event.date}</Text>
+      <Text style={styles.localEventArea}>{event.area} · MOCK LOCAL PICK</Text>
+    </Pressable>
   );
 }
 
@@ -341,7 +432,7 @@ const styles = StyleSheet.create({
   categoryPillActive: { backgroundColor: '#69E08C', borderColor: '#69E08C' },
   categoryText: { color: '#98A2AE', fontSize: 13, fontWeight: '800' },
   categoryTextActive: { color: '#0A1510' },
-  featuredCard: { width: '100%', height: 360, borderRadius: 22, borderWidth: 1, borderColor: '#33404C', overflow: 'hidden', marginBottom: 52 },
+  featuredCard: { width: '100%', height: 360, borderRadius: 22, borderWidth: 1, borderColor: '#33404C', overflow: 'hidden', marginBottom: 18 },
   featuredOrb: { position: 'absolute', width: 520, height: 520, borderRadius: 260, right: -130, top: -220, opacity: 0.75 },
   featuredBeam: { position: 'absolute', width: '140%', height: 100, backgroundColor: 'rgba(255,255,255,0.1)', top: 85, left: -110, transform: [{ rotate: '-14deg' }] },
   featuredOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(5,8,12,0.46)' },
@@ -361,11 +452,46 @@ const styles = StyleSheet.create({
   socialHubActionText: { color: '#69E08C', fontSize: 10, fontWeight: '900' },
   socialHubArrow: { color: '#69E08C', fontSize: 17, lineHeight: 17 },
   section: { marginBottom: 52 },
+  sectionIntro: { color: '#7F8A97', fontSize: 11, lineHeight: 16, marginBottom: 14, marginTop: -9 },
   sectionLast: { marginBottom: 14 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   sectionTitle: { color: '#F8FAFC', fontSize: 23, fontWeight: '900', letterSpacing: -0.45 },
   seeAll: { color: '#69E08C', fontSize: 13, fontWeight: '800' },
   horizontalCards: { gap: 17, paddingRight: 28, paddingBottom: 2 },
+  servicesSection: { backgroundColor: '#131920', borderColor: '#29333E', borderRadius: 18, borderWidth: 1, marginBottom: 24, padding: 16 },
+  servicesHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  servicesEyebrow: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  servicesTitle: { color: '#F8FAFC', fontSize: 20, fontWeight: '900', marginTop: 4 },
+  servicesCount: { color: '#8D98A5', fontSize: 10, fontWeight: '800' },
+  servicesCopy: { color: '#8994A1', fontSize: 11, lineHeight: 16, marginTop: 6 },
+  servicesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  servicePill: { alignItems: 'center', backgroundColor: '#1A2028', borderColor: '#303A46', borderRadius: 16, borderWidth: 1, justifyContent: 'center', minHeight: 34, paddingHorizontal: 12, paddingVertical: 7 },
+  servicePillActive: { backgroundColor: 'rgba(105,224,140,0.12)', borderColor: '#69E08C' },
+  servicePillText: { color: '#9CA6B1', fontSize: 11, fontWeight: '800' },
+  servicePillTextActive: { color: '#69E08C' },
+  forYouRail: { gap: 12, paddingBottom: 2, paddingRight: 24 },
+  forYouCard: { borderColor: 'rgba(255,255,255,0.1)', borderRadius: 15, borderWidth: 1, height: 116, overflow: 'hidden', padding: 14, width: 210 },
+  forYouOrb: { borderRadius: 60, height: 120, opacity: 0.72, position: 'absolute', right: -35, top: -45, width: 120 },
+  forYouLabel: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  forYouTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '900', marginTop: 19 },
+  forYouMeta: { color: 'rgba(255,255,255,0.65)', fontSize: 10, lineHeight: 14, marginTop: 5 },
+  creatorCard: { backgroundColor: '#151A21', borderColor: '#29323C', borderRadius: 17, borderWidth: 1, padding: 11, width: 246 },
+  creatorTop: { alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 11 },
+  creatorCopy: { flex: 1, minWidth: 0 },
+  creatorName: { color: '#F3F6F9', fontSize: 14, fontWeight: '900' },
+  creatorHandle: { color: '#778390', fontSize: 9, marginTop: 3 },
+  creatorFollow: { backgroundColor: '#202832', borderRadius: 13, paddingHorizontal: 10, paddingVertical: 7 },
+  creatorFollowActive: { backgroundColor: 'rgba(105,224,140,0.14)' },
+  creatorFollowText: { color: '#A7B0BA', fontSize: 9, fontWeight: '900' },
+  creatorFollowTextActive: { color: '#69E08C' },
+  creatorCategory: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 0.7, marginTop: 11, textTransform: 'uppercase' },
+  creatorDescription: { color: '#8B96A2', fontSize: 10, lineHeight: 15, marginTop: 5 },
+  localEventCard: { borderColor: 'rgba(255,255,255,0.12)', borderRadius: 17, borderWidth: 1, height: 170, overflow: 'hidden', padding: 16, width: 252 },
+  localEventOrb: { borderRadius: 90, height: 180, opacity: 0.7, position: 'absolute', right: -55, top: -70, width: 180 },
+  localEventCategory: { color: '#69E08C', fontSize: 9, fontWeight: '900', letterSpacing: 0.9, textTransform: 'uppercase' },
+  localEventTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '900', lineHeight: 22, marginTop: 28, maxWidth: 205 },
+  localEventDate: { color: 'rgba(255,255,255,0.78)', fontSize: 10, fontWeight: '800', marginTop: 9 },
+  localEventArea: { color: 'rgba(255,255,255,0.52)', fontSize: 8, fontWeight: '800', letterSpacing: 0.5, marginTop: 4 },
   artwork: { width: '100%', height: 118, borderRadius: 13, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   posterArtwork: { height: 230 },
   artworkOrb: { position: 'absolute', width: '88%', aspectRatio: 1, borderRadius: 999, right: '-22%', top: '-20%', opacity: 0.9 },

@@ -2,6 +2,28 @@ export type EntertainmentDataProvenance = 'live' | 'mock' | 'unavailable';
 export type EntertainmentCategory = 'For You' | 'Movies' | 'TV' | 'Music News' | 'Celebrity' | 'Gaming';
 export type EntertainmentContentCategory = Exclude<EntertainmentCategory, 'For You'>;
 export type EntertainmentContentId = string;
+export type StreamingServiceName = 'Netflix' | 'Hulu' | 'Max' | 'Peacock' | 'Disney+' | 'Prime Video' | 'Tubi' | 'Paramount+';
+export type CreatorCategory = 'Travel' | 'Fashion & Style' | 'Food' | 'Pets' | 'Tech' | 'Lifestyle' | 'Sports';
+
+export type EntertainmentCreator = {
+  id: EntertainmentContentId;
+  name: string;
+  handle: string;
+  platform: 'YouTube' | 'TikTok' | 'Instagram';
+  category: CreatorCategory;
+  description: string;
+  colors: [string, string];
+};
+
+export type EntertainmentLocalEvent = {
+  id: EntertainmentContentId;
+  title: string;
+  category: 'Concert' | 'Festival' | 'Comedy' | 'Pop-up' | 'Family' | 'Exhibit' | 'Sports' | 'Market';
+  date: string;
+  area: string;
+  description: string;
+  colors: [string, string];
+};
 
 export type EntertainmentStory = {
   id: EntertainmentContentId;
@@ -49,6 +71,8 @@ export type EntertainmentStreamingPick = {
 
 export type EntertainmentSnapshot = {
   categories: EntertainmentCategory[];
+  creators: EntertainmentCreator[];
+  aroundYou: EntertainmentLocalEvent[];
   stories: EntertainmentStory[];
   media: EntertainmentMediaTitle[];
   upcoming: EntertainmentUpcoming[];
@@ -71,6 +95,8 @@ export interface EntertainmentDataProvider {
   readonly provenance: 'live' | 'mock';
   getEntertainment(): Promise<EntertainmentSnapshot>;
 }
+
+export const STREAMING_SERVICES: StreamingServiceName[] = ['Netflix', 'Hulu', 'Max', 'Peacock', 'Disney+', 'Prime Video', 'Tubi', 'Paramount+'];
 
 export const MOCK_ENTERTAINMENT_CATEGORIES: EntertainmentCategory[] = ['For You', 'Movies', 'TV', 'Music News', 'Celebrity', 'Gaming'];
 
@@ -105,6 +131,27 @@ export const MOCK_ENTERTAINMENT_UPCOMING: EntertainmentUpcoming[] = [
   { id: 'realm', category: 'Gaming', title: 'Realm / Reborn', date: 'October 18', genre: 'Adventure', description: 'Explore a rebuilt open world with friends.', colors: ['#49306D', '#9C6AC8'] },
 ];
 
+export const MOCK_ENTERTAINMENT_CREATORS: EntertainmentCreator[] = [
+  { id: 'creator-roam', name: 'Maya Roams', handle: '@mayaroams', platform: 'YouTube', category: 'Travel', description: 'Practical city guides, weekend escapes, and thoughtful travel stories.', colors: ['#174A68', '#50A6A2'] },
+  { id: 'creator-thread', name: 'The Daily Thread', handle: '@dailytthread', platform: 'Instagram', category: 'Fashion & Style', description: 'Wearable style ideas, closet edits, and independent designer discoveries.', colors: ['#653348', '#E17682'] },
+  { id: 'creator-table', name: 'One More Plate', handle: '@onemoreplate', platform: 'TikTok', category: 'Food', description: 'Neighborhood food finds and approachable recipes for busy weeks.', colors: ['#74402D', '#D89355'] },
+  { id: 'creator-byte', name: 'Everyday Byte', handle: '@everydaybyte', platform: 'YouTube', category: 'Tech', description: 'Clear reviews and useful technology explained without the jargon.', colors: ['#303D75', '#7793DB'] },
+  { id: 'creator-paws', name: 'City Paws', handle: '@citypaws', platform: 'Instagram', category: 'Pets', description: 'Pet-friendly places, care tips, and uplifting rescue stories.', colors: ['#244C3B', '#71B263'] },
+  { id: 'creator-courtside', name: 'Courtside Notes', handle: '@courtsidenotes', platform: 'TikTok', category: 'Sports', description: 'Fast game breakdowns, player stories, and fan culture.', colors: ['#6B482B', '#D3A24D'] },
+  { id: 'creator-reset', name: 'The Sunday Reset', handle: '@sundayreset', platform: 'YouTube', category: 'Lifestyle', description: 'Home, routines, wellness, and realistic ways to reset the week.', colors: ['#4C355E', '#B878B7'] },
+];
+
+export const MOCK_ENTERTAINMENT_LOCAL_EVENTS: EntertainmentLocalEvent[] = [
+  { id: 'event-river-sounds', title: 'Riverfront Summer Sounds', category: 'Concert', date: 'Friday · 7:30 PM', area: 'Downtown', description: 'An outdoor evening of local music and food vendors.', colors: ['#263B70', '#6D87D4'] },
+  { id: 'event-night-market', title: 'Neighborhood Night Market', category: 'Market', date: 'Saturday · 5 PM', area: 'Midtown', description: 'Independent makers, street food, and live performances.', colors: ['#245C47', '#6DB67B'] },
+  { id: 'event-comedy', title: 'New Voices Comedy Showcase', category: 'Comedy', date: 'Saturday · 8 PM', area: 'Arts District', description: 'A compact showcase featuring emerging local comedians.', colors: ['#593452', '#BD6A7D'] },
+  { id: 'event-design', title: 'Design in Motion', category: 'Exhibit', date: 'Sunday · 11 AM', area: 'Museum Row', description: 'An interactive exhibit exploring design, sound, and movement.', colors: ['#49306D', '#9C6AC8'] },
+  { id: 'event-family', title: 'Family Discovery Day', category: 'Family', date: 'Sunday · 1 PM', area: 'Central Park', description: 'Hands-on activities, performances, and outdoor games.', colors: ['#174E4C', '#67B899'] },
+  { id: 'event-sports', title: 'City Summer Classic', category: 'Sports', date: 'Sunday · 4 PM', area: 'Community Arena', description: 'A local summer tournament with community activities.', colors: ['#6C4525', '#D4A34F'] },
+  { id: 'event-popup', title: 'Independent Style Pop-up', category: 'Pop-up', date: 'Next Thursday · 6 PM', area: 'Warehouse District', description: 'Local labels and vintage sellers in one evening market.', colors: ['#673437', '#E09A4C'] },
+  { id: 'event-festival', title: 'City Lights Festival', category: 'Festival', date: 'Next Weekend', area: 'Waterfront', description: 'Art installations, music, food, and family programming.', colors: ['#173E62', '#E0A74A'] },
+];
+
 export const MOCK_ENTERTAINMENT_STREAMING_PICKS: EntertainmentStreamingPick[] = [
   { platform: 'Netflix', titles: ['After Hours', 'The Wild Coast'], colors: ['#641E2A', '#E50914'] },
   { platform: 'Disney+', titles: ['North Star', 'Beyond the Blue'], colors: ['#172B67', '#4A79DE'] },
@@ -115,6 +162,8 @@ export const MOCK_ENTERTAINMENT_STREAMING_PICKS: EntertainmentStreamingPick[] = 
 
 export const MOCK_ENTERTAINMENT_SNAPSHOT: EntertainmentSnapshot = {
   categories: MOCK_ENTERTAINMENT_CATEGORIES,
+  creators: MOCK_ENTERTAINMENT_CREATORS,
+  aroundYou: MOCK_ENTERTAINMENT_LOCAL_EVENTS,
   stories: MOCK_ENTERTAINMENT_STORIES,
   media: MOCK_ENTERTAINMENT_MEDIA,
   upcoming: MOCK_ENTERTAINMENT_UPCOMING,
