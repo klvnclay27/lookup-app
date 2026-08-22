@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isTabletWidth, pageHorizontalPadding } from '@/constants/layout';
-import { getWeather, type WeatherDataProvenance, type WeatherSnapshot as WeatherDataSnapshot } from '@/services/weather';
+import { getWeather, type WeatherAlert as ProviderWeatherAlert, type WeatherDataProvenance, type WeatherSnapshot as WeatherDataSnapshot } from '@/services/weather';
 
 type WeatherSnapshot = {
   temperature: number;
@@ -39,16 +39,7 @@ const LOCATIONS: Location[] = [
   { id: 'baltimore', name: 'Baltimore', subtitle: 'Maryland', snapshot: { temperature: 79, condition: 'Rainy', feelsLike: 82, high: 83, low: 70 } },
 ];
 
-const DETAIL_ITEMS = [
-  { label: 'HUMIDITY', value: '62%', note: 'Comfortable', icon: 'H' },
-  { label: 'WIND', value: '8 mph NE', note: 'Light breeze', icon: 'W' },
-  { label: 'VISIBILITY', value: '9.8 mi', note: 'Clear view', icon: 'V' },
-  { label: 'UV INDEX', value: '5 · Moderate', note: 'Protection advised', icon: 'U' },
-  { label: 'PRESSURE', value: '30.08 in', note: 'Steady', icon: 'P' },
-  { label: 'SUNRISE', value: '6:11 AM', note: 'First light 5:43', icon: '↑' },
-  { label: 'SUNSET', value: '7:52 PM', note: 'Last light 8:20', icon: '↓' },
-  { label: 'AIR QUALITY', value: '42 · Good', note: 'Low pollution', icon: 'A' },
-];
+type WeatherDetailItem = { label: string; value: string; note: string; icon: string };
 
 export default function WeatherScreen() {
   const insets = useSafeAreaInsets();
@@ -63,6 +54,8 @@ export default function WeatherScreen() {
   const [lastUpdated, setLastUpdated] = useState('Just now');
   const [weatherData, setWeatherData] = useState<WeatherDataSnapshot | null>(null);
   const [weatherProvenance, setWeatherProvenance] = useState<WeatherDataProvenance>('unavailable');
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [precipitationExpanded, setPrecipitationExpanded] = useState(false);
 
   const loadCurrentWeather = async () => {
     if (weather) {
@@ -107,6 +100,8 @@ export default function WeatherScreen() {
     const normalized = query.trim().toLowerCase();
     return normalized ? LOCATIONS.filter((location) => `${location.name} ${location.subtitle}`.toLowerCase().includes(normalized)) : [];
   }, [query]);
+  const weatherDetails = useMemo(() => buildWeatherDetails(weatherData), [weatherData]);
+  const precipitationDetails = useMemo(() => buildPrecipitationDetails(weather, weatherData), [weather, weatherData]);
 
   const selectLocation = (location: Location) => {
     setSelectedLocation(location);
@@ -129,6 +124,7 @@ export default function WeatherScreen() {
   const hourly = buildHourly(weather, weatherData);
   const daily = buildDaily(weather, weatherData);
   const recommendation = getOutfitRecommendation(weather);
+  const showImportantAlert = hasImportantWeatherCondition(weather, weatherData);
 
   return (
     <ScrollView
@@ -155,17 +151,17 @@ export default function WeatherScreen() {
         <>
           <CurrentWeatherHero location={selectedLocation} weather={weather} lastUpdated={lastUpdated} provenance={selectedLocation.id === 'current' ? weatherProvenance : 'mock'} />
 
-          <View style={styles.section}><SectionHeader title="What to Wear" /><OutfitCard recommendation={recommendation} /></View>
+          {showImportantAlert ? <View style={styles.section}><SectionHeader title="Weather Alerts" /><WeatherAlert alerts={weatherData?.alerts ?? []} condition={weather.condition} location={selectedLocation.name} temperature={weather.temperature} windSpeed={weatherData?.current.windSpeed} /></View> : null}
+
+          <PrecipitationSection details={precipitationDetails} expanded={precipitationExpanded} onToggle={() => setPrecipitationExpanded((current) => !current)} />
 
           <View style={styles.section}><SectionHeader title="Hourly Forecast" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{hourly.map((hour, index) => <HourlyCard key={`${hour.time}-${index}`} hour={hour} current={index === 0} />)}</ScrollView></View>
 
           <View style={styles.section}><SectionHeader title="Seven-Day Forecast" /><View style={styles.forecastList}>{daily.map((day, index) => <View key={day.day}><DailyRow day={day} />{index < daily.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
 
-          <View style={styles.section}><SectionHeader title="Weather Details" /><View style={styles.detailGrid}>{DETAIL_ITEMS.map((item) => <DetailCard key={item.label} item={item} cardWidth={isDesktop ? '23.5%' : '48%'} />)}</View><Text style={styles.simulatedLabel}>DETAIL VALUES ARE SIMULATED WHERE THE CURRENT SOURCE DOES NOT PROVIDE THEM</Text></View>
+          <WeatherDetails details={weatherDetails} expanded={detailsExpanded} isDesktop={isDesktop} onToggle={() => setDetailsExpanded((current) => !current)} provenance={selectedLocation.id === 'current' ? weatherProvenance : 'mock'} />
 
-          <View style={styles.section}><SectionHeader title="Weather Alerts" /><WeatherAlert condition={weather.condition} location={selectedLocation.name} /></View>
-
-          <View style={styles.section}><SectionHeader title="Precipitation Overview" /><PrecipitationCard rainy={weather.condition.toLowerCase().includes('rain')} /></View>
+          <View style={styles.section}><SectionHeader title="What to Wear" /><OutfitCard recommendation={recommendation} /></View>
 
           <View style={styles.sectionLast}><SectionHeader title="Saved Locations" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>{LOCATIONS.map((location) => <LocationCard key={location.id} location={location} selected={selectedLocation.id === location.id} currentWeather={weather} onPress={() => selectLocation(location)} />)}</ScrollView></View>
 
@@ -241,18 +237,82 @@ function DailyRow({ day }: { day: ReturnType<typeof buildDaily>[number] }) {
   return <View style={styles.dailyRow}><Text style={styles.dayName}>{day.day}</Text><Text style={styles.dailyIcon}>{weatherIcon(day.condition)}</Text><View style={styles.dailyCondition}><Text style={styles.conditionName}>{day.condition}</Text><Text style={styles.dailyPrecipitation}>{day.precipitation}% precip.</Text></View><Text style={styles.lowTemp}>{day.low}°</Text><View style={styles.rangeTrack}><View style={[styles.rangeFill, { left: rangeStart, width: rangeWidth }]} /></View><Text style={styles.highTemp}>{day.high}°</Text></View>;
 }
 
-function DetailCard({ item, cardWidth }: { item: typeof DETAIL_ITEMS[number]; cardWidth: '23.5%' | '48%' }) {
+function buildWeatherDetails(weatherData: WeatherDataSnapshot | null): WeatherDetailItem[] {
+  if (!weatherData) return [];
+  const details: WeatherDetailItem[] = [];
+  const { current } = weatherData;
+  const today = weatherData.daily[0];
+  if (current.humidity !== undefined) details.push({ label: 'HUMIDITY', value: `${Math.round(current.humidity)}%`, note: 'Current relative humidity', icon: 'H' });
+  if (current.windSpeed !== undefined) {
+    const direction = current.windDirection === undefined ? '' : ` ${windDirectionLabel(current.windDirection)}`;
+    details.push({ label: 'WIND', value: `${Math.round(current.windSpeed)} mph${direction}`, note: 'Current sustained wind', icon: 'W' });
+  }
+  if (today?.sunrise) details.push({ label: 'SUNRISE', value: formatWeatherTime(today.sunrise), note: 'Today', icon: '↑' });
+  if (today?.sunset) details.push({ label: 'SUNSET', value: formatWeatherTime(today.sunset), note: 'Today', icon: '↓' });
+  return details;
+}
+
+function windDirectionLabel(degrees: number) {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return directions[Math.round((((degrees % 360) + 360) % 360) / 45) % directions.length];
+}
+
+function formatWeatherTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function WeatherDetails({ details, expanded, isDesktop, onToggle, provenance }: { details: WeatherDetailItem[]; expanded: boolean; isDesktop: boolean; onToggle: () => void; provenance: WeatherDataProvenance }) {
+  return <View style={styles.weatherDetailsSection}><Pressable accessibilityLabel={`${expanded ? 'Hide' : 'Show'} Weather Details`} accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggle} style={({ pressed }) => [styles.weatherDetailsToggle, pressed && styles.pressed]}><View><Text style={styles.weatherDetailsEyebrow}>MORE CONDITIONS</Text><Text style={styles.weatherDetailsTitle}>Weather Details</Text><Text style={styles.weatherDetailsCopy}>{details.length ? `${details.length} additional metrics available` : 'No additional metrics available'}</Text></View><Text style={styles.weatherDetailsChevron}>{expanded ? '⌃' : '⌄'}</Text></Pressable>{expanded ? <View style={styles.weatherDetailsPanel}>{details.length ? <View style={styles.detailGrid}>{details.map((item) => <DetailCard key={item.label} item={item} cardWidth={isDesktop ? '23.5%' : '48%'} />)}</View> : <Text style={styles.noDetailsCopy}>The current weather source did not provide any secondary metrics for this location.</Text>}<Text style={styles.simulatedLabel}>{provenance === 'live' ? 'VALUES FROM THE CURRENT WEATHER SOURCE' : 'SIMULATED WEATHER DETAILS'}</Text></View> : null}</View>;
+}
+
+function DetailCard({ item, cardWidth }: { item: WeatherDetailItem; cardWidth: '23.5%' | '48%' }) {
   return <View style={[styles.detailCard, { width: cardWidth }]}><View style={styles.detailTop}><Text style={styles.detailIcon}>{item.icon}</Text><Text style={styles.detailLabel}>{item.label}</Text></View><Text style={styles.detailValue}>{item.value}</Text><Text style={styles.detailNote}>{item.note}</Text></View>;
 }
 
-function WeatherAlert({ condition, location }: { condition: string; location: string }) {
-  const active = condition.toLowerCase().includes('rain');
-  return active ? <View style={styles.alertCard}><View style={styles.alertIcon}><Text style={styles.alertIconText}>!</Text></View><View style={styles.alertCopy}><View style={styles.alertTitleRow}><Text style={styles.alertTitle}>Heavy Rain Advisory</Text><Text style={styles.alertSeverity}>MODERATE</Text></View><Text style={styles.alertTime}>{location} · 2:00 PM – 7:00 PM</Text><Text style={styles.alertMessage}>Use caution on wet roads and allow extra travel time. This alert is simulated.</Text></View></View> : <View style={styles.noAlertCard}><View style={styles.noAlertIcon}><Text style={styles.noAlertIconText}>✓</Text></View><View><Text style={styles.noAlertTitle}>No active alerts</Text><Text style={styles.noAlertCopy}>No simulated weather alerts for this location.</Text></View></View>;
+function WeatherAlert({ alerts, condition, location, temperature, windSpeed }: { alerts: ProviderWeatherAlert[]; condition: string; location: string; temperature: number; windSpeed?: number }) {
+  const providerAlert = alerts[0];
+  const normalizedCondition = condition.toLowerCase();
+  if (providerAlert) return <View style={styles.alertCard}><View style={styles.alertIcon}><Text style={styles.alertIconText}>!</Text></View><View style={styles.alertCopy}><View style={styles.alertTitleRow}><Text style={styles.alertTitle}>{providerAlert.title}</Text><Text style={styles.alertSeverity}>{providerAlert.severity.toUpperCase()}</Text></View><Text style={styles.alertTime}>{location}</Text><Text style={styles.alertMessage}>{providerAlert.description}</Text></View></View>;
+  if (windSpeed !== undefined && windSpeed >= 40) return <ImportantCondition title="Strong winds" copy={`Sustained winds are ${Math.round(windSpeed)} mph. Use caution outdoors and while traveling.`} />;
+  if (temperature >= 95) return <ImportantCondition title="Extreme heat" copy={`The current temperature is ${Math.round(temperature)}°. Limit prolonged heat exposure and stay hydrated.`} />;
+  if (temperature <= 20) return <ImportantCondition title="Extreme cold" copy={`The current temperature is ${Math.round(temperature)}°. Dress in warm layers and limit prolonged exposure.`} />;
+  if (normalizedCondition.includes('thunder')) return <ImportantCondition title="Thunderstorm conditions" copy="Thunderstorms appear in the current weather condition. Monitor official alerts and use caution outdoors." />;
+  if (normalizedCondition.includes('heavy rain')) return <ImportantCondition title="Heavy rain conditions" copy="Heavy rain appears in the current weather condition. Use caution on wet roads and in flood-prone areas." />;
+  if (['snow', 'freezing', 'sleet', 'hail'].some((term) => normalizedCondition.includes(term))) return <ImportantCondition title="Wintry precipitation" copy={`${condition} appears in the current weather condition. Use caution on roads and walkways.`} />;
+  const active = normalizedCondition.includes('rain');
+  return active ? <View style={styles.alertCard}><View style={styles.alertIcon}><Text style={styles.alertIconText}>!</Text></View><View style={styles.alertCopy}><View style={styles.alertTitleRow}><Text style={styles.alertTitle}>Rain conditions</Text></View><Text style={styles.alertTime}>{location}</Text><Text style={styles.alertMessage}>Rain is indicated in the current conditions. Use caution on wet roads and allow extra travel time.</Text></View></View> : <View style={styles.noAlertCard}><View style={styles.noAlertIcon}><Text style={styles.noAlertIconText}>✓</Text></View><View><Text style={styles.noAlertTitle}>No active alerts</Text><Text style={styles.noAlertCopy}>No weather alerts were provided for this location.</Text></View></View>;
 }
 
-function PrecipitationCard({ rainy }: { rainy: boolean }) {
-  const values = rainy ? [32, 48, 62, 78, 72, 55, 40, 28] : [8, 12, 9, 18, 14, 10, 7, 5];
-  return <View style={styles.precipCard}><View style={styles.precipHeader}><View><Text style={styles.overline}>TODAY · SIMULATED</Text><Text style={styles.precipTitle}>{rainy ? 'Rain likely this afternoon' : 'Low chance of rain'}</Text></View><Text style={styles.precipTotal}>{Math.max(...values)}%</Text></View><View style={styles.precipChart}>{values.map((value, index) => <View key={index} style={styles.precipColumn}><View style={styles.barTrack}><View style={[styles.precipBar, { height: `${value}%` }]} /></View><Text style={styles.barLabel}>{index % 2 === 0 ? `${index + 12}` : ''}</Text></View>)}</View></View>;
+function ImportantCondition({ title, copy }: { title: string; copy: string }) {
+  return <View style={styles.alertCard}><View style={styles.alertIcon}><Text style={styles.alertIconText}>!</Text></View><View style={styles.alertCopy}><Text style={styles.alertTitle}>{title}</Text><Text style={styles.alertMessage}>{copy}</Text></View></View>;
+}
+
+function hasImportantWeatherCondition(weather: WeatherSnapshot, weatherData: WeatherDataSnapshot | null) {
+  const condition = weather.condition.toLowerCase();
+  return Boolean(weatherData?.alerts.length) || (weatherData?.current.windSpeed ?? 0) >= 40 || weather.temperature >= 95 || weather.temperature <= 20 || ['thunder', 'heavy rain', 'snow', 'freezing', 'sleet', 'hail'].some((term) => condition.includes(term));
+}
+
+type PrecipitationDetails = {
+  chance?: number;
+  summary?: string;
+  type?: string;
+  hourly: { time: string; chance: number }[];
+};
+
+function buildPrecipitationDetails(weather: WeatherSnapshot | null, weatherData: WeatherDataSnapshot | null): PrecipitationDetails {
+  if (!weather) return { hourly: [] };
+  const hourly = (weatherData?.hourly ?? []).flatMap((item) => item.precipitationChance === undefined ? [] : [{ time: item.time, chance: Math.round(item.precipitationChance) }]).slice(0, 12);
+  const condition = weather.condition.toLowerCase();
+  const type = condition.includes('snow') ? 'Snow' : condition.includes('freezing') || condition.includes('sleet') ? 'Freezing precipitation' : condition.includes('rain') || condition.includes('thunder') ? 'Rain' : undefined;
+  const peak = hourly.reduce<(typeof hourly)[number] | undefined>((highest, item) => !highest || item.chance > highest.chance ? item : highest, undefined);
+  const summary = peak && peak.chance > 0 ? `Highest available chance near ${formatWeatherTime(peak.time)}` : type ? `${type} appears in the current condition` : undefined;
+  return { chance: weather.precipitationChance ?? weatherData?.current.precipitationChance, hourly, summary, type };
+}
+
+function PrecipitationSection({ details, expanded, onToggle }: { details: PrecipitationDetails; expanded: boolean; onToggle: () => void }) {
+  const chanceLabel = details.chance === undefined ? 'Chance unavailable' : `${Math.round(details.chance)}% chance`;
+  return <View style={styles.precipSection}><Pressable accessibilityLabel={`${expanded ? 'Hide' : 'Show'} precipitation details`} accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggle} style={({ pressed }) => [styles.precipSummary, pressed && styles.pressed]}><View style={styles.precipSummaryCopy}><Text style={styles.precipSummaryEyebrow}>PRECIPITATION</Text><Text style={styles.precipSummaryValue}>{chanceLabel}</Text><Text numberOfLines={2} style={styles.precipSummaryNote}>{details.summary ?? 'No timing details were provided by the current source.'}</Text></View><View style={styles.precipSummaryAction}><Text style={styles.precipViewText}>{expanded ? 'Hide details' : 'View details'}</Text><Text style={styles.precipChevron}>{expanded ? '⌃' : '⌄'}</Text></View></Pressable>{expanded ? <View style={styles.precipDetailsPanel}>{details.type ? <View style={styles.precipTypeRow}><Text style={styles.precipTypeLabel}>TYPE</Text><Text style={styles.precipTypeValue}>{details.type}</Text></View> : null}{details.hourly.length ? <View style={styles.precipChart}>{details.hourly.map((item, index) => <View key={`${item.time}-${index}`} style={styles.precipColumn}><Text style={styles.precipChance}>{item.chance}%</Text><View style={styles.barTrack}><View style={[styles.precipBar, { height: `${Math.max(item.chance, 3)}%` }]} /></View><Text numberOfLines={1} style={styles.barLabel}>{index % 2 === 0 ? formatWeatherTime(item.time) : ''}</Text></View>)}</View> : <Text style={styles.noDetailsCopy}>Hourly precipitation probabilities were not provided for this location.</Text>}<Text style={styles.simulatedLabel}>ONLY VALUES AVAILABLE FROM THE CURRENT WEATHER SOURCE ARE SHOWN</Text></View> : null}</View>;
 }
 
 function LocationCard({ location, selected, currentWeather, onPress }: { location: Location; selected: boolean; currentWeather: WeatherSnapshot; onPress: () => void }) {
@@ -352,6 +412,14 @@ const styles = StyleSheet.create({
   rangeTrack: { width: 92, height: 5, borderRadius: 3, backgroundColor: '#29323C', overflow: 'hidden' },
   rangeFill: { position: 'absolute', height: 5, borderRadius: 3, backgroundColor: '#69E08C' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#29313A', marginLeft: 114 },
+  weatherDetailsSection: { marginBottom: 52 },
+  weatherDetailsToggle: { alignItems: 'center', backgroundColor: '#141A21', borderColor: '#2D3742', borderRadius: 18, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 88, paddingHorizontal: 18, paddingVertical: 15 },
+  weatherDetailsEyebrow: { color: '#69E08C', fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
+  weatherDetailsTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '900', marginTop: 4 },
+  weatherDetailsCopy: { color: '#7E8995', fontSize: 10, marginTop: 5 },
+  weatherDetailsChevron: { color: '#69E08C', fontSize: 21, fontWeight: '900', marginLeft: 16 },
+  weatherDetailsPanel: { backgroundColor: '#11161C', borderBottomLeftRadius: 18, borderBottomRightRadius: 18, borderColor: '#29323C', borderTopWidth: 0, borderWidth: 1, marginHorizontal: 8, padding: 14 },
+  noDetailsCopy: { color: '#89949F', fontSize: 11, lineHeight: 17, paddingVertical: 10, textAlign: 'center' },
   detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   detailCard: { minHeight: 124, backgroundColor: '#151A21', borderWidth: 1, borderColor: '#29323C', borderRadius: 17, padding: 14 },
   detailTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -374,6 +442,19 @@ const styles = StyleSheet.create({
   noAlertIconText: { color: '#69E08C', fontSize: 14, fontWeight: '900' },
   noAlertTitle: { color: '#EAF0F5', fontSize: 14, fontWeight: '900' },
   noAlertCopy: { color: '#7D8994', fontSize: 10, marginTop: 4 },
+  precipSection: { marginBottom: 52 },
+  precipSummary: { alignItems: 'center', backgroundColor: '#141A21', borderColor: '#2D3742', borderRadius: 18, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 92, paddingHorizontal: 18, paddingVertical: 15 },
+  precipSummaryCopy: { flex: 1, minWidth: 0 },
+  precipSummaryEyebrow: { color: '#74ADD3', fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
+  precipSummaryValue: { color: '#FFFFFF', fontSize: 18, fontWeight: '900', marginTop: 5 },
+  precipSummaryNote: { color: '#7E8995', fontSize: 10, lineHeight: 14, marginTop: 5 },
+  precipSummaryAction: { alignItems: 'flex-end', marginLeft: 16 },
+  precipViewText: { color: '#69E08C', fontSize: 9, fontWeight: '900' },
+  precipChevron: { color: '#69E08C', fontSize: 20, fontWeight: '900', marginTop: 4 },
+  precipDetailsPanel: { backgroundColor: '#11161C', borderBottomLeftRadius: 18, borderBottomRightRadius: 18, borderColor: '#29323C', borderTopWidth: 0, borderWidth: 1, marginHorizontal: 8, padding: 14 },
+  precipTypeRow: { alignItems: 'center', borderBottomColor: '#29323C', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 12 },
+  precipTypeLabel: { color: '#687480', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  precipTypeValue: { color: '#DCE2E8', fontSize: 11, fontWeight: '800' },
   precipCard: { backgroundColor: '#141A21', borderWidth: 1, borderColor: '#2D3742', borderRadius: 20, padding: 20 },
   precipHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   overline: { color: '#6F7B87', fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
@@ -381,6 +462,7 @@ const styles = StyleSheet.create({
   precipTotal: { color: '#74ADD3', fontSize: 23, fontWeight: '900' },
   precipChart: { height: 112, flexDirection: 'row', alignItems: 'flex-end', gap: 9, marginTop: 20 },
   precipColumn: { flex: 1, height: 112, alignItems: 'center', justifyContent: 'flex-end' },
+  precipChance: { color: '#8EBAD7', fontSize: 8, fontWeight: '800', marginBottom: 5 },
   barTrack: { width: '70%', flex: 1, borderRadius: 5, backgroundColor: '#202A32', overflow: 'hidden', justifyContent: 'flex-end' },
   precipBar: { width: '100%', borderRadius: 5, backgroundColor: '#5B9CC7' },
   barLabel: { color: '#697581', fontSize: 8, marginTop: 6, height: 10 },

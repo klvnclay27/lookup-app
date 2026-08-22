@@ -75,6 +75,23 @@ export type TransitArrival = SubwayCommute & {
   provenance: 'live' | 'mock';
 };
 
+export type TransitMode = 'Subway' | 'Bus' | 'Rail';
+
+export type TransitService = {
+  id: string;
+  mode: TransitMode;
+  agency: string;
+  line: string;
+  station: string;
+  destination: string;
+  scheduledArrival: string;
+  estimatedArrival: string;
+  status: SubwayServiceStatus;
+  serviceAlert?: string;
+  dataProvider: string;
+  provenance: 'live' | 'mock';
+};
+
 export type AirportWeather = { temperature: string; condition: string; precipitation: string; wind: string };
 export type FlightStatus = 'On Time' | 'Delayed' | 'Boarding' | 'Landed' | 'Cancelled';
 
@@ -102,6 +119,18 @@ export type FlightData = {
   packingSuggestion: string;
   clothing: string[];
   reminder?: string;
+  dataProvider: string;
+  provenance: 'live' | 'mock';
+};
+
+export type CruiseData = {
+  id: string;
+  cruiseLine: string;
+  shipName: string;
+  departurePort: string;
+  itinerary: string;
+  departureDateTime: string;
+  status: 'Scheduled' | 'Delayed' | 'Boarding' | 'Departed' | 'Cancelled';
   dataProvider: string;
   provenance: 'live' | 'mock';
 };
@@ -136,7 +165,9 @@ export type TrafficSnapshot = {
   roadDestinations: RoadDestination[];
   roadIncidents: RoadIncident[];
   subwayCommutes: TransitArrival[];
+  transitServices: TransitService[];
   flights: FlightData[];
+  cruises: CruiseData[];
   commuteHistory: CommuteHistoryEntry[];
   overview: TrafficOverview;
   dataProvider: string;
@@ -179,12 +210,26 @@ export const MOCK_SUBWAY_COMMUTES: TransitArrival[] = [
   { mode: 'subway', agency: 'MTA New York City Transit', line: 'Q', station: '72 St · 2nd Ave', direction: 'Times Sq–42 St', scheduledArrival: '4 min', estimatedArrival: '9 min', nextArrivalMinutes: 9, followingArrivalMinutes: 17, status: 'Minor Delays', delayMinutes: 5, serviceChanges: ['Allow additional travel time.'], cancelled: false, disruptionSeverity: 'minor', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
 ];
 
+export const MOCK_TRANSIT_SERVICES: TransitService[] = [
+  { id: 'subway-4', mode: 'Subway', agency: 'MTA New York City Transit', line: '4', station: '86 St · Lexington Ave', destination: 'Downtown Manhattan', scheduledArrival: '3 min', estimatedArrival: '3 min', status: 'Good Service', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'subway-q', mode: 'Subway', agency: 'MTA New York City Transit', line: 'Q', station: '72 St · 2nd Ave', destination: 'Times Sq–42 St', scheduledArrival: '4 min', estimatedArrival: '9 min', status: 'Minor Delays', serviceAlert: 'Allow additional travel time.', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'bus-m15', mode: 'Bus', agency: 'MTA New York City Transit', line: 'M15 SBS', station: '2nd Ave · E 79th St', destination: 'South Ferry', scheduledArrival: '6 min', estimatedArrival: '8 min', status: 'Minor Delays', serviceAlert: 'Traffic is slowing southbound service.', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'bus-m86', mode: 'Bus', agency: 'MTA New York City Transit', line: 'M86 SBS', station: 'E 86th St · Lexington Ave', destination: 'West Side', scheduledArrival: '5 min', estimatedArrival: '5 min', status: 'Good Service', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'rail-harlem', mode: 'Rail', agency: 'Metro-North Railroad', line: 'Harlem', station: 'Grand Central', destination: 'White Plains', scheduledArrival: '4:22 PM', estimatedArrival: '4:22 PM', status: 'Good Service', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'rail-lirr', mode: 'Rail', agency: 'Long Island Rail Road', line: 'Port Washington', station: 'Penn Station', destination: 'Great Neck', scheduledArrival: '4:36 PM', estimatedArrival: '4:44 PM', status: 'Delayed', serviceAlert: 'Simulated eight-minute delay.', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+];
+
 const weather = (temperature: string, condition: string, precipitation: string, wind: string): AirportWeather => ({ temperature, condition, precipitation, wind });
 export const MOCK_FLIGHTS: FlightData[] = [
   { id: 'dl2451', airline: 'Delta Air Lines', number: 'DL2451', origin: { code: 'JFK', city: 'New York', weather: weather('72°', 'Partly cloudy', '20%', 'SW 9 mph') }, destination: { code: 'MIA', city: 'Miami', weather: weather('86°', 'Warm and sunny', '10%', 'E 12 mph') }, scheduledDeparture: '2:35 PM', estimatedDeparture: '2:35 PM', scheduledArrival: '5:48 PM', estimatedArrival: '5:48 PM', departure: '2:35 PM', arrival: '5:48 PM', terminal: '4', gate: 'B31', duration: '3h 13m', status: 'On Time', delayMinutes: 0, cancelled: false, timezoneDifference: 'Same time zone', delayLevel: 'Low', destinationDrive: '24 min to downtown', packingSuggestion: 'Light layers and breathable shoes', clothing: ['Tops', 'Shoes', 'Accessories'], dataProvider: MOCK_PROVIDER, provenance: 'mock' },
   { id: 'aa118', airline: 'American Airlines', number: 'AA118', origin: { code: 'JFK', city: 'New York', weather: weather('72°', 'Partly cloudy', '20%', 'SW 9 mph') }, destination: { code: 'LHR', city: 'London', weather: weather('58°', 'Light rain', '70%', 'W 14 mph') }, scheduledDeparture: '6:20 PM', estimatedDeparture: '6:20 PM', scheduledArrival: '6:30 AM', estimatedArrival: '6:30 AM', departure: '6:20 PM', arrival: '6:30 AM', terminal: '8', gate: '12', duration: '7h 10m', status: 'Boarding', delayMinutes: 0, cancelled: false, timezoneDifference: '+5 hours', delayLevel: 'Moderate', destinationDrive: '45 min to central London', packingSuggestion: 'Waterproof jacket and umbrella', clothing: ['Outerwear', 'Bottoms', 'Shoes'], reminder: 'Umbrella recommended', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
   { id: 'ua205', airline: 'United Airlines', number: 'UA205', origin: { code: 'EWR', city: 'Newark', weather: weather('70°', 'Cloudy', '25%', 'W 11 mph') }, destination: { code: 'SFO', city: 'San Francisco', weather: weather('62°', 'Cool and breezy', '15%', 'W 18 mph') }, scheduledDeparture: '9:10 AM', estimatedDeparture: '9:45 AM', scheduledArrival: '12:24 PM', estimatedArrival: '12:59 PM', departure: '9:10 AM', arrival: '12:24 PM', terminal: 'C', gate: 'C74', duration: '6h 14m', status: 'Delayed', delayMinutes: 35, cancelled: false, timezoneDifference: '-3 hours', delayLevel: 'High', destinationDrive: '32 min to downtown', packingSuggestion: 'Layered top, light coat, and closed-toe shoes', clothing: ['Outerwear', 'Tops', 'Shoes'], reminder: 'Light coat recommended', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
   { id: 'b61204', airline: 'JetBlue', number: 'B61204', origin: { code: 'JFK', city: 'New York', weather: weather('72°', 'Partly cloudy', '20%', 'SW 9 mph') }, destination: { code: 'BOS', city: 'Boston', weather: weather('66°', 'Clear', '5%', 'NW 8 mph') }, scheduledDeparture: '7:05 AM', estimatedDeparture: '7:05 AM', scheduledArrival: '8:19 AM', estimatedArrival: '8:19 AM', departure: '7:05 AM', arrival: '8:19 AM', terminal: '5', gate: '22', duration: '1h 14m', status: 'Landed', delayMinutes: 0, cancelled: false, timezoneDifference: 'Same time zone', delayLevel: 'Low', destinationDrive: '18 min to downtown', packingSuggestion: 'Comfortable layers and walking shoes', clothing: ['Tops', 'Bottoms', 'Shoes'], dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+];
+
+export const MOCK_CRUISES: CruiseData[] = [
+  { id: 'cruise-harbor-star', cruiseLine: 'LookUP Demo Cruise Line', shipName: 'Harbor Star', departurePort: 'Manhattan Cruise Terminal', itinerary: 'New York · Bermuda · New York', departureDateTime: 'Saturday · 4:00 PM', status: 'Scheduled', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
+  { id: 'cruise-coastal-way', cruiseLine: 'LookUP Demo Voyages', shipName: 'Coastal Way', departurePort: 'Cape Liberty Cruise Port', itinerary: 'New Jersey · Halifax · Boston', departureDateTime: 'Next Friday · 3:30 PM', status: 'Scheduled', dataProvider: MOCK_PROVIDER, provenance: 'mock' },
 ];
 
 export const MOCK_COMMUTE_HISTORY: CommuteHistoryEntry[] = [
@@ -215,7 +260,9 @@ export const mockTrafficProvider: TrafficDataProvider = {
       roadDestinations: MOCK_ROAD_DESTINATIONS,
       roadIncidents: MOCK_ROAD_INCIDENTS,
       subwayCommutes: MOCK_SUBWAY_COMMUTES,
+      transitServices: MOCK_TRANSIT_SERVICES,
       flights: MOCK_FLIGHTS,
+      cruises: MOCK_CRUISES,
       commuteHistory: MOCK_COMMUTE_HISTORY,
       overview: MOCK_TRAFFIC_OVERVIEW,
       dataProvider: MOCK_PROVIDER,

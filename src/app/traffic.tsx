@@ -18,6 +18,7 @@ import {
   searchFlights as filterFlights,
   type AirportWeather,
   type CommuteHistoryEntry,
+  type CruiseData,
   type FlightData as Flight,
   type FlightStatus,
   type RoadDestination as Destination,
@@ -25,10 +26,13 @@ import {
   type TrafficDataProvenance,
   type TrafficOverview as TrafficOverviewData,
   type TransitArrival,
+  type TransitMode,
+  type TransitService,
   type TravelMode,
 } from '@/services/traffic';
 
-type HubMode = 'Road' | 'Flights';
+type HubMode = 'Road' | 'Transit' | 'Travel';
+type TravelSection = 'Flights' | 'Cruises';
 
 const MODES: TravelMode[] = ['Drive', 'Transit', 'Walk', 'Bike'];
 
@@ -37,6 +41,8 @@ export default function TrafficScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = isTabletWidth(width);
   const [hubMode, setHubMode] = useState<HubMode>('Road');
+  const [transitMode, setTransitMode] = useState<TransitMode>('Subway');
+  const [travelSection, setTravelSection] = useState<TravelSection>('Flights');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [mode, setMode] = useState<TravelMode>('Drive');
   const [query, setQuery] = useState('');
@@ -47,7 +53,9 @@ export default function TrafficScreen() {
   const [roadDestinations, setRoadDestinations] = useState<Destination[]>([]);
   const [roadIncidents, setRoadIncidents] = useState<Incident[]>([]);
   const [nearbyTransit, setNearbyTransit] = useState<TransitArrival[]>([]);
+  const [transitServices, setTransitServices] = useState<TransitService[]>([]);
   const [flights, setFlights] = useState<Flight[]>([]);
+  const [cruises, setCruises] = useState<CruiseData[]>([]);
   const [commuteHistory, setCommuteHistory] = useState<CommuteHistoryEntry[]>([]);
   const [trafficOverview, setTrafficOverview] = useState<TrafficOverviewData | null>(null);
   const [flightQuery, setFlightQuery] = useState('');
@@ -70,7 +78,9 @@ export default function TrafficScreen() {
       setRoadDestinations(result.data.roadDestinations);
       setRoadIncidents(result.data.roadIncidents);
       setNearbyTransit(result.data.subwayCommutes);
+      setTransitServices(result.data.transitServices);
       setFlights(result.data.flights);
+      setCruises(result.data.cruises);
       setCommuteHistory(result.data.commuteHistory);
       setTrafficOverview(result.data.overview);
       setSelectedDestination((current) => result.data.roadDestinations.find((place) => place.id === current?.id) ?? result.data.roadDestinations[0] ?? current);
@@ -90,6 +100,7 @@ export default function TrafficScreen() {
     return filterFlights(flights, submittedFlightQuery);
   }, [flights, submittedFlightQuery]);
   const savedFlights = useMemo(() => flights.filter((flight) => savedFlightIds.includes(flight.id)), [flights, savedFlightIds]);
+  const visibleTransitServices = useMemo(() => transitServices.filter((service) => service.mode === transitMode), [transitMode, transitServices]);
 
   const selectDestination = (destination: Destination) => {
     setSelectedDestination(destination);
@@ -103,7 +114,7 @@ export default function TrafficScreen() {
   };
   const selectHubMode = (nextMode: HubMode) => {
     setHubMode(nextMode);
-    if (nextMode === 'Flights') {
+    if (nextMode === 'Travel' && travelSection === 'Flights') {
       setFlightsLoading(true);
       setTimeout(() => setFlightsLoading(false), 420);
     }
@@ -141,7 +152,7 @@ export default function TrafficScreen() {
       </View>
 
       <View style={styles.hubSelector}>
-        {(['Road', 'Flights'] as HubMode[]).map((item) => (
+        {(['Road', 'Transit', 'Travel'] as HubMode[]).map((item) => (
           <Pressable key={item} onPress={() => selectHubMode(item)} style={[styles.hubModeButton, hubMode === item && styles.hubModeButtonActive]}>
             <Text style={[styles.hubModeText, hubMode === item && styles.hubModeTextActive]}>{item}</Text>
           </Pressable>
@@ -164,16 +175,26 @@ export default function TrafficScreen() {
 
           <View style={styles.section}><SectionHeader title="Traffic Incidents" /><View style={styles.listCard}>{roadIncidents.map((incident, index) => <View key={incident.id}><IncidentRow incident={incident} />{index < roadIncidents.length - 1 && <View style={styles.divider} />}</View>)}</View></View>
 
-          <View style={styles.section}><SectionHeader title="Nearby Transit" action="See schedule" /><View style={styles.listCard}>{nearbyTransit.map((transit, index) => <View key={`${transit.line}-${transit.station}`}><TransitRow transit={transit} />{index < nearbyTransit.length - 1 && <View style={styles.transitDivider} />}</View>)}</View><Text style={styles.simulatedLabel}>{trafficProvenance === 'live' ? 'LIVE TRANSIT INFORMATION' : 'SIMULATED TRANSIT INFORMATION'}</Text></View>
-
           <View style={styles.section}><SectionHeader title="Commute History" /><View style={styles.listCard}>{commuteHistory.map((trip, index) => { const destination = roadDestinations.find((place) => place.id === trip.destinationId); return destination ? <View key={trip.id}><Pressable onPress={() => { selectDestination(destination); selectMode(trip.mode); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyIcon}><Text style={styles.historyIconText}>{destination.icon}</Text></View><View style={styles.historyCopy}><Text style={styles.historyDestination}>{destination.name}</Text><Text style={styles.historyMeta}>{trip.day} · {trip.mode} · {trip.level} traffic</Text></View><Text style={styles.historyTime}>{trip.time}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < commuteHistory.length - 1 && <View style={styles.historyDivider} />}</View> : null; })}</View></View>
 
           <View style={styles.sectionLast}><SectionHeader title="Traffic Overview" /><TrafficOverview overview={trafficOverview} /></View>
           <Text style={styles.disclaimer}>{trafficProvenance === 'live' ? 'Commute information is live. Transit and route previews may still be simulated.' : 'Traffic, transit, and route information shown in this MVP is simulated.'}</Text>
         </>
       )}
-      </> : (
-        <FlightsExperience
+      </> : hubMode === 'Transit' ? (
+        <TransitExperience
+          mode={transitMode}
+          onModeChange={setTransitMode}
+          provenance={trafficProvenance}
+          services={visibleTransitServices}
+          subwayArrivals={nearbyTransit}
+        />
+      ) : (
+        <>
+          <View style={styles.subSelector}>
+            {(['Flights', 'Cruises'] as TravelSection[]).map((item) => <Pressable key={item} onPress={() => { setTravelSection(item); if (item === 'Flights') { setFlightsLoading(true); setTimeout(() => setFlightsLoading(false), 420); } }} style={[styles.subModeButton, travelSection === item && styles.subModeButtonActive]}><Text style={[styles.subModeText, travelSection === item && styles.subModeTextActive]}>{item}</Text></Pressable>)}
+          </View>
+          {travelSection === 'Flights' ? <FlightsExperience
           error={flightError}
           isDesktop={isDesktop}
           loading={flightsLoading}
@@ -189,10 +210,50 @@ export default function TrafficScreen() {
           selectedFlight={selectedFlight}
           setQuery={setFlightQuery}
           provenance={trafficProvenance}
-        />
+          /> : <CruisesExperience cruises={cruises} provenance={trafficProvenance} />}
+        </>
       )}
     </ScrollView>
   );
+}
+
+function TransitExperience({ mode, onModeChange, provenance, services, subwayArrivals }: { mode: TransitMode; onModeChange: (mode: TransitMode) => void; provenance: TrafficDataProvenance; services: TransitService[]; subwayArrivals: TransitArrival[] }) {
+  return (
+    <View>
+      <View style={styles.flightIntro}><Text style={styles.flightEyebrow}>{provenance === 'live' ? 'LIVE TRANSIT INFORMATION' : 'SIMULATED TRANSIT INFORMATION'}</Text><Text style={styles.flightTitle}>Local Transit</Text><Text style={styles.flightSubtitle}>Subway, bus, and commuter rail in one place.</Text></View>
+      <View style={styles.subSelector}>
+        {(['Subway', 'Bus', 'Rail'] as TransitMode[]).map((item) => <Pressable key={item} onPress={() => onModeChange(item)} style={[styles.subModeButton, mode === item && styles.subModeButtonActive]}><Text style={[styles.subModeText, mode === item && styles.subModeTextActive]}>{item}</Text></Pressable>)}
+      </View>
+      <View style={styles.section}>
+        <SectionHeader title={`${mode} Service`} action="See alerts" />
+        <View style={styles.listCard}>
+          {services.map((service, index) => <View key={service.id}><TransitServiceRow service={service} />{index < services.length - 1 && <View style={styles.transitDivider} />}</View>)}
+        </View>
+        <Text style={styles.simulatedLabel}>{provenance === 'live' ? 'LIVE PROVIDER DATA' : 'MOCK SCHEDULES · NOT LIVE ARRIVALS'}</Text>
+      </View>
+      {mode === 'Subway' ? <View style={styles.sectionLast}><SectionHeader title="Service Details" /><View style={styles.listCard}>{subwayArrivals.map((transit, index) => <View key={`${transit.line}-${transit.station}`}><TransitRow transit={transit} />{index < subwayArrivals.length - 1 && <View style={styles.transitDivider} />}</View>)}</View></View> : null}
+      <Text style={styles.disclaimer}>Transit schedules, arrivals, delays, and service changes shown in this MVP are simulated unless explicitly marked live.</Text>
+    </View>
+  );
+}
+
+function TransitServiceRow({ service }: { service: TransitService }) {
+  const delayed = service.status !== 'Good Service';
+  return <View style={styles.transitServiceRow}><View style={[styles.transitLine, delayed && styles.transitLineDelayed]}><Text style={styles.transitLineText}>{service.line.slice(0, 4)}</Text></View><View style={styles.transitCopy}><Text style={styles.transitStation}>{service.station} → {service.destination}</Text><Text style={[styles.transitStatus, delayed && styles.transitStatusDelayed]}>{service.status}{service.serviceAlert ? ` · ${service.serviceAlert}` : ''}</Text><Text style={styles.transitAgency}>{service.agency} · SIMULATED</Text></View><View style={styles.transitTimeBlock}><Text style={styles.transitArrival}>{service.estimatedArrival}</Text><Text style={styles.transitScheduled}>Scheduled {service.scheduledArrival}</Text></View></View>;
+}
+
+function CruisesExperience({ cruises, provenance }: { cruises: CruiseData[]; provenance: TrafficDataProvenance }) {
+  return (
+    <View>
+      <View style={styles.flightIntro}><Text style={styles.flightEyebrow}>{provenance === 'live' ? 'LIVE CRUISE INFORMATION' : 'SIMULATED CRUISE INFORMATION'}</Text><Text style={styles.flightTitle}>Cruises</Text><Text style={styles.flightSubtitle}>Departure ports, ships, itineraries, and future status updates.</Text></View>
+      <View style={styles.cruiseGrid}>{cruises.map((cruise) => <CruiseCard cruise={cruise} key={cruise.id} />)}</View>
+      <Text style={styles.disclaimer}>Cruise lines, ships, itineraries, departure times, and statuses shown here are fictional demo data—not live schedules or booking information.</Text>
+    </View>
+  );
+}
+
+function CruiseCard({ cruise }: { cruise: CruiseData }) {
+  return <View style={styles.cruiseCard}><View style={styles.cruiseHeader}><View style={styles.cruiseIcon}><Text style={styles.cruiseIconText}>≈</Text></View><View style={styles.cruiseHeaderCopy}><Text style={styles.cruiseLine}>{cruise.cruiseLine}</Text><Text style={styles.cruiseShip}>{cruise.shipName} · SIMULATED</Text></View><View style={styles.cruiseStatus}><Text style={styles.cruiseStatusText}>{cruise.status}</Text></View></View><View style={styles.cruiseDetails}><FlightMeta label="DEPARTURE PORT" value={cruise.departurePort} /><FlightMeta label="DEPARTS" value={cruise.departureDateTime} /></View><Text style={styles.cruiseItineraryLabel}>ITINERARY</Text><Text style={styles.cruiseItinerary}>{cruise.itinerary}</Text></View>;
 }
 
 function FlightsExperience({
@@ -425,11 +486,16 @@ const styles = StyleSheet.create({
   profileText: { color: '#ECF2F8', fontSize: 12, fontWeight: '900' },
   layersButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#171D25', borderWidth: 1, borderColor: '#29333E', alignItems: 'center', justifyContent: 'center' },
   layersIcon: { color: '#69E08C', fontSize: 17, fontWeight: '900' },
-  hubSelector: { alignSelf: 'flex-start', backgroundColor: '#12171D', borderColor: '#27313A', borderRadius: 20, borderWidth: 1, flexDirection: 'row', gap: 5, marginBottom: 24, padding: 4 },
-  hubModeButton: { alignItems: 'center', borderRadius: 16, justifyContent: 'center', minHeight: 36, minWidth: 104, paddingHorizontal: 18 },
+  hubSelector: { alignSelf: 'flex-start', backgroundColor: '#12171D', borderColor: '#27313A', borderRadius: 20, borderWidth: 1, flexDirection: 'row', gap: 5, marginBottom: 24, maxWidth: 480, padding: 4, width: '100%' },
+  hubModeButton: { alignItems: 'center', borderRadius: 16, flex: 1, justifyContent: 'center', minHeight: 36, minWidth: 0, paddingHorizontal: 12 },
   hubModeButtonActive: { backgroundColor: '#69E08C' },
   hubModeText: { color: '#8E99A4', fontSize: 12, fontWeight: '800' },
   hubModeTextActive: { color: '#08140D', fontWeight: '900' },
+  subSelector: { alignSelf: 'flex-start', backgroundColor: '#12171D', borderColor: '#27313A', borderRadius: 17, borderWidth: 1, flexDirection: 'row', gap: 4, marginBottom: 24, maxWidth: 390, padding: 4, width: '100%' },
+  subModeButton: { alignItems: 'center', borderRadius: 13, flex: 1, justifyContent: 'center', minHeight: 34, minWidth: 0, paddingHorizontal: 10 },
+  subModeButtonActive: { backgroundColor: '#24322A' },
+  subModeText: { color: '#84909B', fontSize: 11, fontWeight: '800' },
+  subModeTextActive: { color: '#69E08C', fontWeight: '900' },
   searchBar: { height: 54, borderRadius: 16, backgroundColor: '#171C23', borderWidth: 1, borderColor: '#29313B', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
   searchIcon: { color: '#A2ACB8', fontSize: 27, marginRight: 10, marginTop: -4 },
   searchInput: { flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 0 },
@@ -527,7 +593,13 @@ const styles = StyleSheet.create({
   transitCopy: { flex: 1, minWidth: 0 },
   transitStation: { color: '#EFF2F6', fontSize: 13, fontWeight: '800' },
   transitStatus: { color: '#69E08C', fontSize: 10, marginTop: 4 },
+  transitStatusDelayed: { color: '#E0B24F' },
   transitArrival: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  transitServiceRow: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 94, paddingVertical: 12 },
+  transitLineDelayed: { backgroundColor: '#9B6B2A' },
+  transitAgency: { color: '#626E7A', fontSize: 8, fontWeight: '800', letterSpacing: 0.4, marginTop: 5 },
+  transitTimeBlock: { alignItems: 'flex-end', maxWidth: 100 },
+  transitScheduled: { color: '#65717D', fontSize: 8, marginTop: 5, textAlign: 'right' },
   transitDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#29313A', marginLeft: 50 },
   simulatedLabel: { color: '#626E7A', fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 9, textAlign: 'right' },
   historyRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 11 },
@@ -630,6 +702,19 @@ const styles = StyleSheet.create({
   recentSearchText: { color: '#DCE2E8', flex: 1, fontSize: 12, fontWeight: '800' },
   recentSearchDivider: { backgroundColor: '#29313A', height: StyleSheet.hairlineWidth, marginLeft: 24 },
   flightState: { alignItems: 'center', backgroundColor: '#12181E', borderColor: '#28323B', borderRadius: 20, borderWidth: 1, justifyContent: 'center', minHeight: 330, padding: 30 },
+  cruiseGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 28 },
+  cruiseCard: { backgroundColor: '#141A21', borderColor: '#2B3540', borderRadius: 20, borderWidth: 1, flexBasis: 330, flexGrow: 1, minWidth: 0, padding: 20 },
+  cruiseHeader: { alignItems: 'center', flexDirection: 'row', gap: 11 },
+  cruiseIcon: { alignItems: 'center', backgroundColor: 'rgba(105,224,140,0.12)', borderRadius: 14, height: 42, justifyContent: 'center', width: 42 },
+  cruiseIconText: { color: '#69E08C', fontSize: 20, fontWeight: '900' },
+  cruiseHeaderCopy: { flex: 1, minWidth: 0 },
+  cruiseLine: { color: '#F0F4F7', fontSize: 15, fontWeight: '900' },
+  cruiseShip: { color: '#737F8B', fontSize: 9, marginTop: 4 },
+  cruiseStatus: { backgroundColor: 'rgba(105,224,140,0.12)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6 },
+  cruiseStatusText: { color: '#69E08C', fontSize: 8, fontWeight: '900' },
+  cruiseDetails: { borderBottomColor: '#2B3540', borderBottomWidth: StyleSheet.hairlineWidth, borderTopColor: '#2B3540', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', gap: 24, marginTop: 18, paddingVertical: 14 },
+  cruiseItineraryLabel: { color: '#687480', fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 15 },
+  cruiseItinerary: { color: '#DCE2E8', fontSize: 12, fontWeight: '800', lineHeight: 18, marginTop: 6 },
   searchResults: { minHeight: 360 },
   destinationRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 11 },
   destinationCopy: { flex: 1, minWidth: 0 },
