@@ -1,7 +1,7 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { router, type Href } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TABLET_MIN_WIDTH, WIDE_LAYOUT_MIN_WIDTH, pageHorizontalPadding } from '@/constants/layout';
@@ -15,6 +15,12 @@ type Action = { label: string; route: Href; icon: IconName; color: string; tint:
 const COLORS = {
   ink: '#14243A', muted: '#66758A', green: '#1FA968', line: '#DCE7F1', surface: '#FFFFFF', canvas: '#EFF8FF',
 };
+
+const PHONE_CONTENT_HORIZONTAL_PADDING = 18;
+const QUICK_ACTION_GAP = 12;
+const QUICK_ACTION_PANEL_WIDTH = 320;
+const QUICK_ACTION_ANIMATION_MS = 220;
+const USE_NATIVE_ANIMATIONS = Platform.OS !== 'web';
 
 const ACTIONS: Action[] = [
   { label: 'Weather', route: '/weather', icon: { ios: 'cloud.sun.fill', android: 'partly_cloudy_day', web: 'partly_cloudy_day' }, color: '#2D8FD5', tint: '#E7F4FF' },
@@ -42,6 +48,8 @@ export default function HomeScreen() {
   const desktop = width >= WIDE_LAYOUT_MIN_WIDTH;
   const tablet = width >= TABLET_MIN_WIDTH && width < WIDE_LAYOUT_MIN_WIDTH;
   const usesWideCards = width >= TABLET_MIN_WIDTH;
+  const isNarrowPhone = width <= 430;
+  const quickActionPanelWidth = Math.min(QUICK_ACTION_PANEL_WIDTH, width - 48);
   const [temperature, setTemperature] = useState(72);
   const [condition, setCondition] = useState('Weather loading');
   const [feelsLike, setFeelsLike] = useState<number | undefined>();
@@ -61,7 +69,31 @@ export default function HomeScreen() {
   const [intelligenceEnabled, setIntelligenceEnabled] = useState(true);
   const [displayName, setDisplayName] = useState('LookUP User');
   const [search, setSearch] = useState('');
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const smartModeChangedRef = useRef(false);
+  const quickActionPanelX = useRef(new Animated.Value(QUICK_ACTION_PANEL_WIDTH)).current;
+  const quickActionBackdropOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!quickActionsOpen) return;
+
+    quickActionPanelX.setValue(quickActionPanelWidth);
+    quickActionBackdropOpacity.setValue(0);
+    Animated.parallel([
+      Animated.timing(quickActionPanelX, { duration: QUICK_ACTION_ANIMATION_MS, easing: Easing.out(Easing.cubic), toValue: 0, useNativeDriver: USE_NATIVE_ANIMATIONS }),
+      Animated.timing(quickActionBackdropOpacity, { duration: QUICK_ACTION_ANIMATION_MS, toValue: 1, useNativeDriver: USE_NATIVE_ANIMATIONS }),
+    ]).start();
+  }, [quickActionBackdropOpacity, quickActionPanelWidth, quickActionPanelX, quickActionsOpen]);
+
+  const closeQuickActions = (destination?: Href) => {
+    Animated.parallel([
+      Animated.timing(quickActionPanelX, { duration: QUICK_ACTION_ANIMATION_MS, easing: Easing.in(Easing.cubic), toValue: quickActionPanelWidth, useNativeDriver: USE_NATIVE_ANIMATIONS }),
+      Animated.timing(quickActionBackdropOpacity, { duration: QUICK_ACTION_ANIMATION_MS, toValue: 0, useNativeDriver: USE_NATIVE_ANIMATIONS }),
+    ]).start(() => {
+      setQuickActionsOpen(false);
+      if (destination) router.push(destination);
+    });
+  };
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -186,7 +218,7 @@ export default function HomeScreen() {
         <Text style={[styles.backgroundUp, desktop ? styles.backgroundTextDesktop : tablet ? styles.backgroundTextTablet : styles.backgroundTextMobile]}>UP</Text>
       </View>
     </View>
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140, paddingHorizontal: width < TABLET_MIN_WIDTH ? 18 : pageHorizontalPadding(width), paddingTop: Math.max(insets.top, 14) + 16 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scrollLayer}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140, paddingHorizontal: width < TABLET_MIN_WIDTH ? PHONE_CONTENT_HORIZONTAL_PADDING : pageHorizontalPadding(width), paddingTop: Math.max(insets.top, 14) + 16 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scrollLayer}>
     <View style={[styles.topBar, !usesWideCards && styles.topBarMobile]}>
       <View style={styles.wordmark}><Text style={styles.wordmarkLook}>look</Text><Text style={styles.wordmarkUp}>UP</Text></View>
       <View style={[styles.searchBar, !usesWideCards && styles.searchBarMobile]}><Icon color="#8190A2" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} /><TextInput accessibilityLabel="Search LookUP" onChangeText={setSearch} onSubmitEditing={() => search.trim() && Alert.alert('Search LookUP', `Search preview for “${search.trim()}”`)} placeholder="Search LookUP" placeholderTextColor="#8493A6" returnKeyType="search" style={styles.searchInput} value={search} /></View>
@@ -214,14 +246,21 @@ export default function HomeScreen() {
         <View style={styles.weatherPrimary}>{loading ? <ActivityIndicator color={COLORS.green} size="large" /> : <Text style={styles.temperature}>{hasLiveWeather ? `${temperature}°` : '—'}</Text>}<View><Text style={styles.condition}>{hasLiveWeather ? condition : 'Weather unavailable'}</Text>{hasLiveWeather && feelsLike !== undefined ? <Text style={styles.feels}>Feels like {Math.round(feelsLike)}°</Text> : null}</View></View>
         <View style={styles.weatherMetrics}>{[['Humidity', '—'], ['Wind', '—'], ['Visibility', '—'], ['UV Index', '—']].map(([label, value]) => <View key={label} style={styles.metric}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>)}</View>
       </Pressable>
-      <View style={styles.heroSide}>
-        <Pressable onPress={() => router.push('/traffic')} style={({ pressed }) => [styles.miniHero, styles.trafficHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[1].tint }]}><Icon color={ACTIONS[1].color} name={ACTIONS[1].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>TRAFFIC TO WORK</Text><Text style={styles.miniValue}>{commute}</Text><Text style={styles.miniMeta}>{hasLiveTraffic ? 'Current commute information' : 'Connect a live traffic source for updates'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
-        <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>{financeIsMock ? 'Open Finance for the simulated MVP preview' : 'Open Finance for market details'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+      <View style={[styles.heroSide, !usesWideCards && styles.heroSideMobile]}>
+        <Pressable onPress={() => router.push('/traffic')} style={({ pressed }) => [styles.miniHero, !usesWideCards && styles.miniHeroMobile, styles.trafficHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[1].tint }]}><Icon color={ACTIONS[1].color} name={ACTIONS[1].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>TRAFFIC TO WORK</Text><Text style={styles.miniValue}>{commute}</Text><Text style={styles.miniMeta}>{hasLiveTraffic ? 'Current commute information' : 'Connect a live traffic source for updates'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+        <Pressable onPress={() => router.push('/finance')} style={({ pressed }) => [styles.miniHero, !usesWideCards && styles.miniHeroMobile, styles.marketHero, pressed && styles.cardPressed]}><View style={[styles.featureIcon, { backgroundColor: ACTIONS[4].tint }]}><Icon color={ACTIONS[4].color} name={ACTIONS[4].icon} /></View><View style={styles.miniHeroCopy}><Text style={styles.miniLabel}>MARKET SNAPSHOT</Text><Text style={styles.miniValue}>{market}</Text><Text style={styles.miniMeta}>{financeIsMock ? 'Open Finance for the simulated MVP preview' : 'Open Finance for market details'}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
       </View>
     </View>
 
-    <SectionHeader label="EVERYTHING IN ONE PLACE" title="Quick Actions" />
-    <ScrollView contentContainerStyle={styles.quickRow} horizontal showsHorizontalScrollIndicator={false}>{ACTIONS.map((action) => <Pressable key={action.label} onPress={() => router.push(action.route)} style={({ pressed }) => [styles.quickCard, pressed && styles.cardPressed]}><View style={[styles.quickIcon, { backgroundColor: action.tint }]}><Icon color={action.color} name={action.icon} size={22} /></View><Text numberOfLines={1} style={styles.quickLabel}>{action.label}</Text></Pressable>)}</ScrollView>
+    {isNarrowPhone ? <View style={styles.quickActionsMobile}>
+      <Pressable accessibilityLabel="Open Quick Actions" accessibilityRole="button" onPress={() => setQuickActionsOpen(true)} style={({ pressed }) => [styles.quickActionsBar, pressed && styles.cardPressed]}>
+        <View><Text style={styles.sectionLabel}>EVERYTHING IN ONE PLACE</Text><Text style={styles.quickActionsBarTitle}>Quick Actions</Text></View>
+        <View style={styles.quickActionsToggle}><Icon color={COLORS.green} name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={20} /></View>
+      </Pressable>
+    </View> : <View>
+      <SectionHeader label="EVERYTHING IN ONE PLACE" title="Quick Actions" />
+      <ScrollView contentContainerStyle={styles.quickRow} horizontal showsHorizontalScrollIndicator={false}>{ACTIONS.map((action) => <Pressable key={action.label} onPress={() => router.push(action.route)} style={({ pressed }) => [styles.quickCard, pressed && styles.cardPressed]}><View style={[styles.quickIcon, { backgroundColor: action.tint }]}><Icon color={action.color} name={action.icon} size={22} /></View><Text numberOfLines={1} style={styles.quickLabel}>{action.label}</Text></Pressable>)}</ScrollView>
+    </View>}
 
     <View style={[styles.middleGrid, !usesWideCards && styles.stack]}>
       <View style={styles.briefingPanel}><SectionHeader label="PERSONAL SNAPSHOT" title="Today’s Briefing" />{briefing.map((item, index) => <View key={item.title}><Pressable onPress={() => item.route ? router.push(item.route) : item.action?.()} style={({ pressed }) => [styles.briefingRow, pressed && styles.rowPressed]}><View style={[styles.rowIcon, { backgroundColor: item.icon.tint }]}><Icon color={item.icon.color} name={item.icon.icon} size={17} /></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{item.title}</Text><Text numberOfLines={1} style={styles.rowDescription}>{item.copy}</Text></View><Text style={styles.rowValue}>{item.value}</Text><Text style={styles.chevron}>›</Text></Pressable>{index < briefing.length - 1 ? <View style={styles.divider} /> : null}</View>)}</View>
@@ -237,6 +276,20 @@ export default function HomeScreen() {
       <View style={styles.bottomPanel}><SectionHeader label={financeIsMock ? "SIMULATED PREVIEW" : "MARKET DATA"} title="Market Movers" />{marketMovers.map((stock) => <Pressable key={stock.symbol} onPress={() => router.push('/finance')} style={({ pressed }) => [styles.stockRow, pressed && styles.rowPressed]}><View><Text style={styles.stockSymbol}>{stock.symbol}</Text><Text style={styles.stockCompany}>{stock.company}</Text></View><Text style={[styles.stockMove, !stock.up && styles.stockDown]}>{stock.value}</Text></Pressable>)}</View>
     </View>
     </ScrollView>
+    <Modal animationType="none" onRequestClose={() => closeQuickActions()} transparent visible={quickActionsOpen}>
+      <View style={styles.quickActionsModal}>
+        <Pressable accessibilityLabel="Dismiss Quick Actions" accessibilityRole="button" onPress={() => closeQuickActions()} style={styles.quickActionsBackdropPressable}><Animated.View pointerEvents="none" style={[styles.quickActionsBackdrop, { opacity: quickActionBackdropOpacity }]} /></Pressable>
+        <Animated.View style={[styles.quickActionsPanel, { paddingBottom: Math.max(insets.bottom, 16) + 12, paddingTop: Math.max(insets.top, 16) + 12, transform: [{ translateX: quickActionPanelX }], width: quickActionPanelWidth }]}>
+          <Pressable accessibilityLabel="Close Quick Actions" onPress={() => closeQuickActions()} style={({ pressed }) => [styles.quickActionsPanelHeader, pressed && styles.rowPressed]}>
+            <View><Text style={styles.sectionLabel}>EVERYTHING IN ONE PLACE</Text><Text style={styles.quickActionsPanelTitle}>Quick Actions</Text></View>
+            <View style={styles.quickActionsToggle}><Icon color={COLORS.green} name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} /></View>
+          </Pressable>
+          <ScrollView contentContainerStyle={styles.quickActionsPanelList} showsVerticalScrollIndicator={false}>
+            {ACTIONS.map((action) => <Pressable accessibilityLabel={action.label} accessibilityRole="button" key={action.label} onPress={() => closeQuickActions(action.route)} style={({ pressed }) => [styles.quickActionsPanelItem, pressed && styles.rowPressed]}><View style={[styles.quickActionsPanelIcon, { backgroundColor: action.tint }]}><Icon color={action.color} name={action.icon} size={20} /></View><Text style={styles.quickActionsPanelLabel}>{action.label}</Text><Text style={styles.quickActionsPanelArrow}>›</Text></Pressable>)}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
   </View>;
 }
 
@@ -315,7 +368,9 @@ const styles = StyleSheet.create({
   metricLabel: { color: '#77899C', fontSize: 8, fontWeight: '700' },
   metricValue: { color: COLORS.ink, fontSize: 11, fontWeight: '900', marginTop: 5 },
   heroSide: { flex: 1, gap: 20 },
+  heroSideMobile: { flexBasis: 'auto', flexGrow: 0, flexShrink: 0 },
   miniHero: { alignItems: 'center', backgroundColor: COLORS.surface, borderColor: COLORS.line, borderRadius: 22, borderWidth: 1, flex: 1, flexDirection: 'row', minHeight: 155, padding: 21, ...cardShadow },
+  miniHeroMobile: { flexBasis: 'auto', flexGrow: 0, flexShrink: 0 },
   trafficHero: { backgroundColor: 'rgba(227, 233, 240, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)' },
   marketHero: { backgroundColor: 'rgba(220, 228, 236, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)' },
   featureIcon: { alignItems: 'center', borderRadius: 18, height: 48, justifyContent: 'center', width: 48 },
@@ -328,10 +383,25 @@ const styles = StyleSheet.create({
   sectionLabel: { color: COLORS.green, fontSize: 8, fontWeight: '900', letterSpacing: 1.25, marginBottom: 5 },
   sectionTitle: { color: COLORS.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.5 },
   sectionAction: { color: COLORS.green, fontSize: 11, fontWeight: '900', marginBottom: 3 },
-  quickRow: { gap: 12, paddingBottom: 39, paddingRight: 24 },
+  quickActionsMobile: { marginBottom: 32, marginTop: 40 },
+  quickActionsBar: { alignItems: 'center', backgroundColor: 'rgba(231, 236, 242, 0.94)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 20, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 76, paddingHorizontal: 18, paddingVertical: 14, ...cardShadow },
+  quickActionsBarTitle: { color: COLORS.ink, fontSize: 21, fontWeight: '900', letterSpacing: -0.4 },
+  quickActionsToggle: { alignItems: 'center', backgroundColor: '#E5F8EF', borderRadius: 16, height: 36, justifyContent: 'center', width: 36 },
+  quickRow: { gap: QUICK_ACTION_GAP, paddingBottom: 39, paddingRight: 24 },
   quickCard: { alignItems: 'center', backgroundColor: 'rgba(231, 236, 242, 0.94)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 20, borderWidth: 1, height: 104, justifyContent: 'center', width: 132, ...cardShadow },
   quickIcon: { alignItems: 'center', borderRadius: 16, height: 42, justifyContent: 'center', width: 42 },
   quickLabel: { color: COLORS.ink, fontSize: 11, fontWeight: '800', marginTop: 11, maxWidth: 116 },
+  quickActionsModal: { flex: 1 },
+  quickActionsBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(20, 36, 58, 0.24)' },
+  quickActionsBackdropPressable: { ...StyleSheet.absoluteFill },
+  quickActionsPanel: { backgroundColor: '#F7FBFE', borderLeftColor: 'rgba(70, 92, 118, 0.14)', borderLeftWidth: 1, bottom: 0, paddingHorizontal: 16, position: 'absolute', right: 0, top: 0, ...cardShadow },
+  quickActionsPanelHeader: { alignItems: 'center', borderBottomColor: COLORS.line, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 70, paddingBottom: 14 },
+  quickActionsPanelTitle: { color: COLORS.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.45 },
+  quickActionsPanelList: { gap: 8, paddingTop: 14 },
+  quickActionsPanelItem: { alignItems: 'center', backgroundColor: COLORS.surface, borderColor: 'rgba(70, 92, 118, 0.1)', borderRadius: 16, borderWidth: 1, flexDirection: 'row', minHeight: 54, paddingHorizontal: 12, paddingVertical: 8 },
+  quickActionsPanelIcon: { alignItems: 'center', borderRadius: 13, height: 38, justifyContent: 'center', marginRight: 12, width: 38 },
+  quickActionsPanelLabel: { color: COLORS.ink, flex: 1, fontSize: 14, fontWeight: '800' },
+  quickActionsPanelArrow: { color: '#91A0B0', fontSize: 22, marginLeft: 8 },
   middleGrid: { alignItems: 'stretch', flexDirection: 'row', gap: 20, marginBottom: 39 },
   briefingPanel: { backgroundColor: 'rgba(227, 233, 240, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 24, borderWidth: 1, flex: 1.14, padding: 22, ...cardShadow },
   trendingPanel: { backgroundColor: 'rgba(220, 228, 236, 0.92)', borderColor: 'rgba(70, 92, 118, 0.12)', borderRadius: 24, borderWidth: 1, flex: 0.86, padding: 22, ...cardShadow },
